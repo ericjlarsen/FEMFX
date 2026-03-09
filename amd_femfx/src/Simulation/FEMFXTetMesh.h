@@ -37,62 +37,56 @@ THE SOFTWARE.
 #include "FEMFXGraphColoring.h"
 #include "FEMFXVelStats.h"
 
+#define FM_DEFAULT_MIN_SHAPE_SINGULAR_VALUE_RATIO 0.02f
+#define FM_DEFAULT_MIN_SHAPE_SINGULAR_VALUE 1e-4f
+
 namespace AMD
 {
     struct FmScene;
     struct FmMpcgSolverData;
     struct FmTetMeshBufferSetupParams;
-    class FmAsyncTasksProgress;
 
     // Values accumulated from incident tets, included for rendering uses
     struct FmVertTetValues
     {
-        float              tetStrainMagAvg;    // Average value over incident tets, computed if FM_OBJECT_FLAG_COMPUTE_TET_STRAIN_MAG set on object
-        float              tetStrainMagMax;    // Max tetStrainMagAvg value seen since initialization
-        FmQuat             tetQuatSum;         // Sum of incident tet quaterion orientations, used to smooth render mesh normals; normalizing expected outside of library e.g. in shader
+        float  tetStrainMagAvg = 0.0f;    // Average value over incident tets, computed if FM_OBJECT_FLAG_COMPUTE_TET_STRAIN_MAG set on object
+        float  tetStrainMagMax = 0.0f;    // Max tetStrainMagAvg value seen since initialization
+        FmQuat tetQuatSum;                // Sum of incident tet quaterion orientations, used to smooth render mesh normals; normalizing expected outside of library e.g. in shader
     };
 
     // Tet material params for stress matrix calculation
     struct FmTetStressMaterialParams
     {
-        float youngsModulus;            // Greater values will increase stiffness of material
-        float poissonsRatio;            // Value must be < 0.5.  Defines how much material bulges when compressed, with 0 causing none.  Values closer to 0.5 worsen conditioning and require more iterations.
-
-        inline FmTetStressMaterialParams() : youngsModulus(1.0e5f), poissonsRatio(0.25f) {}
+        float youngsModulus = 1.0e5f;           // Greater values will increase stiffness of material
+        float poissonsRatio = 0.25f;            // Value must be < 0.5.  Defines how much material bulges when compressed, with 0 causing none.  Values closer to 0.5 worsen conditioning and require more iterations.
     };
 
     // Tet material params for plasticity
     struct FmTetPlasticityMaterialParams
     {
-        float plasticYieldThreshold;    // Threshold for stress magnitude where plastic deformation starts.
-        float plasticCreep;             // Value >= 0 and <=1.  Portion of elastic deformation converted to plastic is creep * (stress_mag - yield)/stress_mag
-        float plasticMin;               // Value > 0 and <= 1.  Minimum scale of compression from plastic deformation.  Smaller values allow greater plastic deformation but may worsen conditioning.
-        float plasticMax;               // Value >= 1.  Maximum scale of stretch from plastic deformation.   Larger values allow greater plastic deformation but may worsen conditioning.
-
-        inline FmTetPlasticityMaterialParams() : plasticYieldThreshold(0.0f), plasticCreep(0.0f), plasticMin(0.5f), plasticMax(2.0f) {}
+        float plasticYieldThreshold = 0.0f;    // Threshold for stress magnitude where plastic deformation starts.
+        float plasticCreep = 0.0f;             // Value >= 0 and <=1.  Portion of elastic deformation converted to plastic is creep * (stress_mag - yield)/stress_mag
+        float plasticMin = 0.5f;               // Value > 0 and <= 1.  Minimum scale of compression from plastic deformation.  Smaller values allow greater plastic deformation but may worsen conditioning.
+        float plasticMax = 2.0f;               // Value >= 1.  Maximum scale of stretch from plastic deformation.   Larger values allow greater plastic deformation but may worsen conditioning.
     };
 
     // Tet material params for fracture
     struct FmTetFractureMaterialParams
     {
-        float fractureStressThreshold;          // Threshold for stress max eigenvalue where fracture occurs
-
-        inline FmTetFractureMaterialParams() : fractureStressThreshold(5.0e3f) {}
+        float fractureStressThreshold = 5.0e3f;          // Threshold for stress max eigenvalue where fracture occurs
     };
 
     // Tet material params for deformation constraints
     struct FmTetDeformationMaterialParams
     {
-        float lowerDeformationLimit;    // Value > 0 and <= 1, or unlimited if = 0.  Constrains minimum scale of deformation.
-        float upperDeformationLimit;    // Value >= 1, or unlimited if = 0.  Constrains maximum scale of deformation.
-
-        inline FmTetDeformationMaterialParams() : lowerDeformationLimit(0.0f), upperDeformationLimit(0.0f) {}
+        float lowerDeformationLimit = 0.0f;    // Value > 0 and <= 1, or unlimited if = 0.  Constrains minimum scale of deformation.
+        float upperDeformationLimit = 0.0f;    // Value >= 1, or unlimited if = 0.  Constrains maximum scale of deformation.
     };
 
     // Tet stiffness terms
     struct FmTetStiffnessState
     {
-        uint                        stiffnessMatRowOffsets[4][4];  // Row offsets giving destinations of submats of rotatedStiffnessMat
+        uint                        stiffnessMatRowOffsets[4][4] = { { 0 } };  // Row offsets giving destinations of submats of rotatedStiffnessMat
 #if !FM_MATRIX_ASSEMBLY_BY_TETS
         FmTetRotatedStiffnessMatrix rotatedStiffnessMat;           // 3x3 stiffness values for each pair of vertices in tet
 #endif
@@ -106,18 +100,11 @@ namespace AMD
     // Reference: Curtis et al., "Fast Collision Detection for Deformable Models using Representative-Triangles"
     struct FmExteriorFace
     {
-        uint id;                     // id plus feature ownership bits
-        uint tetId;                  // id of tet mesh tet
-        uint faceId;                 // 0..3 face of tet
-        uint opposingTetId;          // Tet incident to this face following fracture
-        uint edgeIncidentFaceIds[3]; // Exterior faces incident at edges
-
-        inline FmExteriorFace() : id(0), tetId(FM_INVALID_ID), faceId(FM_INVALID_ID), opposingTetId(FM_INVALID_ID)
-        {
-            edgeIncidentFaceIds[0] = FM_INVALID_ID;
-            edgeIncidentFaceIds[1] = FM_INVALID_ID;
-            edgeIncidentFaceIds[2] = FM_INVALID_ID;
-        }
+        uint id = 0;                         // id plus feature ownership bits
+        uint tetId = FM_INVALID_ID;          // id of tet mesh tet
+        uint faceId = FM_INVALID_ID;         // 0..3 face of tet
+        uint opposingTetId = FM_INVALID_ID;  // Tet incident to this face following fracture
+        uint edgeIncidentFaceIds[3] = { FM_INVALID_ID, FM_INVALID_ID, FM_INVALID_ID }; // Exterior faces incident at edges
 
         inline void SetId(uint inId) { id = (inId << 6) | (id & 0x3f); }
         inline uint GetId() const { return id >> 6; }
@@ -136,25 +123,21 @@ namespace AMD
     // State updated depending on current strain and plasticity parameters
     struct FmTetPlasticityState
     {
-        FmTetShapeParams plasticShapeParams;  // Recomputed shape parameters describing a new virtual rest position after plastic deformation
         FmMatrix3 plasticDeformationMatrix;   // Elastic deformation gradient = total deformation gradient * inverse(plasticDeformationMatrix)
-#if FM_COMPUTE_PLASTIC_REL_ROTATION
-        FmMatrix3 plasticTetRelRotation;      // Store rotation computed at end of step based on plastic rest positions
-#endif
     };
 
     // For a list of tets to process in fracture code
     struct FmTetToFracture
     {
         FmVector3 fractureDirection;  // Direction of fracture relative to rest configuration
-        uint tetId;                      // Id of fracturing tet
+        uint tetId = FM_INVALID_ID;   // Id of fracturing tet
     };
 
     // Indices used for reordering features after fracture
     struct FmReorderInfo
     {
-        uint dstIdx;    // Destination index after partitioning, and visited flag
-        uint remapIdx;  // Remapped index after partitioning
+        uint dstIdx = FM_INVALID_ID;    // Destination index after partitioning, and visited flag
+        uint remapIdx = FM_INVALID_ID;  // Remapped index after partitioning
     };
 
     // Tetrahedral mesh data structure.
@@ -163,81 +146,84 @@ namespace AMD
     {
         FmAtomicUint numTetsToFracture;
 
-        uint                             bufferId;                             // Id of FmTetMeshBuffer which contains this
-        uint                             objectId;                             // Id for this object
-        uint                             islandId;                             // Id of FmConstraintIsland which contains this; NOTE: different meaning depending on FM_OBJECT_FLAG_SLEEPING
-        FmVector3                        minPosition;                          // Minimum position of bounding box around tet mesh 
-        FmVector3                        maxPosition;                          // Maximum position of bounding box around tet mesh
-        FmVector3                        centerOfMass;                         // Center of mass
-        FmVector3                        gravityVector;                        // Gravity acceleration, 0 by default; added with FmSceneControlParams::gravityVector
-        float                            mass;                                 // Total mass of tet mesh
-        FmVertNeighbors*                 vertsNeighbors;                       // Incident tets of vertices
-        float*                           vertsMass;                            // Mass of vertices
-        uint16_t*                        vertsFlags;                           // Flags of vertices
-        uint*                            vertsIndex0;                          // Initial index of each vertex in FmTetMeshBuffer (before fracture)
-        FmVector3*                       vertsRestPos;                         // Rest positions of vertices
-        FmVector3*                       vertsPos;                             // Positions of vertices
-        FmVector3*                       vertsVel;                             // Velocities of vertices
-        FmVector3*                       vertsExtForce;                        // External forces on vertices, reset to zero during update.  Gravity is set separately as a scene constant.
-        FmVertTetValues*                 vertsTetValues;                       // Values accumulated at vertex from incident tets, used for rendering
-        FmVertConnectivity               vertConnectivity;                     // Connectivity data which stores the tets that are incident to each vertex
-        float*                           tetsMass;                             // Mass of tetrahedra
-        float*                           tetsFrictionCoeff;                    // Friction coefficients of tetrahedra
-        uint16_t*                        tetsFlags;                            // Flags of tetrahedra
-        FmTetShapeParams*                tetsShapeParams;                      // Shape parameters of tetrahedra
-        float*                           tetsRestDensity;                      // Density of tetrahedra at rest
-        uint*                            tetsMaxUnconstrainedSolveIterations;  // Maximum number of CG iterations to use with this material
-        FmTetStressMaterialParams*       tetsStressMaterialParams;             // Material parameters of tetrahedra for stress matrix
-        FmTetDeformationMaterialParams*  tetsDeformationMaterialParams;        // Material parameters of tetrahedra for deformation
-        FmTetFractureMaterialParams*     tetsFractureMaterialParams;           // Material parameters of tetrahedra for fracture
-        FmTetPlasticityMaterialParams*   tetsPlasticityMaterialParams;         // Material parameters of tetrahedra for plasticity
-        float*                           tetsStrainMag;                        // Strain magnitude of tetrahedra
-        uint*                            tetsIndex0;                           // Initial index of each tetrahedron in FmTetMeshBuffer (before fracture)
-        FmMatrix3*                       tetsRotation;                         // Tet rotations from rest to deformed shape
-        FmTetFaceIncidentTetIds*         tetsFaceIncidentTetIds;               // Ids of face-incident tets, or exterior faces
-        FmTetVertIds*                    tetsVertIds;                          // Vertex ids of tetrahedra
-        FmTetStiffnessState*             tetsStiffness;                        // Stiffness matrix state recomputed each simulation step
-        FmExteriorFace*                  exteriorFaces;                        // Exterior faces of mesh used in collision detection
-        FmTetToFracture*                 tetsToFracture;                       // List of tets with sufficient stress to fracture, NULL for meshes without fracture enabled
-        FmTetPlasticityState*            tetsPlasticity;                       // Plasticity related state, NULL for meshes without plasticity enabled
-        FmMpcgSolverData*                solverData;                           // Pointer to solver data for this mesh
-        FmBvh                            bvh;                                  // Bounding volume hierarchy used for collision detection
+        uint                             bufferId= FM_INVALID_ID;                        // Id of FmTetMeshBuffer which contains this
+        uint                             objectId = FM_INVALID_ID;                       // Id for this object
+        uint                             islandId = FM_INVALID_ID;                       // Id of FmConstraintIsland which contains this; NOTE: different meaning depending on FM_OBJECT_FLAG_SLEEPING
+        FmVector3                        minPosition;                                    // Minimum position of bounding box around tet mesh 
+        FmVector3                        maxPosition;                                    // Maximum position of bounding box around tet mesh
+        FmVector3                        centerOfMass;                                   // Center of mass
+        FmVector3                        gravityVector;                                  // Gravity acceleration, 0 by default; added with FmSceneControlParams::gravityVector
+        float                            mass = 0.0f;                                    // Total mass of tet mesh
+        FmVertNeighbors*                 vertsNeighbors = nullptr;                       // Incident tets of vertices
+        float*                           vertsMass = nullptr;                            // Mass of vertices
+        uint16_t*                        vertsFlags = nullptr;                           // Flags of vertices
+        uint*                            vertsIndex0 = nullptr;                          // Initial index of each vertex in FmTetMeshBuffer (before fracture)
+        FmVector3*                       vertsRestPos = nullptr;                         // Rest positions of vertices
+        FmVector3*                       vertsPos = nullptr;                             // Positions of vertices
+        FmVector3*                       vertsVel = nullptr;                             // Velocities of vertices
+        FmVector3*                       vertsExtForce = nullptr;                        // External forces on vertices, reset to zero during update.  Gravity is set separately as a scene constant.
+        FmVertTetValues*                 vertsTetValues = nullptr;                       // Values accumulated at vertex from incident tets, used for rendering
+        FmVertConnectivity               vertConnectivity;                               // Connectivity data which stores the tets that are incident to each vertex
+        float*                           tetsMass = nullptr;                             // Mass of tetrahedra
+        float*                           tetsFrictionCoeff = nullptr;                    // Friction coefficients of tetrahedra
+        uint16_t*                        tetsFlags = nullptr;                            // Flags of tetrahedra
+        FmTetShapeParams*                tetsShapeParams = nullptr;                      // Shape parameters of tetrahedra
+        float*                           tetsRestDensity = nullptr;                      // Density of tetrahedra at rest
+        uint*                            tetsMaxUnconstrainedSolveIterations = nullptr;  // Maximum number of CG iterations to use with this material
+        FmTetStressMaterialParams*       tetsStressMaterialParams = nullptr;             // Material parameters of tetrahedra for stress matrix
+        FmTetDeformationMaterialParams*  tetsDeformationMaterialParams = nullptr;        // Material parameters of tetrahedra for deformation
+        FmTetFractureMaterialParams*     tetsFractureMaterialParams = nullptr;           // Material parameters of tetrahedra for fracture
+        FmTetPlasticityMaterialParams*   tetsPlasticityMaterialParams = nullptr;         // Material parameters of tetrahedra for plasticity
+        float*                           tetsStrainMag = nullptr;                        // Strain magnitude of tetrahedra
+        uint*                            tetsIndex0 = nullptr;                           // Initial index of each tetrahedron in FmTetMeshBuffer (before fracture)
+        FmMatrix3*                       tetsRotation = nullptr;                         // Tet rotations from rest to deformed shape
+        FmTetFaceIncidentTetIds*         tetsFaceIncidentTetIds = nullptr;               // Ids of face-incident tets, or exterior faces
+        FmTetVertIds*                    tetsVertIds = nullptr;                          // Vertex ids of tetrahedra
+        FmTetStiffnessState*             tetsStiffness = nullptr;                        // Stiffness matrix state recomputed each simulation step
+        FmExteriorFace*                  exteriorFaces = nullptr;                        // Exterior faces of mesh used in collision detection
+        FmTetToFracture*                 tetsToFracture = nullptr;                       // List of tets with sufficient stress to fracture, nullptr for meshes without fracture enabled
+        FmTetPlasticityState*            tetsPlasticity = nullptr;                       // Plasticity related state, nullptr for meshes without plasticity enabled
+        FmMpcgSolverData*                solverData = nullptr;                           // Pointer to solver data for this mesh
+        FmBvh                            bvh;                                            // Bounding volume hierarchy used for collision detection
                                          
-        uint                             numVerts;
-        uint                             numTets;
-        uint                             numExteriorFaces;
-        uint                             maxVerts;
-        uint                             maxExteriorFaces;
-        uint                             numNewExteriorFaces;
-        uint                             maxUnconstrainedSolveIterations;     // Maximum number of iterations for unconstrained (MPCG) solve, max over all tet materials
+        uint                             numVerts = 0;
+        uint                             numTets = 0;
+        uint                             numExteriorFaces = 0;
+        uint                             maxVerts = 0;
+        uint                             maxExteriorFaces = 0;
+        uint                             numNewExteriorFaces = 0;
+        uint                             maxUnconstrainedSolveIterations = 0;        // Maximum number of iterations for unconstrained (MPCG) solve, max over all tet materials
                                          
-        float                            frictionCoeff;                       // Friction coefficient used for volume contacts
-        float                            removeKinematicStressThreshold;      // Threshold to break kinematic flags, if FM_VERT_FLAG_KINEMATIC_REMOVABLE set
-        float                            sleepMaxSpeedThreshold;              // Max speed must be under this threshold for sleeping 
-        float                            sleepAvgSpeedThreshold;              // Average speed must be under this threshold for sleeping
-        uint                             sleepStableCount;                    // Number of steps that speeds must fall under thresholds to initiate sleeping
-        float                            extForceSpeedLimit;                  // For stability project external force to not increase vertex speed above limit
-        float                            resetSpeedLimit;                     // Speed above this will trigger a reset
+        float                            frictionCoeff = 0.0f;                       // Friction coefficient used for volume contacts
+        float                            removeKinematicStressThreshold = 0.0f;      // Threshold to break kinematic flags, if FM_VERT_FLAG_KINEMATIC_REMOVABLE set
+        float                            sleepMaxSpeedThreshold = 0.0f;              // Max speed must be under this threshold for sleeping 
+        float                            sleepAvgSpeedThreshold = 0.0f;              // Average speed must be under this threshold for sleeping
+        uint                             sleepStableCount = 0;                       // Number of steps that speeds must fall under thresholds to initiate sleeping
+        float                            extForceSpeedLimit = 0.0f;                  // For stability project external force to not increase vertex speed above limit
+        float                            resetSpeedLimit = 0.0f;                     // Speed above this will trigger a reset
+
+        float                            minShapeSingularValueRatio = FM_DEFAULT_MIN_SHAPE_SINGULAR_VALUE_RATIO;  // If > 0 sets minimum ratio of smallest to largest singular values of tet shape matrix
+        float                            minShapeSingularValue = FM_DEFAULT_MIN_SHAPE_SINGULAR_VALUE;             // If > 0 sets minimum singular value of tet shape matrix
+
+        FmVelStats                       velStats;                                // Statistics for sleeping test
                                          
-        FmVelStats                       velStats;                            // Statistics for sleeping test
-                                         
-        uint16_t                         flags;                               // Bitwise or of FM_OBJECT_FLAG_* values
-        uint8_t                          collisionGroup;                      // Collision group index < 32
+        uint16_t                         flags = 0;                               // Bitwise or of FM_OBJECT_FLAG_* values
+        uint8_t                          collisionGroup = 0;                      // Collision group index < 32
     };
 
     // Tracks where a vert is moved when fracture occurs.
     struct FmVertReference
     {
-        uint meshIdx;
-        uint vertId;
+        uint meshIdx = FM_INVALID_ID;
+        uint vertId = FM_INVALID_ID;
     };
 
     // Tracks where a tet is moved when fracture occurs.
     struct FmTetReference
     {
-        uint meshIdx;
-        uint tetId;
-        uint fractureGroupId;
+        uint meshIdx = FM_INVALID_ID;
+        uint tetId = FM_INVALID_ID;
+        uint fractureGroupId = FM_INVALID_ID;
     };
 
     // Description of memory needed for the original tet mesh and tet meshes created from it by fracture.
@@ -247,24 +233,24 @@ namespace AMD
     // use of FM_TET_FLAG_FACE*_FRACTURE_DISABLED flags.
     struct FmTetMeshBuffer
     {
-        size_t            bufferNumBytes;
-        uint              bufferId;
+        size_t            bufferNumBytes = 0;
+        uint              bufferId = FM_INVALID_ID;
 
-        FmTetMesh*        tetMeshes;          // Array of tet meshes created from original
-        FmMpcgSolverData* solverData;         // Array of solver data structs, one per mesh
+        FmTetMesh*        tetMeshes = nullptr;          // Array of tet meshes created from original
+        FmMpcgSolverData* solverData = nullptr;         // Array of solver data structs, one per mesh
 
-        FmFractureGroupCounts* fractureGroupCounts;    // Counts of features in each fracture group, used to resize buffers after fracture
-        bool*                  visitedFractureGroup;   // Visited flags used in connected components
+        FmFractureGroupCounts* fractureGroupCounts = nullptr;    // Counts of features in each fracture group, used to resize buffers after fracture
+        bool*                  visitedFractureGroup = nullptr;   // Visited flags used in connected components
 
-        uint*                  tetMeshVertOffsets;     // Keeps offset to first vertex of each tet mesh if all collected; used for rendering (currently this is only temporary data that could be removed)
+        uint*                  tetMeshVertOffsets = nullptr;     // Keeps offset to first vertex of each tet mesh if all collected; used for rendering (currently this is only temporary data that could be removed)
 
-        FmVertReference*  vertReferences;     // Array mapping from original vert ids to new locations in new meshes
-        FmTetReference*   tetReferences;      // Array mapping from original tet ids to new locations in new meshes
-        uint              numVerts;           // Initial number of verts before any fracture
-        uint              numTets;            // Number of tets
+        FmVertReference*  vertReferences = nullptr;     // Array mapping from original vert ids to new locations in new meshes
+        FmTetReference*   tetReferences = nullptr;      // Array mapping from original tet ids to new locations in new meshes
+        uint              numVerts = 0;                 // Initial number of verts before any fracture
+        uint              numTets = 0;                  // Number of tets
 
-        uint              numTetMeshes;
-        uint              maxTetMeshes;       // Number of fracture groups
+        uint              numTetMeshes = 0;
+        uint              maxTetMeshes = 0;       // Number of fracture groups
     };
 
     inline void FmInitTetMaterialParams(FmTetMaterialParams* materialParams, const FmTetMesh& tetMesh, uint tId)
@@ -327,48 +313,48 @@ namespace AMD
     // Initialize empty tet mesh
     static inline void FmInitTetMesh(FmTetMesh* mesh)
     {
-        FmAtomicWrite(&mesh->numTetsToFracture.val, 0);
+        mesh->numTetsToFracture.val = 0;
         mesh->bufferId = FM_INVALID_ID;
         mesh->objectId = FM_INVALID_ID;
         mesh->islandId = FM_INVALID_ID;
-        mesh->minPosition = FmInitVector3(0.0f);
-        mesh->maxPosition = FmInitVector3(0.0f);
-        mesh->centerOfMass = FmInitVector3(0.0f);
-        mesh->gravityVector = FmInitVector3(0.0f);
+        mesh->minPosition = FmVector3(0.0f);
+        mesh->maxPosition = FmVector3(0.0f);
+        mesh->centerOfMass = FmVector3(0.0f);
+        mesh->gravityVector = FmVector3(0.0f);
         mesh->mass = 1.0f;
-        mesh->vertsNeighbors = NULL;
-        mesh->vertsMass = NULL;
-        mesh->vertsFlags = NULL;
-        mesh->vertsIndex0 = NULL;
-        mesh->vertsRestPos = NULL;
-        mesh->vertsPos = NULL;
-        mesh->vertsVel = NULL;
-        mesh->vertsExtForce = NULL;
-        mesh->vertsTetValues = NULL;
-        mesh->vertConnectivity.incidentTets = NULL;
+        mesh->vertsNeighbors = nullptr;
+        mesh->vertsMass = nullptr;
+        mesh->vertsFlags = nullptr;
+        mesh->vertsIndex0 = nullptr;
+        mesh->vertsRestPos = nullptr;
+        mesh->vertsPos = nullptr;
+        mesh->vertsVel = nullptr;
+        mesh->vertsExtForce = nullptr;
+        mesh->vertsTetValues = nullptr;
+        mesh->vertConnectivity.incidentTets = nullptr;
         mesh->vertConnectivity.numIncidentTets = 0;
         mesh->vertConnectivity.numIncidentTetsTotal = 0;
         mesh->vertConnectivity.numAdjacentVerts = 0;
-        mesh->tetsMass = NULL;
-        mesh->tetsFrictionCoeff = NULL;
-        mesh->tetsFlags = NULL;
-        mesh->tetsShapeParams = NULL;
-        mesh->tetsRestDensity = NULL;
-        mesh->tetsMaxUnconstrainedSolveIterations = NULL;
-        mesh->tetsStressMaterialParams = NULL;
-        mesh->tetsDeformationMaterialParams = NULL;
-        mesh->tetsFractureMaterialParams = NULL;
-        mesh->tetsPlasticityMaterialParams = NULL;
-        mesh->tetsStrainMag = NULL;
-        mesh->tetsIndex0 = NULL;
-        mesh->tetsRotation = NULL;
-        mesh->tetsFaceIncidentTetIds = NULL;
-        mesh->tetsVertIds = NULL;
-        mesh->tetsStiffness = NULL;
-        mesh->exteriorFaces = NULL;
-        mesh->tetsToFracture = NULL;
-        mesh->tetsPlasticity = NULL;
-        mesh->solverData = NULL;
+        mesh->tetsMass = nullptr;
+        mesh->tetsFrictionCoeff = nullptr;
+        mesh->tetsFlags = nullptr;
+        mesh->tetsShapeParams = nullptr;
+        mesh->tetsRestDensity = nullptr;
+        mesh->tetsMaxUnconstrainedSolveIterations = nullptr;
+        mesh->tetsStressMaterialParams = nullptr;
+        mesh->tetsDeformationMaterialParams = nullptr;
+        mesh->tetsFractureMaterialParams = nullptr;
+        mesh->tetsPlasticityMaterialParams = nullptr;
+        mesh->tetsStrainMag = nullptr;
+        mesh->tetsIndex0 = nullptr;
+        mesh->tetsRotation = nullptr;
+        mesh->tetsFaceIncidentTetIds = nullptr;
+        mesh->tetsVertIds = nullptr;
+        mesh->tetsStiffness = nullptr;
+        mesh->exteriorFaces = nullptr;
+        mesh->tetsToFracture = nullptr;
+        mesh->tetsPlasticity = nullptr;
+        mesh->solverData = nullptr;
         FmInitBvh(&mesh->bvh);
         mesh->numVerts = 0;
         mesh->numTets = 0;
@@ -384,6 +370,8 @@ namespace AMD
         mesh->sleepStableCount = 20;
         mesh->extForceSpeedLimit = 100.0f;
         mesh->resetSpeedLimit = 200.0f;
+        mesh->minShapeSingularValueRatio = FM_DEFAULT_MIN_SHAPE_SINGULAR_VALUE_RATIO;
+        mesh->minShapeSingularValue = FM_DEFAULT_MIN_SHAPE_SINGULAR_VALUE;
         FmInitVelStats(&mesh->velStats);
         mesh->flags = (FM_OBJECT_FLAG_NEEDS_CONNECTED_COMPONENTS | FM_OBJECT_FLAG_NEEDS_ADJACENT_VERT_OFFSETS);
         mesh->collisionGroup = 0;
@@ -394,13 +382,13 @@ namespace AMD
     {
         tetMeshBuffer->bufferNumBytes = 0;
         tetMeshBuffer->bufferId = FM_INVALID_ID;
-        tetMeshBuffer->tetMeshes = NULL;
-        tetMeshBuffer->solverData = NULL;
-        tetMeshBuffer->fractureGroupCounts = NULL;
-        tetMeshBuffer->visitedFractureGroup = NULL;
-        tetMeshBuffer->tetMeshVertOffsets = NULL;
-        tetMeshBuffer->vertReferences = NULL;
-        tetMeshBuffer->tetReferences = NULL;
+        tetMeshBuffer->tetMeshes = nullptr;
+        tetMeshBuffer->solverData = nullptr;
+        tetMeshBuffer->fractureGroupCounts = nullptr;
+        tetMeshBuffer->visitedFractureGroup = nullptr;
+        tetMeshBuffer->tetMeshVertOffsets = nullptr;
+        tetMeshBuffer->vertReferences = nullptr;
+        tetMeshBuffer->tetReferences = nullptr;
         tetMeshBuffer->numVerts = 0;
         tetMeshBuffer->numTets = 0;
         tetMeshBuffer->numTetMeshes = 0;
@@ -439,7 +427,7 @@ namespace AMD
 
     static FM_FORCE_INLINE void FmResetForceOnVert(FmTetMesh* tetMesh, uint vertId)
     {
-        tetMesh->vertsExtForce[vertId] = FmInitVector3(0.0f);
+        tetMesh->vertsExtForce[vertId] = FmVector3(0.0f);
         tetMesh->vertsFlags[vertId] &= ~FM_VERT_FLAG_EXT_FORCE_SET;
     }
 

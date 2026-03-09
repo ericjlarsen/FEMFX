@@ -34,10 +34,10 @@ namespace AMD
     // Statistics for sleeping test
     struct FmVelStats
     {
-        float maxSpeed;    // Maximum speed of vertex in mesh 
-        float avgSpeed;    // Average speed of all vertices in mesh
-        uint numSamples;   // Number of samples collected
-        uint stableCount;  // Number of steps under max speed threshold
+        float maxSpeed = 0.0f; // Maximum speed of vertex in mesh 
+        float avgSpeed = 0.0f; // Average speed of all vertices in mesh
+        uint numSamples = 0;   // Number of samples collected
+        uint stableCount = 0;  // Number of steps under max speed threshold
     };
 
     static FM_FORCE_INLINE void FmInitVelStats(FmVelStats* velStats)

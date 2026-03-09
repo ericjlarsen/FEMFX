@@ -35,14 +35,14 @@ namespace AMD
     // Vertex ids, arranged so v0, v1, v2 in CCW order seen from v3
     struct FmTetVertIds
     {
-        uint ids[4];
+        uint ids[4] = { FM_INVALID_ID, FM_INVALID_ID, FM_INVALID_ID, FM_INVALID_ID };
     };
 
     // Faces CCW from exterior defined as: 312, 203, 130, 021
     // Face i is face opposite to corner i
     struct FmFaceVertIds
     {
-        uint ids[3];
+        uint ids[3] = { FM_INVALID_ID, FM_INVALID_ID, FM_INVALID_ID };
     };
 
     // Get the tet vertex ids for a face
@@ -64,11 +64,9 @@ namespace AMD
     // Neighbor features of a vertex.  Keeping only an array of incident tets, and finding adjacent vertices through those.
     struct FmVertNeighbors
     {
-        uint numAdjacentVerts;   // Number of adjacent verts, including self (also number of non-zero submatrices in block row of stiffness matrix)
-        uint incidentTetsStart;  // Start index of incident tets array
-        uint numIncidentTets;    // Number of incident tets
-
-        FmVertNeighbors() : numAdjacentVerts(0), incidentTetsStart(0), numIncidentTets(0) {}
+        uint numAdjacentVerts = 0;   // Number of adjacent verts, including self (also number of non-zero submatrices in block row of stiffness matrix)
+        uint incidentTetsStart = 0;  // Start index of incident tets array
+        uint numIncidentTets = 0;    // Number of incident tets
     };
 
     // Incident tets and number of adjacent verts for all vertices.
@@ -79,19 +77,17 @@ namespace AMD
     // to make arrays for the new vertices. 
     struct FmVertConnectivity
     {
-        uint* incidentTets;           // All tet mesh buffer incident tets
-        uint  numIncidentTets;        // Num incident tets of tet mesh
-        uint  numIncidentTetsTotal;   // Total incident tets in tet mesh buffer
-        uint  numAdjacentVerts;       // Num adjacent verts of tet mesh (determines size of sparse system matrix)
-
-        FmVertConnectivity() : incidentTets(NULL), numIncidentTets(0), numIncidentTetsTotal(0), numAdjacentVerts(0) {}
+        uint* incidentTets = nullptr;     // All tet mesh buffer incident tets
+        uint  numIncidentTets = 0;        // Num incident tets of tet mesh
+        uint  numIncidentTetsTotal = 0;   // Total incident tets in tet mesh buffer
+        uint  numAdjacentVerts = 0;       // Num adjacent verts of tet mesh (determines size of sparse system matrix)
     };
 
     // Ids of tets that share faces with a tet.
     // For exterior tet faces, id is an exterior face id with MSB bit set.
     struct FmTetFaceIncidentTetIds
     {
-        uint ids[4];
+        uint ids[4] = { FM_INVALID_ID, FM_INVALID_ID, FM_INVALID_ID, FM_INVALID_ID };
     };
 
     static FM_FORCE_INLINE bool FmIsExteriorFaceId(uint id) { return ((id & 0x80000000UL) != 0); }
@@ -100,7 +96,7 @@ namespace AMD
 
     struct FmEdgeIncidentFaces
     {
-        uint faceIds[3];
+        uint faceIds[3] = { FM_INVALID_ID, FM_INVALID_ID, FM_INVALID_ID };
     };
 
     // Get the tet faces incident to a face on each of its three edges.
@@ -203,13 +199,11 @@ namespace AMD
     // Specifies the size of a tet mesh needed for a fracture group, a non-fracturing region of the original tet mesh
     struct FmFractureGroupCounts
     {
-        uint numVerts;
-        uint numTets;
-        uint numExteriorFaces;
-        uint numVertAdjacentVerts;
-        uint numVertIncidentTets;
-
-        FmFractureGroupCounts() : numVerts(0), numTets(0), numExteriorFaces(0), numVertAdjacentVerts(0), numVertIncidentTets(0) { }
+        uint numVerts = 0;
+        uint numTets = 0;
+        uint numExteriorFaces = 0;
+        uint numVertAdjacentVerts = 0;
+        uint numVertIncidentTets = 0;
 
         inline void Zero()
         {

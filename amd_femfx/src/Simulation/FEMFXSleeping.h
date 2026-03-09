@@ -30,12 +30,11 @@ THE SOFTWARE.
 #pragma once
 
 #include "FEMFXCommonInternal.h"
-#include "FEMFXAsyncThreading.h"
+#include "FEMFXThreading.h"
 
 namespace AMD
 {
     struct FmScene;
-    class FmAsyncTasksProgress;
     struct FmConstraintIsland;
 
     // Sets flag in an object's sleeping island for a later pass waking objects; tests sleeping status
@@ -50,10 +49,10 @@ namespace AMD
 
     // Create sleeping islands for all marked active islands.
     // Clears the original island but leaves its id arrays in place.  Active islands are regenerated each frame.
-    // If FM_ASYNC_THREADING and parentTaskData is non-NULL, this will execute asynchronously and may return before
+    // If FM_ASYNC_THREADING and updateIslandsProgress is non-null, this will execute asynchronously and may return before
     // tasks are complete.
-    void FmPutMarkedIslandsToSleep(FmScene* scene, FmAsyncTaskData* parentTaskData);
+    void FmPutMarkedIslandsToSleep(FmScene* scene, TLTaskDataBase* updateIslandsProgress);
 
-    bool FmPutConstraintIslandToSleep(FmScene* scene, const FmConstraintIsland& srcIsland, bool useCallback, FmAsyncTaskData* parentTaskData);
+    bool FmPutConstraintIslandToSleep(FmScene* scene, const FmConstraintIsland& srcIsland, bool useCallback, TLTaskDataBase* updateIslandsProgress);
 
 }

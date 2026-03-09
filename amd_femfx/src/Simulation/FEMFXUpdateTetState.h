@@ -25,7 +25,7 @@ THE SOFTWARE.
 #pragma once
 
 #include "FEMFXCommonInternal.h"
-#include "FEMFXAsyncThreading.h"
+#include "FEMFXThreading.h"
 
 namespace AMD
 {
@@ -34,7 +34,7 @@ namespace AMD
     struct FmConstraintIsland;
     struct FmTetMesh;
 
-    class FmTaskDataApplySolveDeltasAndTestSleeping : public FmAsyncTaskData
+    class FmTaskDataApplySolveDeltasAndTestSleeping : public TLTaskDataBase
     {
     public:
         FM_CLASS_NEW_DELETE(FmTaskDataApplySolveDeltasAndTestSleeping)
@@ -74,5 +74,5 @@ namespace AMD
     // Set mesh's unconstrained solver iterations as max of tet settings.
     void FmUpdateTetStateAndFracture(FmScene* scene, FmTetMesh* tetMesh,
         bool testFracture = true, bool updatePlasticity = true,
-        FmAsyncTaskData* parentTaskData = NULL);
+        TLTaskDataBase* updateIslandsProgress = nullptr);
 }

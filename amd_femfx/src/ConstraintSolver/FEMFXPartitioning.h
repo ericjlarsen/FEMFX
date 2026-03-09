@@ -50,21 +50,19 @@ namespace AMD
     // List of objects solved together
     struct FmPartition
     {
-        uint*  objectIds;          // objectIds of tet meshes and rigid bodies
-        uint*  objectNumVertices;  // Number of vertices per object, for sizing batches of objects
-        uint   numObjects;         // Number of objects in partition
-        uint   numTetMeshes;       // Number of tet meshes, which will be first set of objects
-        uint   nodeCount;          // Count used for sizing partition
-        uint   totalNumVertices;
-        FmAabb bounds;             // Bounding box around objects in partition
-
-        FmPartition() : objectIds(NULL), objectNumVertices(NULL), numObjects(0), numTetMeshes(0), nodeCount(0), totalNumVertices(0) {}
+        uint*  objectIds = nullptr;          // objectIds of tet meshes and rigid bodies
+        uint*  objectNumVertices = nullptr;  // Number of vertices per object, for sizing batches of objects
+        uint   numObjects = 0;               // Number of objects in partition
+        uint   numTetMeshes = 0;             // Number of tet meshes, which will be first set of objects
+        uint   nodeCount = 0;                // Count used for sizing partition
+        uint   totalNumVertices = 0;
+        FmAabb bounds;                       // Bounding box around objects in partition
     };
 
     // A set for finding all objects within a pair of partitions
     struct FmPartitionObjectSetElement
     {
-        uint key;
+        uint key = FM_INVALID_ID;
     };
 
     struct FmPartitionObjectSetFuncs
@@ -101,23 +99,23 @@ namespace AMD
     // This also represents a single partition when the partition ids are the same.
     struct FmPartitionPair
     {
-        uint   partitionIdA;
-        uint   partitionIdB;
+        uint   partitionIdA = FM_INVALID_ID;
+        uint   partitionIdB = FM_INVALID_ID;
 
-        uint*  constraintIndices;            // Indices of constraint within constraint island
-        uint   numConstraints;               // Total number of constraints in partition pair 
+        uint*  constraintIndices = nullptr;     // Indices of constraint within constraint island
+        uint   numConstraints = 0;              // Total number of constraints in partition pair 
 
-        uint*  tetMeshIds;                   // Ids of tet meshes in constraint island
-        uint   numTetMeshes;
+        uint*  tetMeshIds = nullptr;            // Ids of tet meshes in constraint island
+        uint   numTetMeshes = 0;
 
-        uint*  rigidBodyIds;                 // Ids of rigid bodies in constraint island
-        uint   numRigidBodies;
+        uint*  rigidBodyIds = nullptr;          // Ids of rigid bodies in constraint island
+        uint   numRigidBodies = 0;
 
-        FmPartitionObjectSet objectSet;   // Set used to make lists of objects within the partition pair
+        FmPartitionObjectSet   objectSet;       // Set used to make lists of objects within the partition pair
 
-        uint                   graphColor;  // Graph color assigned to partition pair
+        uint                   graphColor = 0;  // Graph color assigned to partition pair
 
-        FmRandomState          randomState; // For randomizing rows of partition pair solve
+        FmRandomState          randomState;     // For randomizing rows of partition pair solve
 
         FmSolverIterationNorms norms;
     };
@@ -125,15 +123,15 @@ namespace AMD
     // A set of partition pairs found by going through the island constraints
     struct FmPartitionPairKey
     {
-        uint partitionIdA;
-        uint partitionIdB;
+        uint partitionIdA = FM_INVALID_ID;
+        uint partitionIdB = FM_INVALID_ID;
     };
 
     struct FmPartitionPairSetElement
     {
         FmPartitionPairKey key;
-        uint numConstraints;
-        uint pairsArrayIdx;
+        uint numConstraints = 0;
+        uint pairsArrayIdx = FM_INVALID_ID;
     };
 
     struct FmPartitionPairSetFuncs
@@ -173,12 +171,10 @@ namespace AMD
     // Per-object partition data stored per constraint island
     struct FmObjectPartitionData
     {
-        uint                 partitionId;                // Id of partition that this mesh is part of 
-        uint                 numIncidentConstraints;     // Count of constraints used in sizing partitions
-        int                  maxAdjacentColor;           // Used in graph coloring partition pairs
-        FmGraphColoringStats minMaxHashPartitionPairs;   // Used in graph coloring partition pairs
-
-        FmObjectPartitionData() : partitionId(FM_INVALID_ID), numIncidentConstraints(0), maxAdjacentColor(-1) {}
+        uint                 partitionId = FM_INVALID_ID;  // Id of partition that this mesh is part of 
+        uint                 numIncidentConstraints = 0;   // Count of constraints used in sizing partitions
+        int                  maxAdjacentColor = -1;        // Used in graph coloring partition pairs
+        FmGraphColoringStats minMaxHashPartitionPairs;     // Used in graph coloring partition pairs
     };
 
     void FmGraphColorPartitionPairs(FmConstraintSolverData* constraintSolverData);

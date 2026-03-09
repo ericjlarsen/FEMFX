@@ -286,12 +286,10 @@ namespace AMD
     struct FmTriIntersectionPoints
     {
         FmVector3 points[6];  // 3 edge/face + 3 face/edge
-        int XVals[6];
-        uint numSegments;
-        uint startPoints[3];
-        uint endPoints[3];
-
-        FmTriIntersectionPoints() : numSegments(0) {}
+        int XVals[6] = { 0, 0, 0, 0, 0, 0 };
+        uint numSegments = 0;
+        uint startPoints[3] = { 0, 0, 0 };
+        uint endPoints[3] = { 0, 0, 0 };
     };
 
     bool FmComputeTriIntersection(FmTriIntersectionPoints* triIntersectionPoints, const FmVector3 fA[3], const FmVector3 fB[3]);

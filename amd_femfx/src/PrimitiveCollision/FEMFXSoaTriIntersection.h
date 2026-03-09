@@ -152,6 +152,9 @@ namespace AMD
 
         SoaInt intersectionVal = S01ValBonA1 - S01ValBonA0 + S10ValB1onA - S10ValB0onA;
 
+        if (all(intersectionVal == 0))
+            return intersectionVal;
+
         SoaVector3 xBp = intersectionPointBwithA0;
         SoaVector3 xAp = eA0;
         SoaVector3 xBm = intersectionPointBwithA0;
@@ -213,6 +216,9 @@ namespace AMD
 
         SoaInt intersectionVal = -(S01ValB0onA + S01ValB1onA + S01ValB2onA);
 
+        if (all(intersectionVal == 0))
+            return intersectionVal;
+
         SoaVector3 xBp = intersectionPointBe0withA;
         SoaVector3 xBm = intersectionPointBe0withA;
 
@@ -256,6 +262,9 @@ namespace AMD
         SoaInt S10ValBonAe2 = FmShadowFunction<T>(X10ValAe2withB, intersectionPointAe2withB.y, vB.y);
 
         SoaInt intersectionVal = S10ValBonAe0 + S10ValBonAe1 + S10ValBonAe2;
+
+        if (all(intersectionVal == 0))
+            return intersectionVal;
 
         SoaVector3 xAp = intersectionPointAe0withB;
         SoaVector3 xAm = intersectionPointAe0withB;
@@ -310,6 +319,9 @@ namespace AMD
         SoaInt S11ValBe2onA = FmShadowFunction<T>(X11ValAwithBe2, intersectionPointAwithBe2.z, intersectionPointBe2withA.z);
 
         SoaInt intersectionVal = -S02ValBonA1 + S02ValBonA0 - S11ValBe0onA - S11ValBe1onA - S11ValBe2onA;
+
+        if (all(intersectionVal == 0))
+            return intersectionVal;
 
         SoaFloat xBp_z = intersectionPointBwithA0.z;
         SoaVector3 xAp = eA0;
@@ -378,6 +390,9 @@ namespace AMD
         SoaInt S11ValBonAe2 = FmShadowFunction<T>(X11ValAe2withB, intersectionPointAe2withB.z, intersectionPointBwithAe2.z);
 
         SoaInt intersectionVal = S20ValB1onA - S20ValB0onA - S11ValBonAe0 - S11ValBonAe1 - S11ValBonAe2;
+
+        if (all(intersectionVal == 0))
+            return intersectionVal;
 
         SoaFloat xBp_z = eB0.z;
         SoaVector3 xAp = intersectionPointAwithB0;
@@ -531,12 +546,12 @@ namespace AMD
     template< class T >
     struct FmSoaTriIntersectionPoints
     {
-        typename T::SoaVector3 points[6];  // 3 edge/face + 3 face/edge
-        typename T::SoaInt     XVals[6];
-        typename T::SoaInt     startOrEndCount[6]; // for each point:
-                                                   // if == 0: not involved in intersection
-                                                   // if < 0: number of times point is a start vertex
-                                                   // if > 0: number of times point is an end vertex
+        typename T::SoaVector3 points[6];                                  // 3 edge/face + 3 face/edge
+        typename T::SoaInt     XVals[6] = { 0, 0, 0, 0, 0, 0 };
+        typename T::SoaInt     startOrEndCount[6] = { 0, 0, 0, 0, 0, 0 };  // for each point:
+                                                                           // if == 0: not involved in intersection
+                                                                           // if < 0: number of times point is a start vertex
+                                                                           // if > 0: number of times point is an end vertex
     };
 
     template<class T>

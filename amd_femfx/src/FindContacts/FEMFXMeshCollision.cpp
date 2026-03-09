@@ -97,7 +97,7 @@ namespace AMD
     // For CCD, must build after integration computes new velocities.
     void FmBuildHierarchy(FmTetMesh* tetMesh, float timestep, float gap)
     {
-        FM_TRACE_SCOPED_EVENT(REBUILD_BVH);
+        FM_TRACE_SCOPED_EVENT("RebuildBVH");
 
         FmFitLeafAabbs(tetMesh, timestep, gap);
         FmBuildBvhOnLeaves(&tetMesh->bvh, tetMesh->minPosition, tetMesh->maxPosition);
@@ -114,8 +114,8 @@ namespace AMD
 
         if (numTets == 0)
         {
-            *tetMeshMinPos = FmInitVector3(0.0);
-            *tetMeshMaxPos = FmInitVector3(0.0);
+            *tetMeshMinPos = FmVector3(0.0);
+            *tetMeshMaxPos = FmVector3(0.0);
             return;
         }
 
@@ -151,8 +151,8 @@ namespace AMD
             FmAabb aabb;
             aabb.pmin = minPos;
             aabb.pmax = maxPos;
-            aabb.vmin = FmInitVector3(0.0f);
-            aabb.vmax = FmInitVector3(0.0f);
+            aabb.vmin = FmVector3(0.0f);
+            aabb.vmax = FmVector3(0.0f);
 
             bvh.primBoxes[tetId] = aabb;
         }
@@ -202,8 +202,8 @@ namespace AMD
             FmAabb aabb;
             aabb.pmin = minPos;
             aabb.pmax = maxPos;
-            aabb.vmin = FmInitVector3(0.0f);
-            aabb.vmax = FmInitVector3(0.0f);
+            aabb.vmin = FmVector3(0.0f);
+            aabb.vmax = FmVector3(0.0f);
 
             bvh.primBoxes[tetId] = aabb;
         }
@@ -232,16 +232,16 @@ namespace AMD
 
     struct FmClosestTetQueryState
     {
-        const FmTetMesh* tetMesh;            // if NULL uses vertRestPositions and tetVertIds
-        const FmVector3* vertRestPositions;
-        const FmTetVertIds* tetVertIds;
-        const FmBvh* bvh;
+        const FmTetMesh* tetMesh = nullptr;            // if nullptr uses vertRestPositions and tetVertIds
+        const FmVector3* vertRestPositions = nullptr;
+        const FmTetVertIds* tetVertIds = nullptr;
+        const FmBvh* bvh = nullptr;
         FmVector3 queryPoint;
         FmVector3 closestPoint;
-        uint closestTetId;
-        uint closestFaceId;
-        float closestDistance;
-        bool insideTet;
+        uint closestTetId = FM_INVALID_ID;
+        uint closestFaceId = FM_INVALID_ID;
+        float closestDistance = 0.0f;
+        bool insideTet = false;
     };
 
     static FM_FORCE_INLINE float FmPointBoxDistance(const FmVector3& queryPoint, const FmAabb& box)
@@ -365,11 +365,11 @@ namespace AMD
     {
         FmClosestTetQueryState queryState;
         queryState.tetMesh = tetMesh;
-        queryState.vertRestPositions = NULL;
-        queryState.tetVertIds = NULL;
+        queryState.vertRestPositions = nullptr;
+        queryState.tetVertIds = nullptr;
         queryState.bvh = bvh;
         queryState.queryPoint = queryPoint;
-        queryState.closestPoint = FmInitVector3(0.0f);
+        queryState.closestPoint = FmVector3(0.0f);
         queryState.closestDistance = FLT_MAX;
         queryState.closestTetId = FM_INVALID_ID;
         queryState.closestFaceId = FM_INVALID_ID;
@@ -389,7 +389,7 @@ namespace AMD
         }
         else
         {
-            FmVector4 barycentrics = mul(tetMesh->tetsShapeParams[queryState.closestTetId].baryMatrix, FmVector4(queryState.closestPoint, 1.0f));
+            FmVector4 barycentrics = tetMesh->tetsShapeParams[queryState.closestTetId].ComputeBarycentricsOfRestPosition(queryState.closestPoint);
             closestTet->posBary[0] = barycentrics.x;
             closestTet->posBary[1] = barycentrics.y;
             closestTet->posBary[2] = barycentrics.z;
@@ -405,12 +405,12 @@ namespace AMD
         const FmVector3& queryPoint)
     {
         FmClosestTetQueryState queryState;
-        queryState.tetMesh = NULL;
+        queryState.tetMesh = nullptr;
         queryState.vertRestPositions = vertRestPositions;
         queryState.tetVertIds = tetVertIds;
         queryState.bvh = bvh;
         queryState.queryPoint = queryPoint;
-        queryState.closestPoint = FmInitVector3(0.0f);
+        queryState.closestPoint = FmVector3(0.0f);
         queryState.closestDistance = FLT_MAX;
         queryState.closestTetId = FM_INVALID_ID;
         queryState.closestFaceId = FM_INVALID_ID;
@@ -432,7 +432,7 @@ namespace AMD
         {
             FmMatrix4 baryMatrix = FmComputeTetBarycentricMatrix(vertRestPositions, tetVertIds[closestTet->tetId]);
 
-            FmVector4 barycentrics = mul(baryMatrix, FmVector4(queryState.closestPoint, 1.0f));
+            FmVector4 barycentrics = baryMatrix * FmVector4(queryState.closestPoint, 1.0f);
             closestTet->posBary[0] = barycentrics.x;
             closestTet->posBary[1] = barycentrics.y;
             closestTet->posBary[2] = barycentrics.z;
@@ -510,11 +510,11 @@ namespace AMD
     {
         FmClosestTetQueryState queryState;
         queryState.tetMesh = tetMesh;
-        queryState.vertRestPositions = NULL;
-        queryState.tetVertIds = NULL;
+        queryState.vertRestPositions = nullptr;
+        queryState.tetVertIds = nullptr;
         queryState.bvh = bvh;
         queryState.queryPoint = queryPoint;
-        queryState.closestPoint = FmInitVector3(0.0f);
+        queryState.closestPoint = FmVector3(0.0f);
         queryState.closestDistance = FLT_MAX;
         queryState.closestTetId = FM_INVALID_ID;
         queryState.closestFaceId = FM_INVALID_ID;
@@ -534,7 +534,7 @@ namespace AMD
 
         if (queryState.closestTetId != FM_INVALID_ID)
         {
-            FmVector4 barycentrics = mul(tetMesh->tetsShapeParams[queryState.closestTetId].baryMatrix, FmVector4(queryState.closestPoint, 1.0f));
+            FmVector4 barycentrics = tetMesh->tetsShapeParams[queryState.closestTetId].ComputeBarycentricsOfRestPosition(queryState.closestPoint);
             closestTet->posBary[0] = barycentrics.x;
             closestTet->posBary[1] = barycentrics.y;
             closestTet->posBary[2] = barycentrics.z;
@@ -550,12 +550,12 @@ namespace AMD
         const FmVector3& queryPoint)
     {
         FmClosestTetQueryState queryState;
-        queryState.tetMesh = NULL;
+        queryState.tetMesh = nullptr;
         queryState.vertRestPositions = vertRestPositions;
         queryState.tetVertIds = tetVertIds;
         queryState.bvh = bvh;
         queryState.queryPoint = queryPoint;
-        queryState.closestPoint = FmInitVector3(0.0f);
+        queryState.closestPoint = FmVector3(0.0f);
         queryState.closestDistance = FLT_MAX;
         queryState.closestTetId = FM_INVALID_ID;
         queryState.closestFaceId = FM_INVALID_ID;
@@ -577,7 +577,7 @@ namespace AMD
         {
             FmMatrix4 baryMatrix = FmComputeTetBarycentricMatrix(vertRestPositions, tetVertIds[closestTet->tetId]);
 
-            FmVector4 barycentrics = mul(baryMatrix, FmVector4(queryState.closestPoint, 1.0f));
+            FmVector4 barycentrics = baryMatrix * FmVector4(queryState.closestPoint, 1.0f);
             closestTet->posBary[0] = barycentrics.x;
             closestTet->posBary[1] = barycentrics.y;
             closestTet->posBary[2] = barycentrics.z;
@@ -587,12 +587,12 @@ namespace AMD
 
     struct FmTetsIntersectingBoxQueryState
     {
-        uint* tets;
-        uint numTets;
-        const FmTetMesh* tetMesh;           // If NULL, use vertRestPositions and tetVertIds
-        const FmVector3* vertRestPositions;
-        const FmTetVertIds* tetVertIds;
-        const FmBvh* bvh;
+        uint* tets = nullptr;
+        uint numTets = 0;
+        const FmTetMesh* tetMesh = nullptr;           // If nullptr, use vertRestPositions and tetVertIds
+        const FmVector3* vertRestPositions = nullptr;
+        const FmTetVertIds* tetVertIds = nullptr;
+        const FmBvh* bvh = nullptr;
         FmVector3 boxHalfDimensions;
         FmVector3 boxCenterPos;
         FmMatrix3 boxRotation;
@@ -647,10 +647,10 @@ namespace AMD
             }
 
             FmVector3 tetPosBoxSpace[4];
-            tetPosBoxSpace[0] = mul(queryState.boxRotationInv, tetPos[0] - queryState.boxCenterPos);
-            tetPosBoxSpace[1] = mul(queryState.boxRotationInv, tetPos[1] - queryState.boxCenterPos);
-            tetPosBoxSpace[2] = mul(queryState.boxRotationInv, tetPos[2] - queryState.boxCenterPos);
-            tetPosBoxSpace[3] = mul(queryState.boxRotationInv, tetPos[3] - queryState.boxCenterPos);
+            tetPosBoxSpace[0] = queryState.boxRotationInv * (tetPos[0] - queryState.boxCenterPos);
+            tetPosBoxSpace[1] = queryState.boxRotationInv * (tetPos[1] - queryState.boxCenterPos);
+            tetPosBoxSpace[2] = queryState.boxRotationInv * (tetPos[2] - queryState.boxCenterPos);
+            tetPosBoxSpace[3] = queryState.boxRotationInv * (tetPos[3] - queryState.boxCenterPos);
 
             bool intersecting = false;
 
@@ -751,21 +751,21 @@ namespace AMD
     {
         FmTetsIntersectingBoxQueryState queryState;
         queryState.tetMesh = tetMesh;
-        queryState.vertRestPositions = NULL;
-        queryState.tetVertIds = NULL;
+        queryState.vertRestPositions = nullptr;
+        queryState.tetVertIds = nullptr;
         queryState.bvh = bvh;
         queryState.boxHalfDimensions = boxHalfDimensions;
         queryState.boxCenterPos = boxCenterPos;
         queryState.boxRotation = boxRotation;
         queryState.boxRotationInv = transpose(boxRotation);
-        queryState.boxPoints[0] = FmInitVector3(-boxHalfDimensions.x, -boxHalfDimensions.y, -boxHalfDimensions.z);
-        queryState.boxPoints[1] = FmInitVector3(boxHalfDimensions.x, -boxHalfDimensions.y, -boxHalfDimensions.z);
-        queryState.boxPoints[2] = FmInitVector3(-boxHalfDimensions.x, boxHalfDimensions.y, -boxHalfDimensions.z);
-        queryState.boxPoints[3] = FmInitVector3(boxHalfDimensions.x, boxHalfDimensions.y, -boxHalfDimensions.z);
-        queryState.boxPoints[4] = FmInitVector3(-boxHalfDimensions.x, -boxHalfDimensions.y, boxHalfDimensions.z);
-        queryState.boxPoints[5] = FmInitVector3(boxHalfDimensions.x, -boxHalfDimensions.y, boxHalfDimensions.z);
-        queryState.boxPoints[6] = FmInitVector3(-boxHalfDimensions.x, boxHalfDimensions.y, boxHalfDimensions.z);
-        queryState.boxPoints[7] = FmInitVector3(boxHalfDimensions.x, boxHalfDimensions.y, boxHalfDimensions.z);
+        queryState.boxPoints[0] = FmVector3(-boxHalfDimensions.x, -boxHalfDimensions.y, -boxHalfDimensions.z);
+        queryState.boxPoints[1] = FmVector3(boxHalfDimensions.x, -boxHalfDimensions.y, -boxHalfDimensions.z);
+        queryState.boxPoints[2] = FmVector3(-boxHalfDimensions.x, boxHalfDimensions.y, -boxHalfDimensions.z);
+        queryState.boxPoints[3] = FmVector3(boxHalfDimensions.x, boxHalfDimensions.y, -boxHalfDimensions.z);
+        queryState.boxPoints[4] = FmVector3(-boxHalfDimensions.x, -boxHalfDimensions.y, boxHalfDimensions.z);
+        queryState.boxPoints[5] = FmVector3(boxHalfDimensions.x, -boxHalfDimensions.y, boxHalfDimensions.z);
+        queryState.boxPoints[6] = FmVector3(-boxHalfDimensions.x, boxHalfDimensions.y, boxHalfDimensions.z);
+        queryState.boxPoints[7] = FmVector3(boxHalfDimensions.x, boxHalfDimensions.y, boxHalfDimensions.z);
         FmVector3 absCol0 = abs(boxRotation.col0);
         FmVector3 absCol1 = abs(boxRotation.col1);
         FmVector3 absCol2 = abs(boxRotation.col2);
@@ -790,7 +790,7 @@ namespace AMD
         const FmMatrix3& boxRotation)
     {
         FmTetsIntersectingBoxQueryState queryState;
-        queryState.tetMesh = NULL;
+        queryState.tetMesh = nullptr;
         queryState.vertRestPositions = vertRestPositions;
         queryState.tetVertIds = tetVertIds;
         queryState.bvh = bvh;
@@ -798,14 +798,14 @@ namespace AMD
         queryState.boxCenterPos = boxCenterPos;
         queryState.boxRotation = boxRotation;
         queryState.boxRotationInv = transpose(boxRotation);
-        queryState.boxPoints[0] = FmInitVector3(-boxHalfDimensions.x, -boxHalfDimensions.y, -boxHalfDimensions.z);
-        queryState.boxPoints[1] = FmInitVector3(boxHalfDimensions.x, -boxHalfDimensions.y, -boxHalfDimensions.z);
-        queryState.boxPoints[2] = FmInitVector3(-boxHalfDimensions.x, boxHalfDimensions.y, -boxHalfDimensions.z);
-        queryState.boxPoints[3] = FmInitVector3(boxHalfDimensions.x, boxHalfDimensions.y, -boxHalfDimensions.z);
-        queryState.boxPoints[4] = FmInitVector3(-boxHalfDimensions.x, -boxHalfDimensions.y, boxHalfDimensions.z);
-        queryState.boxPoints[5] = FmInitVector3(boxHalfDimensions.x, -boxHalfDimensions.y, boxHalfDimensions.z);
-        queryState.boxPoints[6] = FmInitVector3(-boxHalfDimensions.x, boxHalfDimensions.y, boxHalfDimensions.z);
-        queryState.boxPoints[7] = FmInitVector3(boxHalfDimensions.x, boxHalfDimensions.y, boxHalfDimensions.z);
+        queryState.boxPoints[0] = FmVector3(-boxHalfDimensions.x, -boxHalfDimensions.y, -boxHalfDimensions.z);
+        queryState.boxPoints[1] = FmVector3(boxHalfDimensions.x, -boxHalfDimensions.y, -boxHalfDimensions.z);
+        queryState.boxPoints[2] = FmVector3(-boxHalfDimensions.x, boxHalfDimensions.y, -boxHalfDimensions.z);
+        queryState.boxPoints[3] = FmVector3(boxHalfDimensions.x, boxHalfDimensions.y, -boxHalfDimensions.z);
+        queryState.boxPoints[4] = FmVector3(-boxHalfDimensions.x, -boxHalfDimensions.y, boxHalfDimensions.z);
+        queryState.boxPoints[5] = FmVector3(boxHalfDimensions.x, -boxHalfDimensions.y, boxHalfDimensions.z);
+        queryState.boxPoints[6] = FmVector3(-boxHalfDimensions.x, boxHalfDimensions.y, boxHalfDimensions.z);
+        queryState.boxPoints[7] = FmVector3(boxHalfDimensions.x, boxHalfDimensions.y, boxHalfDimensions.z);
         FmVector3 absCol0 = abs(boxRotation.col0);
         FmVector3 absCol1 = abs(boxRotation.col1);
         FmVector3 absCol2 = abs(boxRotation.col2);
@@ -821,7 +821,7 @@ namespace AMD
 
     struct FmSceneCollisionPlanesContactsQueryState
     {
-        FmCollidedObjectPair* objectPair;
+        FmCollidedObjectPair* objectPair = nullptr;
         FmSceneCollisionPlanes collisionPlanes;
     };
 

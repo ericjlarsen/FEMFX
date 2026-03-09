@@ -32,7 +32,7 @@ THE SOFTWARE.
 #include "FEMFXTypes.h"
 
 // Use SIMD 3D vector/matrix types to accelerate MPCG and constraint solves
-#define FM_SIMD_SOLVERS              1
+#define FM_SIMD_SOLVERS              FM_SIMD_ENABLED
 
 namespace AMD
 {
@@ -40,30 +40,16 @@ namespace AMD
 #if FM_SIMD_SOLVERS
     typedef FmSimdVector3 FmSVector3;
     typedef FmSimdMatrix3 FmSMatrix3;
-    static inline FmSVector3 FmInitSVector3(float val) { return FmInitSimdVector3(val); }
-    static inline FmSVector3 FmInitSVector3(float x, float y, float z) { return FmInitSimdVector3(x, y, z); }
-    static inline FmSVector3 FmInitSVector3(const FmVector3& vec) { return FmInitSimdVector3(vec); }
-    static inline FmSMatrix3 FmInitSMatrix3(float val) { FmSVector3 vec = FmInitSimdVector3(val); return FmInitSimdMatrix3(vec, vec, vec); }
-    static inline FmSMatrix3 FmInitSMatrix3(const FmSVector3& col0, const FmSVector3& col1, const FmSVector3& col2) { return FmInitSimdMatrix3(col0, col1, col2); }
-    static inline FmSMatrix3 FmInitSMatrix3(const FmMatrix3& mat) { return FmInitSimdMatrix3(mat); }
 #else
     typedef FmVector3 FmSVector3;
     typedef FmMatrix3 FmSMatrix3;
-    static inline FmSVector3 FmInitSVector3(float val) { return FmInitVector3(val); }
-    static inline FmSVector3 FmInitSVector3(float x, float y, float z) { return FmInitVector3(x, y, z); }
-    static inline FmSVector3 FmInitSVector3(const FmVector3& vec) { return vec; }
-    static inline FmVector3  FmInitVector3(const FmSVector3& vec) { return vec; }
-    static inline FmSMatrix3 FmInitSMatrix3(float val) { FmSVector3 vec = FmInitVector3(val); return FmInitMatrix3(vec, vec, vec); }
-    static inline FmSMatrix3 FmInitSMatrix3(const FmSVector3& col0, const FmSVector3& col1, const FmSVector3& col2) { return FmInitMatrix3(col0, col1, col2); }
-    static inline FmSMatrix3 FmInitSMatrix3(const FmMatrix3& mat) { return mat; }
-    static inline FmMatrix3  FmInitMatrix3(const FmSMatrix3& mat) { return mat; }
 #endif
 
     // Metrics used to measure solver convergence
     struct FmSolverIterationNorms
     {
-        float maxSolutionAbsDiff;    // Max component of absolute difference of solution from previous value = Linf_norm(solution_iplus1 - solution_i)
-        float solutionSqrMag;        // Square of solution vector magnitude = L2_norm(solution)^2
+        float maxSolutionAbsDiff = 0.0f;    // Max component of absolute difference of solution from previous value = Linf_norm(solution_iplus1 - solution_i)
+        float solutionSqrMag = 0.0f;        // Square of solution vector magnitude = L2_norm(solution)^2
 
         void Zero()
         {
@@ -87,13 +73,10 @@ namespace AMD
     // Compressed sparse row format, used with MPCG solver
     struct FmSparseMatrixSubmat3
     {
-        FmSMatrix3* submats;    // Array for all elements
-        uint*       indices;
-        uint*       rowStarts;  // Array for row start indices.  Extra row for end of elements
-        uint        numRows;    // Rows of 3D matrices
-
-        FmSparseMatrixSubmat3() : submats(NULL), indices(NULL), rowStarts(NULL), numRows(0)
-        {}
+        FmSMatrix3* submats = nullptr;    // Array for all elements
+        uint*       indices = nullptr;
+        uint*       rowStarts = nullptr;  // Array for row start indices.  Extra row for end of elements
+        uint        numRows = 0;          // Rows of 3D matrices
     };
 
     // Constraint type which determines type of projection in Projected Gauss-Seidel.
@@ -121,27 +104,25 @@ namespace AMD
     // Parameters of constraint and offsets to Jacobian data
     struct FmConstraintParams
     {
-        FmSVector3             diagInverse[2];    // Inverse of diagonal of constraint matrix = J * W * J^T (0) or J * DAinv * J^T (1)
-        float                  frictionCoeff;
+        FmSVector3             diagInverse[2];       // Inverse of diagonal of constraint matrix = J * W * J^T (0) or J * DAinv * J^T (1)
+        float                  frictionCoeff = 0.0f;
 
         // Currently only 3D states are supported, but other state types (e.g., N-dimensional for reduced-coordinate linkages) 
         // can be added by duplicating these members for each state type
-        uint                   jacobiansNumStates;     // number of states in row
-        uoffset                jacobianSubmatsOffset;  // byte offset in submats array
-        uoffset                jacobianIndicesOffset;  // byte offset in indices array
+        uint                   jacobiansNumStates = 0;     // number of states in row
+        uoffset                jacobianSubmatsOffset = 0;  // byte offset in submats array
+        uoffset                jacobianIndicesOffset = 0;  // byte offset in indices array
 
-        uint8_t                type;
-        uint8_t                flags;
+        uint8_t                type = 0;
+        uint8_t                flags = 0;
     };
 
     // Compressed sparse row format for constraint solver, with parameters to allow more general data formats
     struct FmConstraintJacobian
     {
-        FmConstraintParams* params;
-        FmSMatrix3*         submats;    // Array for all elements
-        uint*               indices;
-
-        FmConstraintJacobian() : params(NULL), submats(NULL), indices(NULL) {}
+        FmConstraintParams* params = nullptr;
+        FmSMatrix3*         submats = nullptr;    // Array for all elements
+        uint*               indices = nullptr;
     };
 
     static inline float FmVinfnorm(FmSVector3* x, uint numRows3)
@@ -204,7 +185,7 @@ namespace AMD
         {
             FmSVector3 vRow = v[row3];
             FmSMatrix3 diagRow = diag[row3];
-            result += dot(vRow, mul(diagRow, vRow));
+            result += dot(vRow, diagRow * vRow);
         }
         return result;
     }
@@ -216,7 +197,7 @@ namespace AMD
         {
             FmSVector3 vRow = v[row3];
             FmSMatrix3 diagRow = diag[row3];
-            result[row3] = mul(diagRow, vRow);
+            result[row3] = diagRow * vRow;
         }
     }
 
@@ -227,11 +208,11 @@ namespace AMD
         {
             if (kinematicFlags[row3])
             {
-                result[row3] = FmInitSVector3(0.0f);
+                result[row3] = FmSVector3(0.0f);
             }
             else
             {
-                result[row3] = mul(diag1[row3], v[row3]);
+                result[row3] = diag1[row3] * v[row3];
             }
         }
     }
@@ -248,13 +229,13 @@ namespace AMD
 
             FM_ASSERT(rowEnd >= rowStart);
 
-            rowResult -= mul(M.submats[row3], v[row3]);
+            rowResult -= M.submats[row3] * v[row3];
             for (uint i = rowStart; i < rowEnd; i++)
             {
                 FmSMatrix3 submat = M.submats[i];
                 uint idx = M.indices[i];
 
-                rowResult -= mul(submat, v[idx]);
+                rowResult -= submat * v[idx];
             }
 
             result[row3] = rowResult;
@@ -271,7 +252,7 @@ namespace AMD
         {
             if (kinematicFlags[row3])
             {
-                result[row3] = FmInitSVector3(0.0f);
+                result[row3] = FmSVector3(0.0f);
             }
             else
             {
@@ -280,14 +261,14 @@ namespace AMD
 
                 FM_ASSERT(rowEnd >= rowStart);
 
-                FmSVector3 rowResult = mul(M.submats[row3], v[row3]);
+                FmSVector3 rowResult = M.submats[row3] * v[row3];
 
                 for (uint i = rowStart; i < rowEnd; i++)
                 {
                     FmSMatrix3 submat = submats[i];
                     uint idx = indices[i];
 
-                    rowResult += mul(submat, v[idx]);
+                    rowResult += submat * v[idx];
                 }
 
                 result[row3] = rowResult;
@@ -315,7 +296,7 @@ namespace AMD
 
             if (kinematic)
             {
-                result[row3] = FmInitSVector3(0.0f);
+                result[row3] = FmSVector3(0.0f);
             }
             else
             {
@@ -367,7 +348,7 @@ namespace AMD
             uint idx = jacobianIndices[i];
             FmSVector3 v_idx = v[idx];
 
-            rowResult -= mul(submat, v_idx);
+            rowResult -= submat * v_idx;
         }
 
         result[constraintIdx] = rowResult;
@@ -399,7 +380,7 @@ namespace AMD
             uint idx = jacobianIndices[submatIdx];
             FmSMatrix3 diag_idx = diag[idx];
 
-            result += mul(submat, mul(diag_idx, transpose(submat)));
+            result += submat * (diag_idx * transpose(submat));
         }
         return result;
     }

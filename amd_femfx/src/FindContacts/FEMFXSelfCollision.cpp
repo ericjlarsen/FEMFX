@@ -23,7 +23,7 @@ THE SOFTWARE.
 */
 
 #include "FEMFXInternal.h"
-#include "FEMFXTriCCD.h"
+#include "FEMFXTriCcd.h"
 #include "FEMFXSort.h"
 
 namespace AMD
@@ -72,9 +72,9 @@ namespace AMD
         face->intersectionValsB[1] = 0;
         face->intersectionValsB[2] = 0;
         
-        face->partialFacedVdp[0] = FmInitVector3(0.0f);
-        face->partialFacedVdp[1] = FmInitVector3(0.0f);
-        face->partialFacedVdp[2] = FmInitVector3(0.0f);
+        face->partialFacedVdp[0] = FmVector3(0.0f);
+        face->partialFacedVdp[1] = FmVector3(0.0f);
+        face->partialFacedVdp[2] = FmVector3(0.0f);
         face->partialFaceV = 0.0f;
 
         face->numFullFaceIntegrations = 0;
@@ -92,8 +92,6 @@ namespace AMD
         FmTetMesh* meshB = objectPair->tetMeshB;
         FmVolumeContactWorkspace* volContactWorkSpace = objectPair->temps.volContactWorkspace;
         FmVector3 volContactCenter = objectPair->volContactCenter;
-        FmVector3 objectACenterPos = objectPair->volContactObjectACenterPos;
-        FmVector3 objectBCenterPos = objectPair->volContactObjectBCenterPos;
 
         // Gather positions exterior faces
         FmExteriorFace& exteriorFaceA = meshA->exteriorFaces[exteriorFaceIdA];
@@ -155,7 +153,6 @@ namespace AMD
     void FmSelfCollIncidentFaceIntegrations(FmCollidedObjectPair* objectPair, FmTetMesh* tetMesh)
     {
         FmVolumeContactWorkspace* volContactWorkSpace = objectPair->temps.volContactWorkspace;
-        FmVector3 volContactCenter = objectPair->volContactCenter;
 
         FmVolumeContactFace* faces = volContactWorkSpace->meshAFaces;
 
@@ -201,10 +198,6 @@ namespace AMD
                             // The reference point for the triangle is vertex0 (same convention is used for the tri-intersection contributions).
                             if (faceVertIds.ids[2] == vId)
                             {
-                                FmVector3 triPos0 = tetMesh->vertsPos[faceVertIds.ids[0]] - volContactCenter;
-                                FmVector3 triPos1 = tetMesh->vertsPos[faceVertIds.ids[1]] - volContactCenter;
-                                FmVector3 triPos2 = tetMesh->vertsPos[faceVertIds.ids[2]] - volContactCenter;
-
                                 if (inclusionValueA || inclusionValueB)
                                 {
                                     FmVolumeContactFace* incidentFace = &faces[exteriorFaceId];
@@ -250,8 +243,7 @@ namespace AMD
         FmMeshCollisionTriPair& triPair,
         FmVolumeContactWorkspace* volContactWorkspace)
     {
-        FmVector3 objectACenterPos = objectPair->volContactObjectACenterPos;
-        FmVector3 objectBCenterPos = objectPair->volContactObjectBCenterPos;
+        (void)volContactWorkspace;
 
         bool fullFaceA;
         bool fullFaceB;
@@ -375,7 +367,7 @@ namespace AMD
             && !triPair.isTetInverted  // disabling these contacts if tet is inverted since they may interfere with contact resolution
             )
         {
-            FmVector3 centroid = FmInitVector3(0.0f);
+            FmVector3 centroid = FmVector3(0.0f);
             for (uint i = 0; i < triPair.triIntersectionPoints.numSegments; i++)
             {
                 centroid +=

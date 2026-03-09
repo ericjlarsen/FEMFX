@@ -90,7 +90,7 @@ namespace AMD
 
         *resultVIdx = vIdx;
         *resultDim = dim;
-        *resultMask = FmInitSVector3((float)(dim == 0), (float)(dim == 1), (float)(dim == 2));
+        *resultMask = FmSVector3((float)(dim == 0), (float)(dim == 1), (float)(dim == 2));
 
         return maxAbs;
     }
@@ -103,21 +103,21 @@ namespace AMD
             uint rowStart = M.rowStarts[row3];
             uint rowEnd = M.rowStarts[row3 + 1];
 
-            FmSVector3 rowResult = FmInitSVector3(0.0f);
+            FmSVector3 rowResult = FmSVector3(0.0f);
 
             FM_ASSERT(rowEnd >= rowStart);
 
-            rowResult += mul(M.submats[row3], mul(SqrtDAinv[row3], v[row3]));
+            rowResult += M.submats[row3] * (SqrtDAinv[row3] * v[row3]);
 
             for (uint i = rowStart; i < rowEnd; i++)
             {
                 FmSMatrix3 submat = M.submats[i];
                 uint idx = M.indices[i];
 
-                rowResult += mul(submat, mul(SqrtDAinv[idx], v[idx]));
+                rowResult += submat * (SqrtDAinv[idx] * v[idx]);
             }
 
-            result[row3] = mul(SqrtDAinv[row3], rowResult);
+            result[row3] = SqrtDAinv[row3] * rowResult;
         }
     }
 
@@ -129,21 +129,21 @@ namespace AMD
             uint rowStart = M.rowStarts[row3];
             uint rowEnd = M.rowStarts[row3 + 1];
 
-            FmSVector3 rowResult = FmInitSVector3(0.0f);
+            FmSVector3 rowResult = FmSVector3(0.0f);
 
             FM_ASSERT(rowEnd >= rowStart);
 
-            rowResult += mul(M.submats[row3], mul(SqrtDAinv[row3], v[row3]));
+            rowResult += M.submats[row3] * (SqrtDAinv[row3] * v[row3]);
 
             for (uint i = rowStart; i < rowEnd; i++)
             {
                 FmSMatrix3 submat = M.submats[i];
                 uint idx = M.indices[i];
 
-                rowResult += mul(submat, mul(SqrtDAinv[idx], v[idx]));
+                rowResult += submat * (SqrtDAinv[idx] * v[idx]);
             }
 
-            result[row3] = u[row3] - mul(SqrtDAinv[row3], rowResult);
+            result[row3] = u[row3] - (SqrtDAinv[row3] * rowResult);
         }
     }
 
@@ -211,11 +211,11 @@ namespace AMD
         FmSVector3* z = new FmSVector3[numRows3];
 
         float bVal = 1.0f / (numRows3 * 3);
-        FmVfill(b, FmInitSVector3(bVal), numRows3);
+        FmVfill(b, FmSVector3(bVal), numRows3);
 
         while (true)
         {
-            FmVfill(x, FmInitSVector3(0.0f), numRows3);
+            FmVfill(x, FmSVector3(0.0f), numRows3);
             FmPcgInModifiedHager(x, SqrtDAinv, solverData, b, tolerance, maxIterations);
 
             FmPreMxV(y, SqrtDAinv, solverData->A, x, numRows3);
@@ -233,7 +233,7 @@ namespace AMD
 
             FmVsigns(y, x, numRows3);
 
-            FmVfill(z, FmInitSVector3(0.0f), numRows3);
+            FmVfill(z, FmSVector3(0.0f), numRows3);
             FmPcgInModifiedHager(z, SqrtDAinv, solverData, y, tolerance, maxIterations);
 
             uint vIdx, dim;
@@ -246,7 +246,7 @@ namespace AMD
             }
             else
             {
-                FmVfill(b, FmInitSVector3(0.0f), numRows3);
+                FmVfill(b, FmSVector3(0.0f), numRows3);
 
                 b[vIdx] = mask;
             }
@@ -271,7 +271,7 @@ namespace AMD
         FmSVector3* z = new FmSVector3[numRows3];
 
         float bVal = 1.0f / (numRows3 * 3);
-        FmVfill(b, FmInitSVector3(bVal), numRows3);
+        FmVfill(b, FmSVector3(bVal), numRows3);
 
         while (true)
         {
@@ -302,7 +302,7 @@ namespace AMD
             }
             else
             {
-                FmVfill(b, FmInitSVector3(0.0f), numRows3);
+                FmVfill(b, FmSVector3(0.0f), numRows3);
 
                 b[vIdx] = mask;
             }
@@ -331,9 +331,9 @@ namespace AMD
         {
             FmVector3 eigenvals;
             FmMatrix3 eigenvectors;
-            FmMatrix3 symmMat = FmInitMatrix3(solverData->PInvDiag[row]);
+            FmMatrix3 symMat = FmMatrix3(solverData->PInvDiag[row]);
 
-            FmEigenSymm3x3CyclicJacobi(&eigenvals, &eigenvectors, symmMat);
+            FmEigenSym3x3(&eigenvals, &eigenvectors, symMat);
 
             // Ensure positive eigenvalues
             if (eigenvals.x < 0.0f)
@@ -352,7 +352,7 @@ namespace AMD
                 eigenvectors.col2 = -eigenvectors.col2;
             }
 
-            SqrtDAinv[row] = FmInitSMatrix3(mul(eigenvectors, mul(FmMatrix3::scale(sqrt(eigenvals)), transpose(eigenvectors))));
+            SqrtDAinv[row] = FmSMatrix3(eigenvectors * FmMatrix3::scale(sqrt(eigenvals)) * transpose(eigenvectors));
         }
 
         float pInv = FmL1NormInversePreconditioned(SqrtDAinv, solverData);
@@ -367,7 +367,7 @@ namespace AMD
 
     float FmCheckTetMeshCondition(FmTetMesh* tetMesh, const FmSceneControlParams& sceneControlParams)
     {
-        FmSetupMpcgSolve(NULL, tetMesh->solverData, tetMesh,
+        FmSetupMpcgSolve(nullptr, tetMesh->solverData, tetMesh,
             sceneControlParams.gravityVector,
             sceneControlParams.kRayleighMassDamping,
             sceneControlParams.kRayleighStiffnessDamping,
@@ -380,7 +380,7 @@ namespace AMD
     float FmCheckMaxTetMeshCondition(FmTetMeshBuffer* tetMeshBuffer, const FmSceneControlParams& sceneControlParams)
     {
         FmTetMesh& tetMesh = tetMeshBuffer->tetMeshes[0];
-        if (tetMesh.tetsToFracture == NULL)
+        if (tetMesh.tetsToFracture == nullptr)
         {
             return FmCheckTetMeshCondition(&tetMesh, sceneControlParams);
         }
@@ -419,7 +419,7 @@ namespace AMD
 
                 FmCopySubsetTetMesh(&subsetTetMesh, remapVertIds, tetMesh, subsetTetIds, subsetTetMeshNumTets);
 
-                FmSetupMpcgSolve(NULL, subsetTetMesh.solverData, &subsetTetMesh,
+                FmSetupMpcgSolve(nullptr, subsetTetMesh.solverData, &subsetTetMesh,
                     sceneControlParams.gravityVector,
                     sceneControlParams.kRayleighMassDamping,
                     sceneControlParams.kRayleighStiffnessDamping,

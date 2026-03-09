@@ -30,12 +30,20 @@ THE SOFTWARE.
 #include <vector>
 #include <assert.h>
 
+#if !defined(_MSC_VER)
+#define fscanf_s fscanf
+#endif
+
 namespace AMD
 {
     int LoadNodeEleMeshNumVerts(const char* nodeFile)
     {
         FILE* nodeFP;
+#if defined(_MSC_VER)
         fopen_s(&nodeFP, nodeFile, "r");
+#else
+        nodeFP = fopen(nodeFile, "r");
+#endif
 
         if (!nodeFP)
         {
@@ -62,7 +70,11 @@ namespace AMD
 
         FILE* eleFP;
 
+#if defined(_MSC_VER)
         fopen_s(&eleFP, eleFile, "r");
+#else
+        eleFP = fopen(eleFile, "r");
+#endif
 
         if (!eleFP)
         {
@@ -70,7 +82,11 @@ namespace AMD
             return -1;
         }
 
+#if defined(_MSC_VER)
         fscanf_s(eleFP, "%d %d %d", &numTetrahedra, &numNodesPerTet, &isRegionAttribute);
+#else
+        fscanf(eleFP, "%d %d %d", &numTetrahedra, &numNodesPerTet, &isRegionAttribute);
+#endif
 
         assert(numNodesPerTet == 4);
 
@@ -117,8 +133,13 @@ namespace AMD
         FILE* nodeFP;
         FILE* eleFP;
 
+#if defined(_MSC_VER)
         fopen_s(&nodeFP, nodeFile, "r");
         fopen_s(&eleFP, eleFile, "r");
+#else
+        nodeFP = fopen(nodeFile, "r");
+        eleFP = fopen(eleFile, "r");
+#endif
 
         if (!nodeFP || !eleFP)
         {
@@ -209,8 +230,13 @@ namespace AMD
         FILE* nodeFP;
         FILE* eleFP;
 
+#if defined(_MSC_VER)
         fopen_s(&nodeFP, nodeFile, "w");
         fopen_s(&eleFP, eleFile, "w");
+#else
+        nodeFP = fopen(nodeFile, "w");
+        eleFP = fopen(eleFile, "w");
+#endif
 
         if (!nodeFP || !eleFP)
         {
@@ -255,9 +281,9 @@ namespace AMD
         int outputNumVerts = 0;
         for (int i = 0; i < numVerts; i++)
         {
+            remapVertIndices[i] = outputNumVerts;
             if (vertIncidentTets[i].GetNumElems() > 0)
             {
-                remapVertIndices[i] = outputNumVerts;
                 vertPositions[outputNumVerts] = vertPositions[i];
                 outputNumVerts++;
             }

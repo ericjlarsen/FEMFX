@@ -31,7 +31,9 @@
 #define _SOA_FLOAT_H
 
 #include "vectormath_utils.h"
+#if defined(_MSC_VER)
 #pragma warning(push, 0)
+#endif
 #ifndef USE_SSE2
 #define USE_SSE2
 #endif
@@ -40,7 +42,9 @@
 #endif
 #include "sse_mathfun.h"
 #include "avx_mathfun.h"
+#if defined(_MSC_VER)
 #pragma warning(pop)
+#endif
 
 namespace FmVectormath {
 
@@ -58,7 +62,7 @@ namespace FmVectormath {
         __m128 mData;
 
     public:
-        SIMD_VECTORMATH_FORCE_INLINE Soa4Float() {}
+        SIMD_VECTORMATH_FORCE_INLINE Soa4Float() { mData = _mm_setzero_ps(); }
         SIMD_VECTORMATH_FORCE_INLINE Soa4Float(const Soa4Float& other);
 
         // construct from __m128
@@ -155,7 +159,7 @@ namespace FmVectormath {
         __m256 mData;
 
     public:
-        SIMD_VECTORMATH_FORCE_INLINE Soa8Float() {}
+        SIMD_VECTORMATH_FORCE_INLINE Soa8Float() { mData = _mm256_setzero_ps(); }
         SIMD_VECTORMATH_FORCE_INLINE Soa8Float(const Soa8Float& other);
 
         // construct from __m256

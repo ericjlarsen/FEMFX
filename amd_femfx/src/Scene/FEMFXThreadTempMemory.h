@@ -35,27 +35,20 @@ namespace AMD
     // Per-thread memory used for temporary buffers when colliding mesh pairs
     struct FmThreadTempMemoryBuffer
     {
-        uint8_t* pBuffer;
-        size_t bufferNumBytes;
+        uint8_t* pBuffer = nullptr;
+        size_t bufferNumBytes = 0;
 
-        uint8_t**                      buffers;
-        uint                           numBuffers;
-        size_t                         numBytesPerBuffer;
-        uint                           maxTetMeshBufferFeatures;
+        uint8_t**                      buffers = nullptr;
+        uint                           numBuffers = 0;
+        size_t                         numBytesPerBuffer = 0;
+        uint                           maxTetMeshBufferFeatures = 0;
     };
 
     struct FmThreadTempMemoryBufferSetupParams
     {
-        uint numWorkerThreads;
-        uint maxTetMeshBufferFeatures;          // max verts, tets, or exterior faces of tet mesh buffer
-        size_t numBytesPerThread;               // if nonzero, determines size of buffer per thread, otherwise it's calculated from other parameters
-
-        FmThreadTempMemoryBufferSetupParams()
-        {
-            numWorkerThreads = 0;
-            maxTetMeshBufferFeatures = 0;
-            numBytesPerThread = 0;
-        }
+        uint numWorkerThreads = 0;
+        uint maxTetMeshBufferFeatures = 0;          // max verts, tets, or exterior faces of tet mesh buffer
+        size_t numBytesPerThread = 0;               // if nonzero, determines size of buffer per thread, otherwise it's calculated from other parameters
     };
 
     // Get total bytes needed for FmThreadTempMemoryBuffer struct and all arrays.

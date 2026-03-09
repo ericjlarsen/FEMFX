@@ -26,7 +26,7 @@ THE SOFTWARE.
 // Construction and execution of dependency graph using task scheduler
 //---------------------------------------------------------------------------------------
 
-#include "FEMFXAsyncThreading.h"
+#include "FEMFXThreading.h"
 #include "FEMFXConstraintSolveTaskGraph.h"
 #include "FEMFXConstraintSolver.h"
 #include "FEMFXScene.h"
@@ -40,10 +40,10 @@ namespace AMD
         FmScene* scene,
         FmConstraintSolverData* constraintSolverData,
         const FmConstraintIsland* constraintIsland,
-        FmTaskFuncCallback partitionPairPgsTask, FmTaskFuncCallback partitionPairPgsTaskWrapped, // Wrapped task is run within FmExecuteTask loop for tail call optimization
-        FmTaskFuncCallback partitionMpcgTask, FmTaskFuncCallback partitionMpcgTaskWrapped,
-        FmTaskFuncCallback partitionGsTask, FmTaskFuncCallback partitionGsTaskWrapped,
-        FmTaskFuncCallback externalConstraintsTask, FmTaskFuncCallback externalConstraintsTaskWrapped)
+        TLTaskFuncCallback partitionPairPgsTask,
+        TLTaskFuncCallback partitionMpcgTask,
+        TLTaskFuncCallback partitionGsTask,
+        TLTaskFuncCallback externalConstraintsTask)
     {
         FmConstraintSolveTaskGraph* taskGraph = new FmConstraintSolveTaskGraph();
 
@@ -54,60 +54,39 @@ namespace AMD
         uint numPartitionPairs = constraintSolverData->numPartitionPairs;
         uint numPartitions = constraintSolverData->numPartitions;
 
-        taskGraph->SetCallbacks(
-            scene->taskSystemCallbacks.SubmitAsyncTask
-#if !FM_ASYNC_THREADING
-            , scene->taskSystemCallbacks.CreateTaskWaitCounter,
-            scene->taskSystemCallbacks.WaitForTaskWaitCounter,
-            scene->taskSystemCallbacks.DestroyTaskWaitCounter,
-            scene->taskSystemCallbacks.SubmitTask
-#endif
-        );
-
-        taskGraph->partitionPairConstraintNodes = new FmPartitionPairConstraintNodeState[numPartitionPairs + 1];  // one more node added for processing of external constraints
+        uint numNodes = numPartitionPairs + 1; // one more node added for processing of external constraints
+        taskGraph->partitionPairConstraintNodes = new FmPartitionPairConstraintNodeState[numNodes];
         taskGraph->numPartitionPairs = numPartitionPairs;
         taskGraph->numPartitions = numPartitions;
 
-        for (uint i = 0; i < numPartitionPairs + 1; i++)
+        for (uint i = 0; i < numNodes; i++)
         {
-            uint weight = (uint)-1;
-            if (i < numPartitionPairs)
-            {
-                FmPartitionPair& partitionPair = constraintSolverData->partitionPairs[i];
-                weight = partitionPair.numConstraints;
-            }
-            FmTaskFuncCallback taskFunc;
-            FmTaskFuncCallback taskFuncWrapped;
-            const char* taskName;
+            TLTaskFuncCallback taskFunc;
             if (i == numPartitionPairs)
             {
                 taskFunc = externalConstraintsTask;
-                taskFuncWrapped = externalConstraintsTaskWrapped;
-                taskName = "ExternalConstraints";
             }
             else
             {
                 taskFunc = partitionPairPgsTask;
-                taskFuncWrapped = partitionPairPgsTaskWrapped;
-                taskName = "PartitionPairPgs";
             }
 
-            taskGraph->partitionPairConstraintNodes[i].firstIterationNode.Init(taskName, taskGraph, taskFunc, taskFuncWrapped, (int)i, weight);
+            taskGraph->partitionPairConstraintNodes[i].firstIterationNode.Init(taskGraph, taskFunc, nullptr, (int)i);
 
-            taskGraph->partitionPairConstraintNodes[i].repeat0Node.Init(taskName, taskGraph, taskFunc, taskFuncWrapped, (int)i, weight);
+            taskGraph->partitionPairConstraintNodes[i].repeat0Node.Init(taskGraph, taskFunc, nullptr, (int)i);
 
-            taskGraph->partitionPairConstraintNodes[i].repeat1Node.Init(taskName, taskGraph, taskFunc, taskFuncWrapped, (int)i, weight);
+            taskGraph->partitionPairConstraintNodes[i].repeat1Node.Init(taskGraph, taskFunc, nullptr, (int)i);
 
-            taskGraph->partitionPairConstraintNodes[i].nextOuterIterationNode.Init(taskName, taskGraph, taskFunc, taskFuncWrapped, (int)i, weight);
+            taskGraph->partitionPairConstraintNodes[i].nextOuterIterationNode.Init(taskGraph, taskFunc, nullptr, (int)i);
         }
 
         taskGraph->partitionObjectNodes = new FmPartitionObjectNodeState[numPartitions];
 
         for (uint i = 0; i < numPartitions; i++)
         {
-            taskGraph->partitionObjectNodes[i].mpcgSolveNode.Init("PartitionMpcg", taskGraph, partitionMpcgTask, partitionMpcgTaskWrapped, (int)i);
+            taskGraph->partitionObjectNodes[i].mpcgSolveNode.Init(taskGraph, partitionMpcgTask, nullptr, (int)i);
 
-            taskGraph->partitionObjectNodes[i].gsIterationRbDeltaNode.Init("PartitionGs", taskGraph, partitionGsTask, partitionGsTaskWrapped, (int)i);
+            taskGraph->partitionObjectNodes[i].gsIterationRbDeltaNode.Init(taskGraph, partitionGsTask, nullptr, (int)i);
         }
 
         return taskGraph;
@@ -118,7 +97,7 @@ namespace AMD
     {
         if (taskGraph)
         {
-            taskGraph->FmTaskGraph::Destroy();
+            taskGraph->TLTaskGraph::Destroy();
             delete[] taskGraph->partitionPairConstraintNodes;
             delete[] taskGraph->partitionObjectNodes;
 
@@ -126,23 +105,23 @@ namespace AMD
         }
     }
 
-    FM_WRAPPED_TASK_DECLARATION(FmNodeTaskFuncProcessPartitionPairConstraints)
-    FM_WRAPPED_TASK_DECLARATION(FmNodeTaskFuncProcessPartitionMpcg)
-    FM_WRAPPED_TASK_DECLARATION(FmNodeTaskFuncProcessPartitionGsIterationOrRbResponse)
-    FM_WRAPPED_TASK_DECLARATION(FmNodeTaskFuncExternalPgsIteration)
+    void FmNodeTaskFuncProcessPartitionPairConstraints(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
+    void FmNodeTaskFuncProcessPartitionMpcg(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
+    void FmNodeTaskFuncProcessPartitionGsIterationOrRbResponse(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
+    void FmNodeTaskFuncExternalPgsIteration(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
         
     void FmCreateConstraintSolveTaskGraph(FmScene* scene, FmConstraintSolverData* constraintSolverData, const FmConstraintIsland* constraintIsland)
     {
-        FM_ASSERT(constraintSolverData->taskGraph == NULL);
+        FM_ASSERT(constraintSolverData->taskGraph == nullptr);
 
         constraintSolverData->taskGraph = FmAllocConstraintSolveTaskGraph(
             scene,
             constraintSolverData,
             constraintIsland,
-            FM_TASK_AND_WRAPPED_TASK_ARGS(FmNodeTaskFuncProcessPartitionPairConstraints),
-            FM_TASK_AND_WRAPPED_TASK_ARGS(FmNodeTaskFuncProcessPartitionMpcg),
-            FM_TASK_AND_WRAPPED_TASK_ARGS(FmNodeTaskFuncProcessPartitionGsIterationOrRbResponse),
-            FM_TASK_AND_WRAPPED_TASK_ARGS(FmNodeTaskFuncExternalPgsIteration));
+            FmNodeTaskFuncProcessPartitionPairConstraints,
+            FmNodeTaskFuncProcessPartitionMpcg,
+            FmNodeTaskFuncProcessPartitionGsIterationOrRbResponse,
+            FmNodeTaskFuncExternalPgsIteration);
 
         uint numPartitionPairs = constraintSolverData->numPartitionPairs;
         uint numPartitions = constraintSolverData->numPartitions;
@@ -337,9 +316,9 @@ namespace AMD
     }
 
     // Run task graph to execute one outer iteration of constraint solve, and call its follow task when finished
-    void FmRunConstraintSolveTaskGraphAsync(FmConstraintSolveTaskGraph* taskGraph, FmTaskFuncCallback followTask, void* followTaskData)
+    void FmRunConstraintSolveTaskGraphAsync(FmConstraintSolveTaskGraph* taskGraph, TLTaskFuncCallback followTask, void* followTaskData)
     {
-        taskGraph->StartAsync(followTask, followTaskData);
+        taskGraph->StartAsync(TLTask(followTask, followTaskData));
     }
 
 #if !FM_ASYNC_THREADING
@@ -388,40 +367,40 @@ namespace AMD
     }
 
     // Send messages to partition pair nodes in next iteration.
-    void FmNextIterationMessages(FmConstraintSolveTaskGraph* graph, uint partitionPairIdx, uint iteration, FmTaskGraphNode** ppNextNode)
+    void FmNextIterationMessages(FmConstraintSolveTaskGraph* graph, uint partitionPairIdx, uint iteration)
     {
         FmPartitionPairConstraintNodeState& node = graph->partitionPairConstraintNodes[partitionPairIdx];
 
         if ((iteration % 2) == 0)
         {
-            node.nextIteration0Successors.SignalSuccessors(0, ppNextNode);
+            node.nextIteration0Successors.SignalSuccessors(0);
         }
         else
         {
-            node.nextIteration1Successors.SignalSuccessors(0, ppNextNode);
+            node.nextIteration1Successors.SignalSuccessors(0);
         }
     }
 
     // Send messages to partition nodes to run MPCG.
-    void FmPartitionMpcgTaskMessages(FmConstraintSolveTaskGraph* graph, uint partitionPairIdx, uint outerIteration, FmTaskGraphNode** ppNextNode)
+    void FmPartitionMpcgTaskMessages(FmConstraintSolveTaskGraph* graph, uint partitionPairIdx, uint outerIteration)
     {
         FmPartitionPairConstraintNodeState& node = graph->partitionPairConstraintNodes[partitionPairIdx];
 
-        node.partitionMpcgSuccessors.SignalSuccessors((int32_t)outerIteration, ppNextNode);
+        node.partitionMpcgSuccessors.SignalSuccessors((int32_t)outerIteration);
     }
 
     // Send messages to partition nodes to run GS iteration.
-    void FmPartitionGsTaskMessages(FmConstraintSolveTaskGraph* graph, uint partitionPairIdx, uint outerIteration, FmTaskGraphNode** ppNextNode)
+    void FmPartitionGsTaskMessages(FmConstraintSolveTaskGraph* graph, uint partitionPairIdx, uint outerIteration)
     {
         FmPartitionPairConstraintNodeState& node = graph->partitionPairConstraintNodes[partitionPairIdx];
 
-        node.partitionGsSuccessors.SignalSuccessors((int32_t)outerIteration, ppNextNode);
+        node.partitionGsSuccessors.SignalSuccessors((int32_t)outerIteration);
     }
 
     // Send messages to partition pair nodes in next outer iteration.
-    void FmNextOuterIterationMessages(FmConstraintSolveTaskGraph* graph, uint partitionIdx, FmTaskGraphNode** ppNextNode)
+    void FmNextOuterIterationMessages(FmConstraintSolveTaskGraph* graph, uint partitionIdx)
     {
-        graph->partitionObjectNodes[partitionIdx].partitionPairSuccessors.SignalSuccessors(0, ppNextNode);
+        graph->partitionObjectNodes[partitionIdx].partitionPairSuccessors.SignalSuccessors(0);
     }
 }
 

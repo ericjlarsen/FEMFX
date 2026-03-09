@@ -28,13 +28,13 @@ THE SOFTWARE.
 //---------------------------------------------------------------------------------------
 
 #include "FEMFXMpcgSolverSetup.h"
-#include "FEMFXParallelFor.h"
+#include "FEMFXThreading.h"
 #include "FEMFXScene.h"
 #include "FEMFXUpdateTetState.h"
 
 namespace AMD
 {
-    class FmTaskDataPrepIslandTetMeshesForSleep : public FmAsyncTaskData
+    class FmTaskDataPrepIslandTetMeshesForSleep : public TLTaskDataBase
     {
     public:
         FM_CLASS_NEW_DELETE(FmTaskDataPrepIslandTetMeshesForSleep)
@@ -42,20 +42,22 @@ namespace AMD
         FmScene* scene;
         uint* tetMeshIds;
         uint sleepingIslandId;
+        TLTaskDataBase* updateIslandsProgress;
 
         FmTaskDataPrepIslandTetMeshesForSleep(FmScene* inScene, uint* inTetMeshIds, uint inSleepingIslandId)
         {
             scene = inScene;
             tetMeshIds = inTetMeshIds;
             sleepingIslandId = inSleepingIslandId;
+            updateIslandsProgress = nullptr;
         }
     };
 
-    FM_WRAPPED_TASK_FUNC(FmTaskFuncPrepIslandTetMeshesForSleep)
+    FM_ASYNC_TASK_COUNTED_WITH_DELETE(FmTaskFuncPrepIslandTetMeshesForSleep, FmTaskDataPrepIslandTetMeshesForSleep)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(MESH_STEP_VELOCITY_REBUILD_BVH);
+        FM_TRACE_SCOPED_EVENT("MeshStepVelocityRebuildBvh");
 
         FmTaskDataPrepIslandTetMeshesForSleep* taskData = (FmTaskDataPrepIslandTetMeshesForSleep*)inTaskData;
         FmScene* scene = taskData->scene;
@@ -67,7 +69,7 @@ namespace AMD
         float rayleighMassDamping = scene->params.kRayleighMassDamping;
         float rayleighStiffnessDamping = scene->params.kRayleighStiffnessDamping;
 
-        uint beginIdx = taskData->progress.GetNextIndex();
+        uint beginIdx = taskData->GetNextWorkItemIndex();
         uint endIdx = beginIdx + 1;
 
         for (uint i = beginIdx; i < endIdx; i++)
@@ -85,11 +87,11 @@ namespace AMD
             uint numVerts = tetMesh.numVerts;
             for (uint vIdx = 0; vIdx < numVerts; vIdx++)
             {
-                tetMesh.vertsVel[vIdx] = FmInitVector3(0.0f);
+                tetMesh.vertsVel[vIdx] = FmVector3(0.0f);
                 FmResetForceOnVert(&tetMesh, vIdx);
             }
 
-            FmSetupMpcgSolve(NULL, FmGetSolverDataById(*scene, tetMeshId), &tetMesh, FmInitVector3(0.0f), rayleighMassDamping, rayleighStiffnessDamping, 0.0f, timestep);
+            FmSetupMpcgSolve(nullptr, FmGetSolverDataById(*scene, tetMeshId), &tetMesh, FmVector3(0.0f), rayleighMassDamping, rayleighStiffnessDamping, 0.0f, timestep);
 
             FmBuildHierarchy(&tetMesh, timestep, aabbPadding);
 
@@ -98,14 +100,11 @@ namespace AMD
 
         if (taskData)
         {
-            if (taskData->parentTaskData)
+            if (taskData->updateIslandsProgress)
             {
                 // Parent task data is tracking completion of tet meshes of all islands, and deleted in follow up task
-                taskData->parentTaskData->progress.TaskIsFinished();
+                taskData->updateIslandsProgress->WorkItemFinished();
             }
-
-            // Update progress of this island
-            taskData->progress.TaskIsFinished(taskData);
         }
     }
 
@@ -114,7 +113,7 @@ namespace AMD
     // Copies object ids to a second set of arrays for sleeping objects.
     // Moves objects ids from awake to sleeping ids lists.
     // Assumed to be called just after objects have just been added (between simulation steps) or after constraint solving.
-    bool FmPutConstraintIslandToSleep(FmScene* scene, const FmConstraintIsland& srcIsland, bool useCallback, FmAsyncTaskData* parentTaskData)
+    bool FmPutConstraintIslandToSleep(FmScene* scene, const FmConstraintIsland& srcIsland, bool useCallback, TLTaskDataBase* updateIslandsProgress)
     {
         FmConstraintsBuffer& constraintsBuffer = *scene->constraintsBuffer;
         uint maxTetMeshes = scene->maxTetMeshes;
@@ -179,34 +178,33 @@ namespace AMD
 
         // Multithread remaining steps for tet meshes
 #if FM_ASYNC_THREADING
-        if (parentTaskData)
+        if (updateIslandsProgress)
         {
             if (numIslandTetMeshes > 0)
             {
                 FmTaskDataPrepIslandTetMeshesForSleep* taskData = new FmTaskDataPrepIslandTetMeshesForSleep(scene, sleepingTetMeshIds, sleepingIslandId);
 
-                taskData->progress.Init(numIslandTetMeshes, NULL, NULL); // No follow task after processing island; may call follow task for parent after all islands completed
-                taskData->parentTaskData = parentTaskData;
+                taskData->Init(numIslandTetMeshes, TLTask()); // No follow task after processing island; may call follow task for parent after all islands completed
+                taskData->updateIslandsProgress = updateIslandsProgress;
 
                 // Add tasks for this parallel for to the total
-                parentTaskData->progress.TasksAreStarting(numIslandTetMeshes);
+                updateIslandsProgress->WorkItemsStarting(numIslandTetMeshes);
 
-                // runLoop must be true since execution not returning to loop before other async calls
-                FmParallelForAsync("PrepIslandTetMeshesForSleep", FM_TASK_AND_WRAPPED_TASK_ARGS(FmTaskFuncPrepIslandTetMeshesForSleep), NULL, taskData, numIslandTetMeshes, scene->taskSystemCallbacks.SubmitAsyncTask, scene->params.numThreads, true);
+                TLParallelForAsync(FmTaskFuncPrepIslandTetMeshesForSleep, taskData, 0, numIslandTetMeshes, TLParallelForOptions::GrainSize(1));
+                TLFlushTaskQueue();
             }
         }
         else
         {
-            // Using a loop to not require a blocking parallel-for implementation.  This may be reached from FmCreateSleepingIsland()
+            // This may be reached from FmCreateSleepingIsland()
             FmTaskDataPrepIslandTetMeshesForSleep taskData(scene, sleepingTetMeshIds, sleepingIslandId);
-            for (uint i = 0; i < numIslandTetMeshes; i++)
-            {
-                FmTaskFuncPrepIslandTetMeshesForSleep(&taskData, i, i + 1);
-            }
+            TLParallelFor(FmTaskFuncPrepIslandTetMeshesForSleep, &taskData, 0, numIslandTetMeshes);
         }
 #else
+        (void)updateIslandsProgress;
+
         FmTaskDataPrepIslandTetMeshesForSleep taskData(scene, sleepingTetMeshIds, sleepingIslandId);
-        scene->taskSystemCallbacks.ParallelFor("PrepIslandTetMeshesForSleep", FmTaskFuncPrepIslandTetMeshesForSleep, &taskData, numIslandTetMeshes);
+        TLParallelFor(FmTaskFuncPrepIslandTetMeshesForSleep, &taskData, 0, numIslandTetMeshes);
 #endif
 
         for (uint idx = 0; idx < numIslandRigidBodies; idx++)
@@ -228,10 +226,10 @@ namespace AMD
             FmInitVelStats(&rigidBody.velStats);
 
             // Set velocities to zero
-            rigidBody.state.vel = FmInitVector3(0.0f);
-            rigidBody.state.angVel = FmInitVector3(0.0f);
-            rigidBody.aabb.vmin = FmInitVector3(0.0f);
-            rigidBody.aabb.vmax = FmInitVector3(0.0f);
+            rigidBody.state.vel = FmVector3(0.0f);
+            rigidBody.state.angVel = FmVector3(0.0f);
+            rigidBody.aabb.vmin = FmVector3(0.0f);
+            rigidBody.aabb.vmax = FmVector3(0.0f);
         }
 
         if (useCallback && scene->islandSleepingCallback && sleepingIsland.numRigidBodiesConnected > 0)
@@ -301,7 +299,7 @@ namespace AMD
 
         if (island.numTetMeshes > 0 || island.numRigidBodiesConnected > 0)
         {
-            FmPutConstraintIslandToSleep(scene, island, true, NULL);
+            FmPutConstraintIslandToSleep(scene, island, true, nullptr);
         }
 
         return true;
@@ -327,17 +325,17 @@ namespace AMD
         // Create temporary island to add to sleeping islands
         FmConstraintIsland island;
         FmInitConstraintIsland(&island);
-        island.tetMeshIds = NULL;
+        island.tetMeshIds = nullptr;
         island.rigidBodyIds = rigidBodyIds;
         island.numTetMeshes = 0;
         island.numRigidBodiesConnected = numRigidBodies;
 
-        FmPutConstraintIslandToSleep(scene, island, false, NULL);
+        FmPutConstraintIslandToSleep(scene, island, false, nullptr);
 
         return true;
     }
 
-    void FmPutMarkedIslandsToSleep(FmScene* scene, FmAsyncTaskData* parentTaskData)
+    void FmPutMarkedIslandsToSleep(FmScene* scene, TLTaskDataBase* updateIslandsProgress)
     {
         FmConstraintsBuffer& constraintsBuffer = *scene->constraintsBuffer;
         uint numIslands = constraintsBuffer.numConstraintIslands;
@@ -349,7 +347,7 @@ namespace AMD
 
             if (FM_IS_SET(constraintIsland.flags, FM_ISLAND_FLAG_MARKED_FOR_SLEEPING))
             {
-                FmPutConstraintIslandToSleep(scene, constraintIsland, true, parentTaskData);
+                FmPutConstraintIslandToSleep(scene, constraintIsland, true, updateIslandsProgress);
 
                 FmInitConstraintIsland(&constraintIsland);  // Clear source island
             }
@@ -499,7 +497,7 @@ namespace AMD
     bool FmMarkIslandOfObjectForWaking(FmScene* scene, uint objectId)
     {
         // Return if called without a scene or the object id invalid (not yet added to scene)
-        if (scene == NULL || objectId == FM_INVALID_ID)
+        if (scene == nullptr || objectId == FM_INVALID_ID)
         {
             return false;
         }

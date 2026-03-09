@@ -35,7 +35,7 @@ using namespace AMD;
 
 namespace AMD
 {
-    void FmGenerateContactsTriBox(FmCollidedObjectPair* objectPair, uint exteriorFaceIdA)
+    uint FmGenerateContactsTriBox(FmCollidedObjectPair* objectPair, uint exteriorFaceIdA)
     {
         FmTetMesh* meshA = objectPair->tetMeshA;
         FmRigidBody* rigidBodyB = (FmRigidBody*)objectPair->objectB;
@@ -77,7 +77,7 @@ namespace AMD
         boxB.halfWidths[1] = rigidBodyB->dims[1];
         boxB.halfWidths[2] = rigidBodyB->dims[2];
 
-        FmMatrix3 boxRot = FmInitMatrix3(boxB.state.quat);
+        FmMatrix3 boxRot = FmMatrix3(boxB.state.quat);
 
         // Test for intersection
         bool boxTriIntersection = FmBoxAndTriIntersect(boxB, &triA.pos0);
@@ -160,9 +160,9 @@ namespace AMD
         }
 
         FmVector3 boxComponents[3];
-        boxComponents[0] = FmInitVector3(boxB.halfWidths[0], 0.0f, 0.0f);
-        boxComponents[1] = FmInitVector3(0.0f, boxB.halfWidths[1], 0.0f);
-        boxComponents[2] = FmInitVector3(0.0f, 0.0f, boxB.halfWidths[2]);
+        boxComponents[0] = FmVector3(boxB.halfWidths[0], 0.0f, 0.0f);
+        boxComponents[1] = FmVector3(0.0f, boxB.halfWidths[1], 0.0f);
+        boxComponents[2] = FmVector3(0.0f, 0.0f, boxB.halfWidths[2]);
 
         for (uint i = 0; i < 3; i++)  // tri edges
         {
@@ -403,12 +403,14 @@ namespace AMD
                 && exterior)
             {
                 FmTetVertIds tmpVertIdsA, tmpVertIdsB;
-                numDistanceContacts += FmAddTempDistanceContact(objectPair, &contactPairInfo, &contact, tmpVertIdsA, tmpVertIdsB, dynamicFlagsA, dynamicFlagsB, NULL);
+                numDistanceContacts += FmAddTempDistanceContact(objectPair, &contactPairInfo, &contact, tmpVertIdsA, tmpVertIdsB, dynamicFlagsA, dynamicFlagsB, nullptr);
             }
         }
+
+        return numDistanceContacts;
     }
 
-    void FmGenerateContactsBoxBox(FmCollidedObjectPair* objectPair, FmBoxBoxCcdTemps* ccdTemps)
+    uint FmGenerateContactsBoxBox(FmCollidedObjectPair* objectPair, FmBoxBoxCcdTemps* ccdTemps)
     {
         FmRigidBody* rigidBodyA = (FmRigidBody*)objectPair->objectA;
         FmRigidBody* rigidBodyB = (FmRigidBody*)objectPair->objectB;
@@ -506,14 +508,14 @@ namespace AMD
         ccdTemps->Clear();
 
         FmVector3 boxAComponents[3];
-        boxAComponents[0] = FmInitVector3(boxA.halfWidths[0], 0.0f, 0.0f);
-        boxAComponents[1] = FmInitVector3(0.0f, boxA.halfWidths[1], 0.0f);
-        boxAComponents[2] = FmInitVector3(0.0f, 0.0f, boxA.halfWidths[2]);
+        boxAComponents[0] = FmVector3(boxA.halfWidths[0], 0.0f, 0.0f);
+        boxAComponents[1] = FmVector3(0.0f, boxA.halfWidths[1], 0.0f);
+        boxAComponents[2] = FmVector3(0.0f, 0.0f, boxA.halfWidths[2]);
 
         FmVector3 boxBComponents[3];
-        boxBComponents[0] = FmInitVector3(boxB.halfWidths[0], 0.0f, 0.0f);
-        boxBComponents[1] = FmInitVector3(0.0f, boxB.halfWidths[1], 0.0f);
-        boxBComponents[2] = FmInitVector3(0.0f, 0.0f, boxB.halfWidths[2]);
+        boxBComponents[0] = FmVector3(boxB.halfWidths[0], 0.0f, 0.0f);
+        boxBComponents[1] = FmVector3(0.0f, boxB.halfWidths[1], 0.0f);
+        boxBComponents[2] = FmVector3(0.0f, 0.0f, boxB.halfWidths[2]);
 
         // Box A faces, box B verts
         for (uint boxAFaceDim = 0; boxAFaceDim < 3; boxAFaceDim++)
@@ -727,7 +729,7 @@ namespace AMD
             float boxASignY = (boxASignBits & 0x2) ? 1.0f : -1.0f;
             float boxASignZ = (boxASignBits & 0x4) ? 1.0f : -1.0f;
 
-            FmMatrix3 boxARot = FmInitMatrix3(boxA.state.quat);
+            FmMatrix3 boxARot = FmMatrix3(boxA.state.quat);
 
             if ((boxAAxisMask & 0x1) && dot(contact.normal, boxASignX * boxARot.col0) < 0.0f)
             {
@@ -751,7 +753,7 @@ namespace AMD
             float boxBSignY = (boxBSignBits & 0x2) ? 1.0f : -1.0f;
             float boxBSignZ = (boxBSignBits & 0x4) ? 1.0f : -1.0f;
 
-            FmMatrix3 boxBRot = FmInitMatrix3(boxB.state.quat);
+            FmMatrix3 boxBRot = FmMatrix3(boxB.state.quat);
 
             if ((boxBAxisMask & 0x1) && dot(contact.normal, boxBSignX * boxBRot.col0) > 0.0f)
             {
@@ -771,9 +773,11 @@ namespace AMD
             if (exterior)
             {
                 FmTetVertIds tmpVertIdsA, tmpVertIdsB;
-                numDistanceContacts += FmAddTempDistanceContact(objectPair, &contactPairInfo, &contact, tmpVertIdsA, tmpVertIdsB, dynamicFlagsA, dynamicFlagsB, NULL);
+                numDistanceContacts += FmAddTempDistanceContact(objectPair, &contactPairInfo, &contact, tmpVertIdsA, tmpVertIdsB, dynamicFlagsA, dynamicFlagsB, nullptr);
             }
         }
+
+        return numDistanceContacts;
     }
 
     uint FmGenerateBoxCollisionPlaneContacts(
@@ -793,7 +797,7 @@ namespace AMD
         planeTri.pos0 = planeTriPos - planeTangent1 * 1000.0f - planeTangent2 * 1000.0f;
         planeTri.pos1 = planeTriPos + planeTangent1 * 1000.0f - planeTangent2 * 1000.0f;
         planeTri.pos2 = planeTriPos + planeTangent1 * 1000.0f + planeTangent2 * 1000.0f;
-        planeTri.vel0 = planeTri.vel1 = planeTri.vel2 = FmInitVector3(0.0f);
+        planeTri.vel0 = planeTri.vel1 = planeTri.vel2 = FmVector3(0.0f);
 
         FmCcdTerminationConditions conditions;
         conditions.impactGap = distContactBias;
@@ -832,7 +836,6 @@ namespace AMD
 
             if (isContact)
             {
-                FmVector3 posStart = rigidBody.state.pos + comToContact;
                 FmVector3 vel = rigidBody.state.vel + cross(rigidBody.state.angVel, comToContact);
 
                 FmDistanceContactPairInfo contactPairInfo;
@@ -864,7 +867,7 @@ namespace AMD
                 contactPairInfo.flags |= FM_CONSTRAINT_FLAG_OBJECTB_COLLISION_PLANE;
 
                 FmTetVertIds tmpVertIds;
-                numContacts += FmAddTempDistanceContact(objectPair, &contactPairInfo, &contact, tmpVertIds, tmpVertIds, dynamicFlagsA, 0, NULL);
+                numContacts += FmAddTempDistanceContact(objectPair, &contactPairInfo, &contact, tmpVertIds, tmpVertIds, dynamicFlagsA, 0, nullptr);
             }
         }
 
@@ -900,46 +903,46 @@ namespace AMD
 
         FmVector3 boxPointsBoxSpace[8];
 
-        boxPointsBoxSpace[0] = FmInitVector3(-rigidBody.dims[0], -rigidBody.dims[1], -rigidBody.dims[2]);
-        boxPointsBoxSpace[1] = FmInitVector3(rigidBody.dims[0], -rigidBody.dims[1], -rigidBody.dims[2]);
-        boxPointsBoxSpace[2] = FmInitVector3(-rigidBody.dims[0], rigidBody.dims[1], -rigidBody.dims[2]);
-        boxPointsBoxSpace[3] = FmInitVector3(rigidBody.dims[0], rigidBody.dims[1], -rigidBody.dims[2]);
-        boxPointsBoxSpace[4] = FmInitVector3(-rigidBody.dims[0], -rigidBody.dims[1], rigidBody.dims[2]);
-        boxPointsBoxSpace[5] = FmInitVector3(rigidBody.dims[0], -rigidBody.dims[1], rigidBody.dims[2]);
-        boxPointsBoxSpace[6] = FmInitVector3(-rigidBody.dims[0], rigidBody.dims[1], rigidBody.dims[2]);
-        boxPointsBoxSpace[7] = FmInitVector3(rigidBody.dims[0], rigidBody.dims[1], rigidBody.dims[2]);
+        boxPointsBoxSpace[0] = FmVector3(-rigidBody.dims[0], -rigidBody.dims[1], -rigidBody.dims[2]);
+        boxPointsBoxSpace[1] = FmVector3(rigidBody.dims[0], -rigidBody.dims[1], -rigidBody.dims[2]);
+        boxPointsBoxSpace[2] = FmVector3(-rigidBody.dims[0], rigidBody.dims[1], -rigidBody.dims[2]);
+        boxPointsBoxSpace[3] = FmVector3(rigidBody.dims[0], rigidBody.dims[1], -rigidBody.dims[2]);
+        boxPointsBoxSpace[4] = FmVector3(-rigidBody.dims[0], -rigidBody.dims[1], rigidBody.dims[2]);
+        boxPointsBoxSpace[5] = FmVector3(rigidBody.dims[0], -rigidBody.dims[1], rigidBody.dims[2]);
+        boxPointsBoxSpace[6] = FmVector3(-rigidBody.dims[0], rigidBody.dims[1], rigidBody.dims[2]);
+        boxPointsBoxSpace[7] = FmVector3(rigidBody.dims[0], rigidBody.dims[1], rigidBody.dims[2]);
 
         uint numContacts = 0;
 
         if (canCollide[0])
         {
             numContacts += FmGenerateBoxCollisionPlaneContacts(objectPair, 
-                rigidBody, box, boxPointsBoxSpace, FmInitVector3(1.0f, 0.0f, 0.0f), FmInitVector3(collisionPlanes.minX, 0.0f, 0.0f));
+                rigidBody, box, boxPointsBoxSpace, FmVector3(1.0f, 0.0f, 0.0f), FmVector3(collisionPlanes.minX, 0.0f, 0.0f));
         }
         if (canCollide[1])
         {
             numContacts += FmGenerateBoxCollisionPlaneContacts(objectPair,
-                rigidBody, box, boxPointsBoxSpace, FmInitVector3(-1.0f, 0.0f, 0.0f), FmInitVector3(collisionPlanes.maxX, 0.0f, 0.0f));
+                rigidBody, box, boxPointsBoxSpace, FmVector3(-1.0f, 0.0f, 0.0f), FmVector3(collisionPlanes.maxX, 0.0f, 0.0f));
         }
         if (canCollide[2])
         {
             numContacts += FmGenerateBoxCollisionPlaneContacts(objectPair,
-                rigidBody, box, boxPointsBoxSpace, FmInitVector3(0.0f, 1.0f, 0.0f), FmInitVector3(0.0f, collisionPlanes.minY, 0.0f));
+                rigidBody, box, boxPointsBoxSpace, FmVector3(0.0f, 1.0f, 0.0f), FmVector3(0.0f, collisionPlanes.minY, 0.0f));
         }
         if (canCollide[3])
         {
             numContacts += FmGenerateBoxCollisionPlaneContacts(objectPair,
-                rigidBody, box, boxPointsBoxSpace, FmInitVector3(0.0f, -1.0f, 0.0f), FmInitVector3(0.0f, collisionPlanes.maxY, 0.0f));
+                rigidBody, box, boxPointsBoxSpace, FmVector3(0.0f, -1.0f, 0.0f), FmVector3(0.0f, collisionPlanes.maxY, 0.0f));
         }
         if (canCollide[4])
         {
             numContacts += FmGenerateBoxCollisionPlaneContacts(objectPair,
-                rigidBody, box, boxPointsBoxSpace, FmInitVector3(0.0f, 0.0f, 1.0f), FmInitVector3(0.0f, 0.0f, collisionPlanes.minZ));
+                rigidBody, box, boxPointsBoxSpace, FmVector3(0.0f, 0.0f, 1.0f), FmVector3(0.0f, 0.0f, collisionPlanes.minZ));
         }
         if (canCollide[5])
         {
             numContacts += FmGenerateBoxCollisionPlaneContacts(objectPair,
-                rigidBody, box, boxPointsBoxSpace, FmInitVector3(0.0f, 0.0f, -1.0f), FmInitVector3(0.0f, 0.0f, collisionPlanes.maxZ));
+                rigidBody, box, boxPointsBoxSpace, FmVector3(0.0f, 0.0f, -1.0f), FmVector3(0.0f, 0.0f, collisionPlanes.maxZ));
         }
 
         // Copy any temp contacts to global list

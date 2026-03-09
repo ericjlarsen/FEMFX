@@ -29,9 +29,12 @@ THE SOFTWARE.
 #include "LoadNodeEleMesh.h"
 #include "PartitionFemMesh.h"
 #include "ExplosionForce.h"
-#include "SampleTaskSystem.h"
+#include "TLTaskSystemInterface.h"
 #include <stdarg.h>
 #include <string>
+#if defined(_MSC_VER)
+#include <Windows.h>
+#endif
 
 using namespace AMD;
 
@@ -41,12 +44,20 @@ using namespace AMD;
 // Required allocator definitions
 void* FmAlignedMalloc(size_t size, size_t alignment)
 {
+#if defined(WIN32)
     return _aligned_malloc(size, alignment);
+#else
+    return aligned_alloc(alignment, size);
+#endif
 }
 
 void FmAlignedFree(void* ptr)
 {
+#if defined(WIN32)
     _aligned_free(ptr);
+#else
+    free(ptr);
+#endif
 }
 
 // Debug print definition
@@ -59,7 +70,7 @@ int FmDebugPrint(const char* format, ...)
     return 0;
 }
 
-FILE* gTimingsFile = NULL;
+FILE* gTimingsFile = nullptr;
 
 static void WriteTimings()
 {
@@ -79,23 +90,16 @@ static void WriteTimings()
 
 // Saved pointers to scene and object data
 
-FmTetMeshBuffer* gTetMeshBuffers[MAX_MESH_BUFFERS] = { NULL };
+FmTetMeshBuffer* gTetMeshBuffers[MAX_MESH_BUFFERS] = { nullptr };
 uint             gNumTetMeshBuffers = 0;
-
-FmRigidBody*     gRigidBodies[MAX_RIGID_BODIES] = { NULL };
+FmRigidBody*     gRigidBodies[MAX_RIGID_BODIES] = { nullptr };
 uint             gNumRigidBodies = 0;
-
-
-FmScene*         gScene = NULL;
-
+FmScene*         gScene = nullptr;
 uint             gProjectileMeshBufferId = 0;
-#if WOOD_PANELS_SCENE
-uint             gWoodPanelProjectileMeshBufferIds[NUM_WOOD_PANELS_ROWS] = { 0 };
-#endif
 bool             gFired = false;
 
 #if EXTERNAL_RIGIDBODIES
-ExampleRigidBodiesScene* gRbScene = NULL;
+ExampleRigidBodiesScene* gRbScene = nullptr;
 #endif
 
 static float randfloat()
@@ -124,10 +128,6 @@ void InitTetMeshBufferTemplate(
 {
     uint numVerts;
     uint numTets;
-
-    FmVector3 position = FmInitVector3(0.0f);
-    FmVector3 velocity = FmInitVector3(0.0f);
-    FmMatrix3 rotation = FmMatrix3::identity();
 
     // Get number of vertices and tetrahedra in the model, and initialize vertex incident tets
     std::string nodeFile = std::string(modelsPath) + std::string(modelName) + std::string(".node");
@@ -171,7 +171,7 @@ void InitTetMeshBufferTemplate(
         &bounds,
         bufferTemplate->fractureGroupCounts,
         bufferTemplate->tetFractureGroupIds,
-        bufferTemplate->vertIncidentTets, bufferTemplate->tetVertIds, NULL,
+        bufferTemplate->vertIncidentTets, bufferTemplate->tetVertIds, nullptr,
         numVerts, numTets, enableFracture);
 
     FmTetMeshBufferSetupParams& setupParams = bufferTemplate->setupParams;
@@ -272,11 +272,10 @@ FmTetMeshBuffer* CreateTetMeshBuffer(FComponentResources& componentResources,
     }
 
     FmVector3* vertRestPositions = new FmVector3[componentResources.NumVerts];
-    uint vertRestPosBytePos = 0;
+    float* vertRestPositionsData = reinterpret_cast<float*>(componentResources.restPositions.data());
     for (uint vidx = 0; vidx < (uint)componentResources.NumVerts; vidx++)
     {
-        memcpy(&vertRestPositions[vidx], &componentResources.restPositions[vertRestPosBytePos], sizeof(float) * 3);
-        vertRestPosBytePos += sizeof(float) * 3;
+        vertRestPositions[vidx] = FmVector3(vertRestPositionsData[3 * vidx + 0], vertRestPositionsData[3 * vidx + 1], vertRestPositionsData[3 * vidx + 2]);
     }
 
     FmTetVertIds* tetVertIds = new FmTetVertIds[componentResources.NumTets];
@@ -332,7 +331,7 @@ FmTetMeshBuffer* CreateTetMeshBuffer(FComponentResources& componentResources,
     setupParams.enableFracture = enableFracture;
     setupParams.isKinematic = isKinematic;
 
-    FmTetMesh* tetMeshPtr = NULL;
+    FmTetMesh* tetMeshPtr = nullptr;
     FmTetMeshBuffer* tetMeshBuffer = FmCreateTetMeshBuffer(setupParams, fractureGroupCounts, tetFractureGroupIds, &tetMeshPtr);
     FmTetMesh& tetMesh = *tetMeshPtr;
 
@@ -450,7 +449,7 @@ FmTetMeshBuffer* CreateTetMeshBuffer(FComponentResources& componentResources,
 }
 #endif
 
-#if CARS_IN_SCENE
+#if CARS_SCENE
 // Setup for car objects
 
 struct CarSimObject
@@ -469,36 +468,28 @@ struct CarSimObject
     static const uint numPlaneConstraints = 1 + 10;
 
     // Tet mesh buffers to be added to scene
-    FmTetMeshBuffer*            tetMeshBuffers[numTetMeshBuffers];
-    uint                           tetMeshBufferIds[numTetMeshBuffers];
+    FmTetMeshBuffer*            tetMeshBuffers[numTetMeshBuffers] = { nullptr };
+    uint                        tetMeshBufferIds[numTetMeshBuffers] = { 0 };
 
     // Will be copied into scene
     FmRigidBodySetupParams      rigidBodySetupParams[numRigidBodies];
 
-    float hoodHingeMaxImpulseMag;
-    float hoodLatchMaxImpulseMag;
+    float hoodHingeMaxImpulseMag = 0.0f;
+    float hoodLatchMaxImpulseMag = 0.0f;
 
     // Pointers to scene objects when added to scene
-    FmRigidBody*  rigidBodies[numRigidBodies];
-    uint          rigidBodyIds[numRigidBodies];
-    uint          axelAngleConstraints[numRimAxelAngleConstraints];
-    uint          bodyHoodGlueConstraints[numBodyHoodGlueConstraints];
-    uint          wheelRimGlueConstraints[numWheelRimGlueConstraints];
-    uint          bodyAxelGlueConstraints[numBodyAxelGlueConstraints];
-    uint          rimAxelGlueConstraints[numRimAxelGlueConstraints];
-    uint          bodySeatGlueConstraints[numBodySeatGlueConstraints];
-    uint          planeConstraints[numPlaneConstraints];
+    FmRigidBody*  rigidBodies[numRigidBodies] = { nullptr };
+    uint          rigidBodyIds[numRigidBodies] = { 0 };
+    uint          axelAngleConstraints[numRimAxelAngleConstraints] = { 0 };
+    uint          bodyHoodGlueConstraints[numBodyHoodGlueConstraints] = { 0 };
+    uint          wheelRimGlueConstraints[numWheelRimGlueConstraints] = { 0 };
+    uint          bodyAxelGlueConstraints[numBodyAxelGlueConstraints] = { 0 };
+    uint          rimAxelGlueConstraints[numRimAxelGlueConstraints] = { 0 };
+    uint          bodySeatGlueConstraints[numBodySeatGlueConstraints] = { 0 };
+    uint          planeConstraints[numPlaneConstraints] = { 0 };
 
     FmVector3 initialPosition;
-    FmMatrix3 initialRotation;
-
-    CarSimObject()
-    {
-        memset(this, 0, sizeof(CarSimObject));
-
-        hoodHingeMaxImpulseMag = 0.0f;
-        hoodLatchMaxImpulseMag = 0.0f;
-    }
+    FmMatrix3 initialRotation = FmMatrix3::identity();
 };
 
 // Contains shared car geometry and parameters to set up car instance.
@@ -525,7 +516,7 @@ void InitCarSimObjectTemplate(CarSimObjectTemplate* carTemplate, const char* mod
         bool enableFracture = false;
         bool isKinematic = false;
 
-        const char* fileName = NULL;
+        const char* fileName = nullptr;
 
         if (carSubIdx == 0)
         {
@@ -607,7 +598,7 @@ void InitCarSimObjectTemplate(CarSimObjectTemplate* carTemplate, const char* mod
             carTemplate->wheelCenterPositions[wheelIdx] = (minPos + maxPos) * 0.5f;
             carTemplate->wheelAnchorPositions[wheelIdx] = carTemplate->wheelCenterPositions[wheelIdx];
 
-            FmVector3 offset = FmInitVector3(0.0f, 0.0f, 0.5f);
+            FmVector3 offset = FmVector3(0.0f, 0.0f, 0.5f);
 
             if (wheelIdx == 0 || wheelIdx == 2)
             {
@@ -623,7 +614,7 @@ void InitCarSimObjectTemplate(CarSimObjectTemplate* carTemplate, const char* mod
     }
 
     // Init rigid bodies
-    carTemplate->wheelAxelBodyHalfDims = FmInitVector3(0.2f, 0.2f, 0.25f);
+    carTemplate->wheelAxelBodyHalfDims = FmVector3(0.2f, 0.2f, 0.25f);
 
     for (uint rbIdx = 0; rbIdx < CarSimObject::numRigidBodies; rbIdx++)
     {
@@ -637,9 +628,9 @@ void InitCarSimObjectTemplate(CarSimObjectTemplate* carTemplate, const char* mod
         if (wheelSubIdx == 0)
         {
             rigidBodyState.pos = carTemplate->wheelCenterPositions[wheelIdx];
-            rigidBodyState.quat = FmInitQuat(0.0f, 0.0f, 0.0f, 1.0f);
-            rigidBodyState.vel = FmInitVector3(0.0f, 0.0f, 0.0f);
-            rigidBodyState.angVel = FmInitVector3(0.0f);
+            rigidBodyState.quat = FmQuat(0.0f, 0.0f, 0.0f, 1.0f);
+            rigidBodyState.vel = FmVector3(0.0f, 0.0f, 0.0f);
+            rigidBodyState.angVel = FmVector3(0.0f);
 
             hx = 0.15f;
             hy = 0.15f;
@@ -648,9 +639,9 @@ void InitCarSimObjectTemplate(CarSimObjectTemplate* carTemplate, const char* mod
         else
         {
             rigidBodyState.pos = carTemplate->wheelAxelBodyPositions[wheelIdx];
-            rigidBodyState.quat = FmInitQuat(0.0f, 0.0f, 0.0f, 1.0f);
-            rigidBodyState.vel = FmInitVector3(0.0f, 0.0f, 0.0f);
-            rigidBodyState.angVel = FmInitVector3(0.0f);
+            rigidBodyState.quat = FmQuat(0.0f, 0.0f, 0.0f, 1.0f);
+            rigidBodyState.vel = FmVector3(0.0f, 0.0f, 0.0f);
+            rigidBodyState.angVel = FmVector3(0.0f);
 
             hx = carTemplate->wheelAxelBodyHalfDims.x;
             hy = carTemplate->wheelAxelBodyHalfDims.y;
@@ -740,9 +731,9 @@ void CreateCarSimObject(CarSimObject* car, CarSimObjectTemplate& carTemplate, co
         FmRigidBodySetupParams& rigidBodySetupParams = car->rigidBodySetupParams[rbIdx];
 
         rigidBodySetupParams = carTemplate.rigidBodySetupParams[rbIdx];
-        rigidBodySetupParams.state.pos = position + mul(rotation, rigidBodySetupParams.state.pos);
+        rigidBodySetupParams.state.pos = position + rotation * rigidBodySetupParams.state.pos;
         rigidBodySetupParams.state.vel = velocity;
-        rigidBodySetupParams.state.quat = mul(quat, rigidBodySetupParams.state.quat);
+        rigidBodySetupParams.state.quat = quat * rigidBodySetupParams.state.quat;
     }
 }
 
@@ -774,17 +765,6 @@ void AddCarSimObjectToScene(CarSimObject* car, const CarSimObjectTemplate& carTe
     FmClosestTetResult hoodGluePoints[3];
     FmVector4 bodyHoodGlueBarycentrics[3];
     FmVector4 hoodHoodGlueBarycentrics[3];
-    FmClosestTetResult wheelAxelPoints[4];
-    FmClosestTetResult bodyAxelPoints[4];
-    FmVector4 wheelAxelBarycentrics[4];
-    FmVector4 bodyAxelBarycentrics[4];
-
-    FmClosestTetResult wheelAxel0Points[4];
-    FmClosestTetResult wheelAxel1Points[4];
-    FmClosestTetResult wheelAxel2Points[4];
-    FmVector4 wheelAxel0Barycentrics[4];
-    FmVector4 wheelAxel1Barycentrics[4];
-    FmVector4 wheelAxel2Barycentrics[4];
 
     FmClosestTetResult seatbackLGluePoints[4];
     FmClosestTetResult seatbackRGluePoints[4];
@@ -793,7 +773,7 @@ void AddCarSimObjectToScene(CarSimObject* car, const CarSimObjectTemplate& carTe
     FmVector4 bodySeatbackLBarycentrics[4];
     FmVector4 bodySeatbackRbarycentrics[4];
 
-    uint* tetsIntersected = NULL;
+    uint* tetsIntersected = nullptr;
 
     uint bodyBufferId = car->tetMeshBufferIds[0];
     uint hoodBufferId = car->tetMeshBufferIds[1];
@@ -807,11 +787,11 @@ void AddCarSimObjectToScene(CarSimObject* car, const CarSimObjectTemplate& carTe
 
     FmTetMesh& carBodyMesh = *FmGetTetMesh(*car->tetMeshBuffers[0], 0);
     FmTetMesh& carHoodMesh = *FmGetTetMesh(*car->tetMeshBuffers[1], 0);
-    FmTetMesh* carWheelMeshes[4];
-    carWheelMeshes[0] = FmGetTetMesh(*car->tetMeshBuffers[2], 0);
-    carWheelMeshes[1] = FmGetTetMesh(*car->tetMeshBuffers[3], 0);
-    carWheelMeshes[2] = FmGetTetMesh(*car->tetMeshBuffers[4], 0);
-    carWheelMeshes[3] = FmGetTetMesh(*car->tetMeshBuffers[5], 0);
+    //FmTetMesh* carWheelMeshes[4];
+    //carWheelMeshes[0] = FmGetTetMesh(*car->tetMeshBuffers[2], 0);
+    //carWheelMeshes[1] = FmGetTetMesh(*car->tetMeshBuffers[3], 0);
+    //carWheelMeshes[2] = FmGetTetMesh(*car->tetMeshBuffers[4], 0);
+    //carWheelMeshes[3] = FmGetTetMesh(*car->tetMeshBuffers[5], 0);
 
     const TetMeshBufferTemplate& bodyTemplate = carTemplate.tetMeshBufferTemplates[0];
     const TetMeshBufferTemplate& hoodTemplate = carTemplate.tetMeshBufferTemplates[1];
@@ -857,8 +837,8 @@ void AddCarSimObjectToScene(CarSimObject* car, const CarSimObjectTemplate& carTe
 
         FmRigidBodySetupParams& axelRigidBodyParams = car->rigidBodySetupParams[axelRigidBodyIdx[wheelIdx]];
 
-        angleConstraint.axisBodySpaceA = FmInitVector3(0.0f, 0.0f, 1.0f);
-        angleConstraint.axisBodySpaceB = FmInitVector3(0.0f, 0.0f, 1.0f);
+        angleConstraint.axisBodySpaceA = FmVector3(0.0f, 0.0f, 1.0f);
+        angleConstraint.axisBodySpaceB = FmVector3(0.0f, 0.0f, 1.0f);
 
         uint angleConstraintId = FmAddRigidBodyAngleConstraintToScene(scene, angleConstraint);
         car->axelAngleConstraints[wheelIdx] = angleConstraintId;
@@ -905,8 +885,8 @@ void AddCarSimObjectToScene(CarSimObject* car, const CarSimObjectTemplate& carTe
             rimGlueCenterPos[1] = carTemplate.wheelCenterPositions[wheelIdx];
             rimGlueCenterPos[1].z = carTemplate.wheelMaxPositions[wheelIdx].z;
 
-            rimGlueRestPos[0] = rimGlueCenterPos[0] + FmInitVector3(cosf(angle), sinf(angle), 0.0f) * radius;
-            rimGlueRestPos[1] = rimGlueCenterPos[1] + FmInitVector3(cosf(angle), sinf(angle), 0.0f) * radius;
+            rimGlueRestPos[0] = rimGlueCenterPos[0] + FmVector3(cosf(angle), sinf(angle), 0.0f) * radius;
+            rimGlueRestPos[1] = rimGlueCenterPos[1] + FmVector3(cosf(angle), sinf(angle), 0.0f) * radius;
 
             for (uint subIdx = 0; subIdx < 2; subIdx++)
             {
@@ -927,7 +907,7 @@ void AddCarSimObjectToScene(CarSimObject* car, const CarSimObjectTemplate& carTe
                 glueConstraint.posBodySpaceB[2] = posBoxSpace.z;
                 glueConstraint.posBodySpaceB[3] = 1.0f;
 
-                posBodySpaceB = FmInitVector3(glueConstraint.posBodySpaceB[0], glueConstraint.posBodySpaceB[1], glueConstraint.posBodySpaceB[2]);
+                posBodySpaceB = FmVector3(glueConstraint.posBodySpaceB[0], glueConstraint.posBodySpaceB[1], glueConstraint.posBodySpaceB[2]);
 
                 glueId = FmAddGlueConstraintToScene(scene, glueConstraint);
                 car->wheelRimGlueConstraints[wheelRimIdx] = glueId;
@@ -949,7 +929,7 @@ void AddCarSimObjectToScene(CarSimObject* car, const CarSimObjectTemplate& carTe
 
         for (uint boxCornerIdx = 0; boxCornerIdx < 8; boxCornerIdx++)
         {
-            FmVector3 boxRelPos = FmInitVector3(
+            FmVector3 boxRelPos = FmVector3(
                 (boxCornerIdx & 0x1) ? -axelRigidBodyParams.halfDimX : axelRigidBodyParams.halfDimX,
                 (boxCornerIdx & 0x2) ? -axelRigidBodyParams.halfDimY : axelRigidBodyParams.halfDimY,
                 (boxCornerIdx & 0x4) ? -axelRigidBodyParams.halfDimZ : axelRigidBodyParams.halfDimZ);
@@ -973,7 +953,7 @@ void AddCarSimObjectToScene(CarSimObject* car, const CarSimObjectTemplate& carTe
             glueConstraint.posBodySpaceB[2] = posBoxSpace.z;
             glueConstraint.posBodySpaceB[3] = 1.0f;
 
-            posBodySpaceB = FmInitVector3(glueConstraint.posBodySpaceB[0], glueConstraint.posBodySpaceB[1], glueConstraint.posBodySpaceB[2]);
+            posBodySpaceB = FmVector3(glueConstraint.posBodySpaceB[0], glueConstraint.posBodySpaceB[1], glueConstraint.posBodySpaceB[2]);
 
             glueId = FmAddGlueConstraintToScene(scene, glueConstraint);
             car->bodyAxelGlueConstraints[bodyAxelIdx] = glueId;
@@ -982,9 +962,9 @@ void AddCarSimObjectToScene(CarSimObject* car, const CarSimObjectTemplate& carTe
     }
 
     // Find points of attachment for hood on car
-    FmFindClosestTet(&hoodGluePoints[0], hoodTemplate.vertRestPositions, hoodTemplate.tetVertIds, hoodTemplate.tetsBvh, FmInitVector3(0.0f, 2.0f, 1.0f));
-    FmFindClosestTet(&hoodGluePoints[1], hoodTemplate.vertRestPositions, hoodTemplate.tetVertIds, hoodTemplate.tetsBvh, FmInitVector3(0.0f, 2.0f, -1.0f));
-    FmFindClosestTet(&hoodGluePoints[2], hoodTemplate.vertRestPositions, hoodTemplate.tetVertIds, hoodTemplate.tetsBvh, FmInitVector3(4.0f, 0.0f, 0.0f));
+    FmFindClosestTet(&hoodGluePoints[0], hoodTemplate.vertRestPositions, hoodTemplate.tetVertIds, hoodTemplate.tetsBvh, FmVector3(0.0f, 2.0f, 1.0f));
+    FmFindClosestTet(&hoodGluePoints[1], hoodTemplate.vertRestPositions, hoodTemplate.tetVertIds, hoodTemplate.tetsBvh, FmVector3(0.0f, 2.0f, -1.0f));
+    FmFindClosestTet(&hoodGluePoints[2], hoodTemplate.vertRestPositions, hoodTemplate.tetVertIds, hoodTemplate.tetsBvh, FmVector3(4.0f, 0.0f, 0.0f));
 
     // Then find nearest tets on body for attachement
     FmFindClosestTet(&bodyHoodGluePoints[0], bodyTemplate.vertRestPositions, bodyTemplate.tetVertIds, bodyTemplate.tetsBvh, hoodGluePoints[0].position);
@@ -992,41 +972,41 @@ void AddCarSimObjectToScene(CarSimObject* car, const CarSimObjectTemplate& carTe
     FmFindClosestTet(&bodyHoodGluePoints[2], bodyTemplate.vertRestPositions, bodyTemplate.tetVertIds, bodyTemplate.tetsBvh, hoodGluePoints[2].position);
 
     // Compute barycentric coords
-    hoodHoodGlueBarycentrics[0] = mul(FmGetTetRestBaryMatrix(carHoodMesh, hoodGluePoints[0].tetId), FmVector4(hoodGluePoints[0].position, 1.0f));
-    hoodHoodGlueBarycentrics[1] = mul(FmGetTetRestBaryMatrix(carHoodMesh, hoodGluePoints[1].tetId), FmVector4(hoodGluePoints[1].position, 1.0f));
-    hoodHoodGlueBarycentrics[2] = mul(FmGetTetRestBaryMatrix(carHoodMesh, hoodGluePoints[2].tetId), FmVector4(hoodGluePoints[2].position, 1.0f));
-    bodyHoodGlueBarycentrics[0] = mul(FmGetTetRestBaryMatrix(carBodyMesh, bodyHoodGluePoints[0].tetId), FmVector4(hoodGluePoints[0].position, 1.0f));
-    bodyHoodGlueBarycentrics[1] = mul(FmGetTetRestBaryMatrix(carBodyMesh, bodyHoodGluePoints[1].tetId), FmVector4(hoodGluePoints[1].position, 1.0f));
-    bodyHoodGlueBarycentrics[2] = mul(FmGetTetRestBaryMatrix(carBodyMesh, bodyHoodGluePoints[2].tetId), FmVector4(hoodGluePoints[2].position, 1.0f));
+    hoodHoodGlueBarycentrics[0] = FmGetTetRestBaryMatrix(carHoodMesh, hoodGluePoints[0].tetId) * FmVector4(hoodGluePoints[0].position, 1.0f);
+    hoodHoodGlueBarycentrics[1] = FmGetTetRestBaryMatrix(carHoodMesh, hoodGluePoints[1].tetId) * FmVector4(hoodGluePoints[1].position, 1.0f);
+    hoodHoodGlueBarycentrics[2] = FmGetTetRestBaryMatrix(carHoodMesh, hoodGluePoints[2].tetId) * FmVector4(hoodGluePoints[2].position, 1.0f);
+    bodyHoodGlueBarycentrics[0] = FmGetTetRestBaryMatrix(carBodyMesh, bodyHoodGluePoints[0].tetId) * FmVector4(hoodGluePoints[0].position, 1.0f);
+    bodyHoodGlueBarycentrics[1] = FmGetTetRestBaryMatrix(carBodyMesh, bodyHoodGluePoints[1].tetId) * FmVector4(hoodGluePoints[1].position, 1.0f);
+    bodyHoodGlueBarycentrics[2] = FmGetTetRestBaryMatrix(carBodyMesh, bodyHoodGluePoints[2].tetId) * FmVector4(hoodGluePoints[2].position, 1.0f);
 
     // Find glue points of seatback meshes
-    FmFindClosestTet(&seatbackLGluePoints[0], seatbackLTemplate.vertRestPositions, seatbackLTemplate.tetVertIds, seatbackLTemplate.tetsBvh, FmInitVector3(-10.0f, -10.0f, -10.0f));
-    FmFindClosestTet(&seatbackLGluePoints[1], seatbackLTemplate.vertRestPositions, seatbackLTemplate.tetVertIds, seatbackLTemplate.tetsBvh, FmInitVector3(-10.0f, -10.0f, 10.0f));
-    FmFindClosestTet(&seatbackLGluePoints[2], seatbackLTemplate.vertRestPositions, seatbackLTemplate.tetVertIds, seatbackLTemplate.tetsBvh, FmInitVector3(10.0f, -10.0f, -10.0f));
-    FmFindClosestTet(&seatbackLGluePoints[3], seatbackLTemplate.vertRestPositions, seatbackLTemplate.tetVertIds, seatbackLTemplate.tetsBvh, FmInitVector3(10.0f, -10.0f, 10.0f));
-    FmFindClosestTet(&seatbackRGluePoints[0], seatbackRTemplate.vertRestPositions, seatbackRTemplate.tetVertIds, seatbackRTemplate.tetsBvh, FmInitVector3(-10.0f, -10.0f, -10.0f));
-    FmFindClosestTet(&seatbackRGluePoints[1], seatbackRTemplate.vertRestPositions, seatbackRTemplate.tetVertIds, seatbackRTemplate.tetsBvh, FmInitVector3(-10.0f, -10.0f, 10.0f));
-    FmFindClosestTet(&seatbackRGluePoints[2], seatbackRTemplate.vertRestPositions, seatbackRTemplate.tetVertIds, seatbackRTemplate.tetsBvh, FmInitVector3(10.0f, -10.0f, -10.0f));
-    FmFindClosestTet(&seatbackRGluePoints[3], seatbackRTemplate.vertRestPositions, seatbackRTemplate.tetVertIds, seatbackRTemplate.tetsBvh, FmInitVector3(10.0f, -10.0f, 10.0f));
+    FmFindClosestTet(&seatbackLGluePoints[0], seatbackLTemplate.vertRestPositions, seatbackLTemplate.tetVertIds, seatbackLTemplate.tetsBvh, FmVector3(-10.0f, -10.0f, -10.0f));
+    FmFindClosestTet(&seatbackLGluePoints[1], seatbackLTemplate.vertRestPositions, seatbackLTemplate.tetVertIds, seatbackLTemplate.tetsBvh, FmVector3(-10.0f, -10.0f, 10.0f));
+    FmFindClosestTet(&seatbackLGluePoints[2], seatbackLTemplate.vertRestPositions, seatbackLTemplate.tetVertIds, seatbackLTemplate.tetsBvh, FmVector3(10.0f, -10.0f, -10.0f));
+    FmFindClosestTet(&seatbackLGluePoints[3], seatbackLTemplate.vertRestPositions, seatbackLTemplate.tetVertIds, seatbackLTemplate.tetsBvh, FmVector3(10.0f, -10.0f, 10.0f));
+    FmFindClosestTet(&seatbackRGluePoints[0], seatbackRTemplate.vertRestPositions, seatbackRTemplate.tetVertIds, seatbackRTemplate.tetsBvh, FmVector3(-10.0f, -10.0f, -10.0f));
+    FmFindClosestTet(&seatbackRGluePoints[1], seatbackRTemplate.vertRestPositions, seatbackRTemplate.tetVertIds, seatbackRTemplate.tetsBvh, FmVector3(-10.0f, -10.0f, 10.0f));
+    FmFindClosestTet(&seatbackRGluePoints[2], seatbackRTemplate.vertRestPositions, seatbackRTemplate.tetVertIds, seatbackRTemplate.tetsBvh, FmVector3(10.0f, -10.0f, -10.0f));
+    FmFindClosestTet(&seatbackRGluePoints[3], seatbackRTemplate.vertRestPositions, seatbackRTemplate.tetVertIds, seatbackRTemplate.tetsBvh, FmVector3(10.0f, -10.0f, 10.0f));
 
     // Find corresponding points on body
     FmFindClosestTet(&bodySeatbackLGluePoints[0], bodyTemplate.vertRestPositions, bodyTemplate.tetVertIds, bodyTemplate.tetsBvh, seatbackLGluePoints[0].position);
     FmFindClosestTet(&bodySeatbackLGluePoints[1], bodyTemplate.vertRestPositions, bodyTemplate.tetVertIds, bodyTemplate.tetsBvh, seatbackLGluePoints[1].position);
     FmFindClosestTet(&bodySeatbackLGluePoints[2], bodyTemplate.vertRestPositions, bodyTemplate.tetVertIds, bodyTemplate.tetsBvh, seatbackLGluePoints[2].position);
     FmFindClosestTet(&bodySeatbackLGluePoints[3], bodyTemplate.vertRestPositions, bodyTemplate.tetVertIds, bodyTemplate.tetsBvh, seatbackLGluePoints[2].position);
-    bodySeatbackLBarycentrics[0] = mul(FmGetTetRestBaryMatrix(carBodyMesh, bodySeatbackLGluePoints[0].tetId), FmVector4(seatbackLGluePoints[0].position, 1.0f));
-    bodySeatbackLBarycentrics[1] = mul(FmGetTetRestBaryMatrix(carBodyMesh, bodySeatbackLGluePoints[1].tetId), FmVector4(seatbackLGluePoints[1].position, 1.0f));
-    bodySeatbackLBarycentrics[2] = mul(FmGetTetRestBaryMatrix(carBodyMesh, bodySeatbackLGluePoints[2].tetId), FmVector4(seatbackLGluePoints[2].position, 1.0f));
-    bodySeatbackLBarycentrics[3] = mul(FmGetTetRestBaryMatrix(carBodyMesh, bodySeatbackLGluePoints[3].tetId), FmVector4(seatbackLGluePoints[3].position, 1.0f));
+    bodySeatbackLBarycentrics[0] = FmGetTetRestBaryMatrix(carBodyMesh, bodySeatbackLGluePoints[0].tetId) * FmVector4(seatbackLGluePoints[0].position, 1.0f);
+    bodySeatbackLBarycentrics[1] = FmGetTetRestBaryMatrix(carBodyMesh, bodySeatbackLGluePoints[1].tetId) * FmVector4(seatbackLGluePoints[1].position, 1.0f);
+    bodySeatbackLBarycentrics[2] = FmGetTetRestBaryMatrix(carBodyMesh, bodySeatbackLGluePoints[2].tetId) * FmVector4(seatbackLGluePoints[2].position, 1.0f);
+    bodySeatbackLBarycentrics[3] = FmGetTetRestBaryMatrix(carBodyMesh, bodySeatbackLGluePoints[3].tetId) * FmVector4(seatbackLGluePoints[3].position, 1.0f);
 
     FmFindClosestTet(&bodySeatbackRGluePoints[0], bodyTemplate.vertRestPositions, bodyTemplate.tetVertIds, bodyTemplate.tetsBvh, seatbackRGluePoints[0].position);
     FmFindClosestTet(&bodySeatbackRGluePoints[1], bodyTemplate.vertRestPositions, bodyTemplate.tetVertIds, bodyTemplate.tetsBvh, seatbackRGluePoints[1].position);
     FmFindClosestTet(&bodySeatbackRGluePoints[2], bodyTemplate.vertRestPositions, bodyTemplate.tetVertIds, bodyTemplate.tetsBvh, seatbackRGluePoints[2].position);
     FmFindClosestTet(&bodySeatbackRGluePoints[3], bodyTemplate.vertRestPositions, bodyTemplate.tetVertIds, bodyTemplate.tetsBvh, seatbackRGluePoints[2].position);
-    bodySeatbackRbarycentrics[0] = mul(FmGetTetRestBaryMatrix(carBodyMesh, bodySeatbackRGluePoints[0].tetId), FmVector4(seatbackRGluePoints[0].position, 1.0f));
-    bodySeatbackRbarycentrics[1] = mul(FmGetTetRestBaryMatrix(carBodyMesh, bodySeatbackRGluePoints[1].tetId), FmVector4(seatbackRGluePoints[1].position, 1.0f));
-    bodySeatbackRbarycentrics[2] = mul(FmGetTetRestBaryMatrix(carBodyMesh, bodySeatbackRGluePoints[2].tetId), FmVector4(seatbackRGluePoints[2].position, 1.0f));
-    bodySeatbackRbarycentrics[3] = mul(FmGetTetRestBaryMatrix(carBodyMesh, bodySeatbackRGluePoints[3].tetId), FmVector4(seatbackRGluePoints[3].position, 1.0f));
+    bodySeatbackRbarycentrics[0] = FmGetTetRestBaryMatrix(carBodyMesh, bodySeatbackRGluePoints[0].tetId) * FmVector4(seatbackRGluePoints[0].position, 1.0f);
+    bodySeatbackRbarycentrics[1] = FmGetTetRestBaryMatrix(carBodyMesh, bodySeatbackRGluePoints[1].tetId) * FmVector4(seatbackRGluePoints[1].position, 1.0f);
+    bodySeatbackRbarycentrics[2] = FmGetTetRestBaryMatrix(carBodyMesh, bodySeatbackRGluePoints[2].tetId) * FmVector4(seatbackRGluePoints[2].position, 1.0f);
+    bodySeatbackRbarycentrics[3] = FmGetTetRestBaryMatrix(carBodyMesh, bodySeatbackRGluePoints[3].tetId) * FmVector4(seatbackRGluePoints[3].position, 1.0f);
 
     car->hoodHingeMaxImpulseMag = 10000.0f;
     car->hoodLatchMaxImpulseMag = 5000.0f;
@@ -1120,11 +1100,11 @@ void AddCarSimObjectToScene(CarSimObject* car, const CarSimObjectTemplate& carTe
 
         FmClosestTetResult bodyClosestTetRoof;
         FmFindClosestTet(&bodyClosestTetRoof, bodyTemplate.vertRestPositions, bodyTemplate.tetVertIds, bodyTemplate.tetsBvh,
-            FmInitVector3(0.0f, bodyMaxPosition.y - 0.5f, 0.0f));
+            FmVector3(0.0f, bodyMaxPosition.y - 0.5f, 0.0f));
 
         FmClosestTetResult bodyClosestTetFloor;
         FmFindClosestTet(&bodyClosestTetFloor, bodyTemplate.vertRestPositions, bodyTemplate.tetVertIds, bodyTemplate.tetsBvh,
-            FmInitVector3(0.0f, bodyMinPosition.y + 0.5f, 0.0f));
+            FmVector3(0.0f, bodyMinPosition.y + 0.5f, 0.0f));
 
         planeConstraint.bufferIdA = bodyBufferId;
         planeConstraint.bufferIdB = bodyBufferId;
@@ -1142,7 +1122,7 @@ void AddCarSimObjectToScene(CarSimObject* car, const CarSimObjectTemplate& carTe
         planeConstraint.posBaryB[3] = bodyClosestTetFloor.posBary[3];
 
         planeConstraint.bias0 = 0.25f;
-        planeConstraint.planeNormal0 = FmInitVector3(0.0f, 1.0f, 0.0f);
+        planeConstraint.planeNormal0 = FmVector3(0.0f, 1.0f, 0.0f);
         planeConstraint.numDimensions = 1;
         planeConstraint.nonNeg0 = true;
 
@@ -1163,15 +1143,15 @@ void AddCarSimObjectToScene(CarSimObject* car, const CarSimObjectTemplate& carTe
         FmVector3 hoodCenter = (hoodBoxMinPosition + hoodBoxMaxPosition) * 0.5f;
         FmClosestTetResult hoodCollisionPoints[5];
         FmFindClosestTet(&hoodCollisionPoints[0], hoodTemplate.vertRestPositions, hoodTemplate.tetVertIds, hoodTemplate.tetsBvh, hoodCenter);
-        FmFindClosestTet(&hoodCollisionPoints[1], hoodTemplate.vertRestPositions, hoodTemplate.tetVertIds, hoodTemplate.tetsBvh, FmInitVector3(hoodBoxMinPosition.x, hoodCenter.y, hoodBoxMinPosition.z));
-        FmFindClosestTet(&hoodCollisionPoints[2], hoodTemplate.vertRestPositions, hoodTemplate.tetVertIds, hoodTemplate.tetsBvh, FmInitVector3(hoodBoxMinPosition.x, hoodCenter.y, hoodBoxMaxPosition.z));
-        FmFindClosestTet(&hoodCollisionPoints[3], hoodTemplate.vertRestPositions, hoodTemplate.tetVertIds, hoodTemplate.tetsBvh, FmInitVector3(hoodBoxMaxPosition.x, hoodCenter.y, hoodBoxMinPosition.z));
-        FmFindClosestTet(&hoodCollisionPoints[4], hoodTemplate.vertRestPositions, hoodTemplate.tetVertIds, hoodTemplate.tetsBvh, FmInitVector3(hoodBoxMaxPosition.x, hoodCenter.y, hoodBoxMaxPosition.z));
+        FmFindClosestTet(&hoodCollisionPoints[1], hoodTemplate.vertRestPositions, hoodTemplate.tetVertIds, hoodTemplate.tetsBvh, FmVector3(hoodBoxMinPosition.x, hoodCenter.y, hoodBoxMinPosition.z));
+        FmFindClosestTet(&hoodCollisionPoints[2], hoodTemplate.vertRestPositions, hoodTemplate.tetVertIds, hoodTemplate.tetsBvh, FmVector3(hoodBoxMinPosition.x, hoodCenter.y, hoodBoxMaxPosition.z));
+        FmFindClosestTet(&hoodCollisionPoints[3], hoodTemplate.vertRestPositions, hoodTemplate.tetVertIds, hoodTemplate.tetsBvh, FmVector3(hoodBoxMaxPosition.x, hoodCenter.y, hoodBoxMinPosition.z));
+        FmFindClosestTet(&hoodCollisionPoints[4], hoodTemplate.vertRestPositions, hoodTemplate.tetVertIds, hoodTemplate.tetsBvh, FmVector3(hoodBoxMaxPosition.x, hoodCenter.y, hoodBoxMaxPosition.z));
 
         // Use bodyClosestTetFloor and create new body point in engine compartment
         FmClosestTetResult bodyClosestTetEngineCompartment;
         FmFindClosestTet(&bodyClosestTetEngineCompartment, bodyTemplate.vertRestPositions, bodyTemplate.tetVertIds, bodyTemplate.tetsBvh,
-            hoodCenter - FmInitVector3(0.0f, 0.25f, 0.0f));
+            hoodCenter - FmVector3(0.0f, 0.25f, 0.0f));
 
         // Constraints for engine compartment
         for (uint i = 0; i < 5; i++)
@@ -1229,21 +1209,21 @@ void AddCarSimObjectToScene(CarSimObject* car, const CarSimObjectTemplate& carTe
     delete[] tetsIntersected;
 }
 
-#if CARS_PANELS_TIRES_SCENE
+#if CARS_SCENE
 const uint gNumInstances = NUM_INSTANCES;
 const uint gNumCarsPerInstance = NUM_CARS_PER_INSTANCE;
 uint gNumCars = gNumCarsPerInstance*gNumInstances;
 #else
 uint gNumCars = NUM_CARS;
 #endif
-CarSimObject* gCars = NULL;
+CarSimObject* gCars = nullptr;
 CarSimObjectTemplate gCarTemplate;
-TetMeshBufferTemplate* gCarTemplates[8] = { NULL };
+TetMeshBufferTemplate* gCarTemplates[8] = { nullptr };
 #endif
 
-#if CARS_PANELS_TIRES_SCENE
-TetMeshBufferTemplate* gWoodPanelBufferTemplate = NULL;
-TetMeshBufferTemplate* gTractorTireBufferTemplate = NULL;
+#if CARS_SCENE
+TetMeshBufferTemplate* gWoodPanelBufferTemplate = nullptr;
+TetMeshBufferTemplate* gTractorTireBufferTemplate = nullptr;
 
 void LaunchCarSimObject(uint carId, float speed)
 {
@@ -1296,7 +1276,7 @@ void StartExplosionAtProjectile(float force)
     FmTetMeshBuffer* pTetMeshBuffer = FmGetTetMeshBuffer(*gScene, 0);
     FmTetMesh& tetMesh = *FmGetTetMesh(*pTetMeshBuffer, 0);
     StartExplosion(FmGetCenterOfMass(tetMesh), 2e7f, 50.0f, 2.0f);
-    FmResetFromRestPositions(gScene, &tetMesh, FmMatrix3::identity(), FmInitVector3(-1000.0f, 0.0f, 0.0f));
+    FmResetFromRestPositions(gScene, &tetMesh, FmMatrix3::identity(), FmVector3(-1000.0f, 0.0f, 0.0f));
 }
 
 void ApplyExplosion()
@@ -1325,18 +1305,16 @@ void ResetExplosion()
 {
     gExplosionStartTime = -FLT_MAX;
 }
-#endif
 
-#if WOOD_PANELS_IN_SCENE
 struct WoodPanelSimObjectTemplate
 {
     TetMeshBufferTemplate bufferTemplate;
-    uint numCubesX;
-    uint numCubesY;
-    uint numCubesZ;
-    float widthX;
-    float widthY;
-    float widthZ;
+    uint numCubesX = 12;
+    uint numCubesY = 4;
+    uint numCubesZ = 1;
+    float widthX = PANEL_WIDTH;
+    float widthY = PANEL_HEIGHT;
+    float widthZ = PANEL_DEPTH;
 };
 
 struct WoodPanelSimObject
@@ -1363,15 +1341,11 @@ void InitWoodPanelSimObjectTemplate(WoodPanelSimObjectTemplate* panelTemplate,
 
     bool enablePlasticity = false;
 #if KINEMATIC_TEST
-    bool enableFracture = true;
+    bool enableFracture = false;
 #else
     bool enableFracture = true;
 #endif
     bool isKinematic = false;
-
-    FmVector3 position = FmInitVector3(0.0f);
-    FmVector3 velocity = FmInitVector3(0.0f);
-    FmMatrix3 rotation = FmMatrix3::identity();
 
     FmTetMaterialParams materialParams;
     materialParams.restDensity = 1000.0f;
@@ -1388,8 +1362,7 @@ float GetZOffset(float time)
 {
     const float amp = 1.0f;
     const float period = 3.0f;
-    const float timestep = (1.0f / 60.0f);
-    return amp * sinf(2.0f * AMD_PI * (time / period));
+    return amp * sinf(2.0f * FM_PI * (time / period));
 }
 #endif
 
@@ -1397,7 +1370,7 @@ void CreateWoodPanelSimObject(WoodPanelSimObject* panel, const WoodPanelSimObjec
 {
     // Set up a single memory buffer to hold all tet mesh data
 
-    FmTetMesh* tetMeshPtr = NULL;
+    FmTetMesh* tetMeshPtr = nullptr;
     panel->tetMeshBuffer = FmCreateTetMeshBuffer(panelTemplate.bufferTemplate.setupParams, panelTemplate.bufferTemplate.fractureGroupCounts, panelTemplate.bufferTemplate.tetFractureGroupIds, &tetMeshPtr);
     FmTetMesh& tetMesh = *tetMeshPtr;
 
@@ -1405,7 +1378,7 @@ void CreateWoodPanelSimObject(WoodPanelSimObject* panel, const WoodPanelSimObjec
     gNumTetMeshBuffers++;
 
     FmVector3 panelPos = position;
-    panelPos += mul(rotation, FmInitVector3(-panelTemplate.widthX * 0.5f, 0.0f, 0.0f));
+    panelPos += rotation * FmVector3(-panelTemplate.widthX * 0.5f, 0.0f, 0.0f);
 
     FmInitVertState(&tetMesh, panelTemplate.bufferTemplate.vertRestPositions, rotation, panelPos, 1.0f, velocity);
 
@@ -1447,13 +1420,13 @@ void CreateWoodPanelSimObject(WoodPanelSimObject* panel, const WoodPanelSimObjec
             float nextOffset = GetZOffset(sceneParams.simTime + sceneParams.timestep);
             float goalVel = (nextOffset - offset) / sceneParams.timestep;
 
-            FmSetVertVelocity(gScene, &tetMesh, vId, FmInitVector3(0.0f, 0.0f, goalVel));
+            FmSetVertVelocity(gScene, &tetMesh, vId, FmVector3(0.0f, 0.0f, goalVel));
 
             panel->movingVerts.push_back(vId);
             panel->movingVertOrigPos.push_back(FmGetVertPosition(tetMesh, vId));
 #else
             FmSetVertFlags(&tetMesh, vId, FM_VERT_FLAG_KINEMATIC | FM_VERT_FLAG_KINEMATIC_REMOVABLE);
-            FmSetVertVelocity(NULL, &tetMesh, vId, FmInitVector3(0.0f));
+            FmSetVertVelocity(nullptr, &tetMesh, vId, FmVector3(0.0f));
 #endif
         }
     }
@@ -1480,17 +1453,11 @@ void FreeWoodPanelSimObjectTemplate(WoodPanelSimObjectTemplate* panelTemplate)
     panelTemplate->bufferTemplate.Destroy();
 }
 
-#if CARS_PANELS_TIRES_SCENE
 const uint gNumWoodPanelsPerInstance = NUM_WOOD_PANELS_PER_INSTANCE;
 const uint gNumWoodPanels = gNumWoodPanelsPerInstance*gNumInstances;
-#else
-const uint gNumWoodPanels = NUM_WOOD_PANELS;
-#endif
 WoodPanelSimObject gWoodPanels[gNumWoodPanels];
 WoodPanelSimObjectTemplate gWoodPanelTemplate;
-#endif
 
-#if CARS_PANELS_TIRES_SCENE
 struct TractorTireSimObjectTemplate
 {
     TetMeshBufferTemplate bufferTemplate;
@@ -1503,10 +1470,6 @@ struct TractorTireSimObject
 
 void InitTractorTireSimObjectTemplate(TractorTireSimObjectTemplate* tireTemplate, const char* modelsPath)
 {
-    FmVector3 position = FmInitVector3(0.0f);
-    FmVector3 velocity = FmInitVector3(0.0f);
-    FmMatrix3 rotation = FmMatrix3::identity();
-
     FmTetMaterialParams materialParams;
     materialParams.restDensity = 500.0f;
     materialParams.youngsModulus = 6.5e5f;//7.0e5f;
@@ -1522,7 +1485,7 @@ void CreateTractorTireSimObject(TractorTireSimObject* tire, const TractorTireSim
 {
     // Set up a single memory buffer to hold all tet mesh data
 
-    FmTetMesh* tetMeshPtr = NULL;
+    FmTetMesh* tetMeshPtr = nullptr;
     tire->tetMeshBuffer = FmCreateTetMeshBuffer(tireTemplate.bufferTemplate.setupParams, tireTemplate.bufferTemplate.fractureGroupCounts, tireTemplate.bufferTemplate.tetFractureGroupIds, &tetMeshPtr);
     FmTetMesh& tetMesh = *tetMeshPtr;
 
@@ -1568,9 +1531,7 @@ TractorTireSimObject gTractorTires[gNumTractorTires];
 TractorTireSimObjectTemplate gTractorTireTemplate;
 #endif
 
-#if DUCKS_SCENE
-uint gNumObjects = 75;
-#elif RIGIDBODY_TEST_SCENE
+#if RIGIDBODY_TEST_SCENE
 #if GLUE_TEST
 uint gNumObjects = 1;
 #else
@@ -1596,24 +1557,14 @@ bool gMaterialDemoEnableFracture = false;
 
 FmTetMaterialParams gMaterialDemoMaterialParams(50.0f, 4.0e6f, 0.3f, 1.0e4f, 0.5f, 0.01f, 2.0f, 5.0f, 60);
 
-#if MATERIAL_DEMO_SCENE
-uint gNumCubesX = 6;
-uint gNumCubesY = 7;
-uint gNumCubesZ = 1;
-const float gCubeX = 1.0f;
-const float gCubeY = 1.0f;
-const float gCubeZ = 0.8f;
-#elif WOOD_PANELS_IN_SCENE
+#if CARS_SCENE
 uint gNumCubesX = 12;
 uint gNumCubesY = 4;
 uint gNumCubesZ = 1;
-const float gCubeX = PANEL_WIDTH / gNumCubesX;
-const float gCubeY = PANEL_HEIGHT / gNumCubesY;
-const float gCubeZ = PANEL_DEPTH / gNumCubesZ;
 #elif BLOCKS_SCENE || RIGIDBODY_TEST_SCENE
 #if SELF_COLLISION_TEST
 uint        gNumCubesX = 2;
-uint        gNumCubesY = 50;
+uint        gNumCubesY = 100;
 uint        gNumCubesZ = 2;
 const float gCubeX = 0.2f;
 const float gCubeY = 0.2f;
@@ -1628,19 +1579,9 @@ const float gCubeZ = 1.0f;
 #endif
 #endif
 
-#if WOOD_PANELS_SCENE
-static const float gWoodPanelsRowSpacing = 4.0f;
-#endif
-
-#if MATERIAL_DEMO_SCENE
-static const float gProjectileX = 1.0f;
-static const float gProjectileY = 1.0f;
-static const float gProjectileZ = 1.0f;
-#else
 static const float gProjectileX = 0.5f;
 static const float gProjectileY = 0.5f;
 static const float gProjectileZ = 0.5f;
-#endif
 
 void GetBlockMeshCounts(uint* numVerts, uint* numTets, uint numCubesX, uint numCubesY, uint numCubesZ)
 {
@@ -1754,7 +1695,7 @@ void InitBlockVerts(FmVector3* vertRestPositions, FmTetVertIds* tetVertIds,
                     }
                 }
 
-                vertRestPositions[v0] = FmInitVector3(x, y, z) * scale;
+                vertRestPositions[v0] = FmVector3(x, y, z) * scale;
             }
         }
     }
@@ -1817,14 +1758,8 @@ void InitBlockVerts(FmVector3* vertRestPositions, FmTetVertIds* tetVertIds,
 #if PROJECTILE_IN_SCENE
 void FireProjectile(const FmMatrix3& viewRotation, const FmVector3& viewPosition, float speed, bool fixedPosForWoodPanels)
 {
-#if WOOD_PANELS_SCENE
-    for (uint meshIdx = 0; meshIdx < NUM_WOOD_PANELS_ROWS; meshIdx++)
-    {
-        uint meshId = gWoodPanelProjectileMeshBufferIds[meshIdx];
-#else
     uint meshId = gProjectileMeshBufferId;
     {
-#endif
         FmTetMeshBuffer* pTetMeshBuffer = FmGetTetMeshBuffer(*gScene, meshId);
         if (!pTetMeshBuffer)
         {
@@ -1842,21 +1777,18 @@ void FireProjectile(const FmMatrix3& viewRotation, const FmVector3& viewPosition
         FmVector3 direction;
         if (fixedPosForWoodPanels)
         {
-            posOffset = FmInitVector3(0.0f, 1.75f, -10.0f);
-#if WOOD_PANELS_SCENE
-            posOffset += FmInitVector3(gWoodPanelsRowSpacing, 0.0f, 0.0f) * (float)meshId;
-#endif
+            posOffset = FmVector3(0.0f, 1.75f, -10.0f);
             rotation = FmMatrix3::identity();
-            direction = normalize(FmInitVector3(randfloat2()*0.05f, randfloat2()*0.05f, 1.0f));
+            direction = normalize(FmVector3(randfloat2()*0.05f, randfloat2()*0.05f, 1.0f));
         }
         else
         {
             rotation = FmMatrix3(
-                FmInitVector3(viewRotation.col0.x, viewRotation.col0.y, viewRotation.col0.z),
-                FmInitVector3(viewRotation.col1.x, viewRotation.col1.y, viewRotation.col1.z),
-                FmInitVector3(viewRotation.col2.x, viewRotation.col2.y, viewRotation.col2.z));
-            posOffset = FmInitVector3(viewPosition.x, viewPosition.y, viewPosition.z) + mul(rotation, FmInitVector3(-0.5f*cubeX, -0.5f*cubeY, 0.5f*cubeZ));
-            direction = FmInitVector3(-viewRotation.col2.x, -viewRotation.col2.y, -viewRotation.col2.z);
+                FmVector3(viewRotation.col0.x, viewRotation.col0.y, viewRotation.col0.z),
+                FmVector3(viewRotation.col1.x, viewRotation.col1.y, viewRotation.col1.z),
+                FmVector3(viewRotation.col2.x, viewRotation.col2.y, viewRotation.col2.z));
+            posOffset = FmVector3(viewPosition.x, viewPosition.y, viewPosition.z) + rotation * FmVector3(-0.5f*cubeX, -0.5f*cubeY, 0.5f*cubeZ);
+            direction = FmVector3(-viewRotation.col2.x, -viewRotation.col2.y, -viewRotation.col2.z);
         }
 
         FmResetFromRestPositions(gScene, &tetMesh, rotation, posOffset, direction * speed);
@@ -1883,9 +1815,9 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
     }
 
     // Set up task scheduler
-    SampleInitTaskSystem(numThreads);
+    TLInitTaskSystem(numThreads);
 
-    numThreads = SampleGetTaskSystemNumThreads();
+    numThreads = TLGetTaskSystemNumThreads();
 
 #if PERF_TEST
     printf("Random seed = %i Num threads = %i\n", randomSeed, numThreads);
@@ -1896,13 +1828,7 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
     static char timingsFilename[1024];
 #if BLOCKS_SCENE
     sprintf_s(timingsFilename, "%s/femtimings_%ublocks_%iseed_%ithreads.csv", timingsPath, gNumObjects, randomSeed, numThreads);
-#elif DUCKS_SCENE
-    sprintf_s(timingsFilename, "%s/femtimings_%uducks_%iseed_%ithreads.csv", timingsPath, gNumObjects, randomSeed, numThreads);
-#elif WOOD_PANELS_SCENE
-    sprintf_s(timingsFilename, "%s/femtimings_%uwoodpanels_%iseed_%ithreads.csv", timingsPath, gNumWoodPanels, randomSeed, numThreads);
-#elif MATERIAL_DEMO_SCENE
-    sprintf_s(timingsFilename, "%s/femtimings_materialdemo_%iseed_%ithreads.csv", timingsPath, randomSeed, numThreads);
-#elif CARS_PANELS_TIRES_SCENE
+#elif CARS_SCENE
     sprintf_s(timingsFilename, "%s/femtimings_%ucars_panels_tires_%iseed_%ithreads.csv", timingsPath, gNumCars, randomSeed, numThreads);
 #else
     sprintf_s(timingsFilename, "%s/femtimings_%iseed_%ithreads.csv", timingsPath, randomSeed, numThreads);
@@ -1920,7 +1846,7 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
     srand(randomSeed);
 
     // Create templates for assets
-#if CARS_IN_SCENE
+#if CARS_SCENE
     gCars = new CarSimObject[gNumCars];
 
     InitCarSimObjectTemplate(&gCarTemplate, modelsPath);
@@ -1929,11 +1855,8 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
     {
         gCarTemplates[i] = &gCarTemplate.tetMeshBufferTemplates[i];
     }
-#endif
-#if WOOD_PANELS_IN_SCENE
+
     InitWoodPanelSimObjectTemplate(&gWoodPanelTemplate, gNumCubesX, gNumCubesY, gNumCubesZ, PANEL_WIDTH, PANEL_HEIGHT, PANEL_DEPTH);
-#endif
-#if TIRES_IN_SCENE
     InitTractorTireSimObjectTemplate(&gTractorTireTemplate, modelsPath);
     gTractorTireBufferTemplate = &gTractorTireTemplate.bufferTemplate;
 #endif
@@ -1977,57 +1900,10 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
 
     FmSetSceneControlParams(gScene, params);
 
-    FmTaskSystemCallbacks taskSystemCallbacks;
-
-    taskSystemCallbacks.SetCallbacks(
-        SampleGetTaskSystemNumThreads,
-        SampleGetTaskSystemWorkerIndex,
-        SampleAsyncTask,
-        SampleCreateSyncEvent,
-        SampleDestroySyncEvent,
-        SampleWaitForSyncEvent,
-        SampleTriggerSyncEvent
-#if !FM_ASYNC_THREADING
-        , SampleCreateTaskWaitCounter,
-        SampleWaitForTaskWaitCounter,
-        SampleDestroyTaskWaitCounter,
-        SampleSubmitTask,
-        SampleParallelFor
-#endif
-    );
-
-    FmSetSceneTaskSystemCallbacks(gScene, taskSystemCallbacks);
-
-#if LOAD_SERIALIZED_SCENE
-    // Load objects from serialized scene
-
-    FmSetGroupsCanCollide(gScene, 1, 1, false); // no collisions between rigid bodies
-    FmSetGroupsCanCollide(gScene, 0, 3, true);
-    FmSetGroupsCanCollide(gScene, 2, 3, true);
-
-    {
-        FILE* sceneFile = fopen("femscene.bin", "rb");
-        size_t serializationBufferSize;
-        fread(&serializationBufferSize, sizeof(size_t), 1, sceneFile);
-        fseek(sceneFile, 0, 0);
-
-        uint8_t* pSerializationBuffer = (uint8_t*)FmAlignedMalloc(serializationBufferSize, 64);
-        fread(pSerializationBuffer, serializationBufferSize, 1, sceneFile);
-        fclose(sceneFile);
-
-        FmDeserializeScene(gScene, gTetMeshBuffers, gRigidBodies, pSerializationBuffer);
-        FmAlignedFree(pSerializationBuffer);
-    }
-#endif
-
     // Load or procedurally create some objects depending on scene setting
 
-#if MATERIAL_DEMO_SCENE
-    uint numMeshBuffers = 2;  // Slab and projectile
-#elif DUCKS_SCENE || BLOCKS_SCENE || RIGIDBODY_TEST_SCENE
+#if BLOCKS_SCENE || RIGIDBODY_TEST_SCENE
     uint numMeshBuffers = gNumObjects;
-#elif WOOD_PANELS_SCENE
-    uint numMeshBuffers = NUM_WOOD_PANELS_ROWS;  // A projectile for each row
 #else
     uint numMeshBuffers = 1;  // Projectile
 #endif
@@ -2036,8 +1912,10 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
     FmVector3 velOffset(0.0f);
     FmMatrix3 rotation = FmMatrix3::identity();
 
-    FmVector3 rbPos = FmInitVector3(0.0f, 4.0f, 0.0f);
+#if GLUE_TEST
+    FmVector3 rbPos = FmVector3(0.0f, 4.0f, 0.0f);
     FmQuat rbRotation = normalize(FmQuat(randfloat2(), randfloat2(), randfloat2(), randfloat()));
+#endif
 
     for (uint meshBufferIdx = 0; meshBufferIdx < numMeshBuffers; meshBufferIdx++)
     {
@@ -2054,65 +1932,15 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
         }
 #endif
 
-        posOffset = FmInitVector3(0.0f);
-        velOffset = FmInitVector3(0.0f);
+        posOffset = FmVector3(0.0f);
+        velOffset = FmVector3(0.0f);
         rotation = FmMatrix3::identity();
 
         // Get number of vertices and tetrahedra in the model, and initialize vertex incident tets
 
-        FmArray<uint>* vertIncidentTets = NULL;
+        FmArray<uint>* vertIncidentTets = nullptr;
 
-#if MATERIAL_DEMO_SCENE
-        std::string nodeFile = std::string(modelsPath) + std::string("materialblock.1.node");
-        std::string eleFile = std::string(modelsPath) + std::string("materialblock.1.ele");
-
-        if (meshBufferIdx == 0)
-        {
-            GetBlockMeshCounts(&numVerts, &numTets, 1, 1, 1);
-            vertIncidentTets = new FmArray<uint>[numVerts];
-            CreateBlockMesh(vertIncidentTets, 1, 1, 1);
-        }
-        else
-        {
-            enableFracture = gMaterialDemoEnableFracture;
-            enablePlasticity = gMaterialDemoEnablePlasticity;
-
-            int loadRet = LoadNodeEleMeshNumVerts(nodeFile.c_str());
-            if (loadRet < 0)
-            {
-                exit(-1);
-            }
-            numVerts = loadRet;
-
-            vertIncidentTets = new FmArray<uint>[numVerts];
-
-            loadRet = LoadNodeEleMeshNumTets(eleFile.c_str(), vertIncidentTets, numVerts);
-            if (loadRet < 0)
-            {
-                exit(-1);
-            }
-            numTets = loadRet;
-        }
-#elif DUCKS_SCENE
-        std::string nodeFile = std::string(modelsPath) + std::string("duck.1.node");
-        std::string eleFile = std::string(modelsPath) + std::string("duck.1.ele");
-
-        int loadRet = LoadNodeEleMeshNumVerts(nodeFile.c_str());
-        if (loadRet < 0)
-        {
-            exit(-1);
-        }
-        numVerts = loadRet;
-
-        vertIncidentTets = new FmArray<uint>[numVerts];
-
-        loadRet = LoadNodeEleMeshNumTets(eleFile.c_str(), vertIncidentTets, numVerts);
-        if (loadRet < 0)
-        {
-            exit(-1);
-        }
-        numTets = loadRet;
-#elif PROJECTILE_IN_SCENE
+#if PROJECTILE_IN_SCENE
         GetBlockMeshCounts(&numVerts, &numTets, 1, 1, 1);
 
         vertIncidentTets = new FmArray<uint>[numVerts];
@@ -2129,18 +1957,7 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
         FmVector3* vertRestPositions = new FmVector3[numVerts];
         FmTetVertIds* tetVertIds = new FmTetVertIds[numTets];
 
-#if MATERIAL_DEMO_SCENE
-        if (meshBufferIdx == 0)
-        {
-            InitBlockVerts(vertRestPositions, tetVertIds, 1, 1, 1, gProjectileX, gProjectileY, gProjectileZ, 1.0f, false);
-        }
-        else
-        {
-            LoadNodeEleMeshData(nodeFile.c_str(), eleFile.c_str(), vertRestPositions, tetVertIds);
-        }
-#elif DUCKS_SCENE
-        LoadNodeEleMeshData(nodeFile.c_str(), eleFile.c_str(), vertRestPositions, tetVertIds);
-#elif PROJECTILE_IN_SCENE
+#if PROJECTILE_IN_SCENE
         InitBlockVerts(vertRestPositions, tetVertIds, 1, 1, 1, gProjectileX, gProjectileY, gProjectileZ, 1.0f, false);
 #elif BLOCKS_SCENE || RIGIDBODY_TEST_SCENE
         InitBlockVerts(vertRestPositions, tetVertIds, gNumCubesX, gNumCubesY, gNumCubesZ, gCubeX, gCubeY, gCubeZ, 1.0f, false);
@@ -2156,7 +1973,7 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
             &bounds,
             fractureGroupCounts,
             tetFractureGroupIds,
-            vertIncidentTets, tetVertIds, NULL,
+            vertIncidentTets, tetVertIds, nullptr,
             numVerts, numTets, enableFracture);
 
         FmTetMeshBufferSetupParams tetMeshBufferParams;
@@ -2172,7 +1989,7 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
         tetMeshBufferParams.enableFracture = enableFracture;
         tetMeshBufferParams.isKinematic = isKinematic;
 
-        FmTetMesh* tetMeshPtr = NULL;
+        FmTetMesh* tetMeshPtr = nullptr;
         FmTetMeshBuffer* tetMeshBuffer = FmCreateTetMeshBuffer(tetMeshBufferParams, fractureGroupCounts, tetFractureGroupIds, &tetMeshPtr);
 
         gTetMeshBuffers[gNumTetMeshBuffers] = tetMeshBuffer;
@@ -2185,78 +2002,9 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
 
         // Copy mesh data into FmTetMesh structure and set material parameters.
 
-#if MATERIAL_DEMO_SCENE
-        if (meshBufferIdx == 0)
-        {
-            rotation = FmMatrix3::identity();
-            posOffset += FmInitVector3(1000.0f, 0.0f, 1000.0f);
-
-            FmInitVertState(&tetMesh, vertRestPositions, rotation, posOffset);
-
-            FmTetMaterialParams materialParams;
-
-            materialParams.restDensity = 300.0f;
-            materialParams.poissonsRatio = 0.4f;
-            materialParams.youngsModulus = 1.0e6f;
-
-            FmInitTetState(&tetMesh, tetVertIds, materialParams);
-
-            FmComputeMeshConstantMatrices(&tetMesh);
-
-            FmSetMassesFromRestDensities(&tetMesh);
-        }
-        else
-        {
-            rotation = FmMatrix3::identity();
-            posOffset += FmInitVector3(float(-gCubeX * gNumCubesX * 0.5f), float(params.distContactThreshold * 1.1), 0.0f);
-
-            FmInitVertState(&tetMesh, vertRestPositions, rotation, posOffset, 1.0f, velOffset);
-
-            FmTetMaterialParams materialParams;
-            materialParams = gMaterialDemoMaterialParams;
-            //materialParams.lowerDeformationLimit = 0.5f;
-
-            FmInitTetState(&tetMesh, tetVertIds, materialParams);
-
-            FmComputeMeshConstantMatrices(&tetMesh);
-
-            FmSetMassesFromRestDensities(&tetMesh);
-
-            for (uint vId = 0; vId < numVerts; vId++)
-            {
-                if (FmGetVertRestPosition(tetMesh, vId).y < 0.05f)
-                {
-                    FmSetVertFlags(&tetMesh, vId, FM_VERT_FLAG_KINEMATIC);
-                    FmSetVertVelocity(NULL, &tetMesh, vId, FmInitVector3(0.0f));
-                }
-            }
-        }
-#elif DUCKS_SCENE
-        posOffset = FmInitVector3(0.0f, 1.75f, 0.0f) * (float)meshBufferIdx;
-
-        posOffset.x += randfloat2() * 0.2f;
-        posOffset.y += randfloat2() * 0.2f;
-        posOffset.z += randfloat2() * 0.2f;
-
+#if PROJECTILE_IN_SCENE
         rotation = FmMatrix3::identity();
-
-        FmInitVertState(&tetMesh, vertRestPositions, rotation, posOffset, 1.0f);
-
-        FmTetMaterialParams materialParams;
-        materialParams.restDensity = 20.0f;
-        materialParams.poissonsRatio = 0.4f;
-        materialParams.youngsModulus = 3.0e4f;
-
-        FmInitTetState(&tetMesh, tetVertIds, materialParams);
-
-        FmComputeMeshConstantMatrices(&tetMesh);
-#elif PROJECTILE_IN_SCENE
-        const float cubeX = gProjectileX;
-        const float cubeY = gProjectileY;
-        const float cubeZ = gProjectileZ;
-
-        rotation = FmMatrix3::identity();
-        posOffset += FmInitVector3(-1000.0f, 0.0f, 0.0f) + FmInitVector3(10.0f, 0.0f, 0.0f)*(float)meshBufferIdx;
+        posOffset += FmVector3(-1000.0f, 0.0f, 0.0f) + FmVector3(10.0f, 0.0f, 0.0f)*(float)meshBufferIdx;
 
         FmInitVertState(&tetMesh, vertRestPositions, rotation, posOffset, 1.0f, velOffset);
 
@@ -2278,16 +2026,16 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
         uint blockIdx = meshBufferIdx % gNumBlocksPerColumn;
 
 #if KINEMATIC_TEST
-        posOffset = FmInitVector3(0.0f, 1.00299f, 0.0f) * (float)blockIdx + FmInitVector3(8.0f, 0.0f, 0.0f) * (float)((int)columnIdx - (int)gNumColumns / 2);
+        posOffset = FmVector3(0.0f, 1.00299f, 0.0f) * (float)blockIdx + FmVector3(8.0f, 0.0f, 0.0f) * (float)((int)columnIdx - (int)gNumColumns / 2);
 #else
-        posOffset = FmInitVector3(0.0f, 2.0f, 0.0f) * (float)blockIdx + FmInitVector3(8.0f, 0.0f, 0.0f) * (float)((int)columnIdx - (int)gNumColumns/2);
+        posOffset = FmVector3(0.0f, 2.0f, 0.0f) * (float)blockIdx + FmVector3(8.0f, 0.0f, 0.0f) * (float)((int)columnIdx - (int)gNumColumns/2);
         posOffset.x += randfloat2() * 0.2f;
         posOffset.y += randfloat2() * 0.2f;
         posOffset.z += randfloat2() * 0.2f;
 #endif
         rotation = FmMatrix3::rotationY(FM_PI/2.0f);
 
-        velOffset = FmInitVector3(0.0f, 0.0f, 0.0f);
+        velOffset = FmVector3(0.0f, 0.0f, 0.0f);
 
         FmInitVertState(&tetMesh, vertRestPositions, rotation, posOffset, 1.0f, velOffset);
 
@@ -2308,14 +2056,14 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
 #elif RIGIDBODY_TEST_SCENE
 #if GLUE_TEST
         rotation = FmMatrix3(rbRotation);
-        posOffset = rbPos + FmInitVector3(0.0f, 4.0f, 0.0f) * (float)(meshBufferIdx);
-        posOffset += rotate(rbRotation, FmInitVector3(0.5f, 0.0f, 0.0f) - FmInitVector3(gCubeX, gCubeY, -gCubeZ) * 0.5f);
-        velOffset = FmInitVector3(0.0f, 10.0f, 0.0f);
+        posOffset = rbPos + FmVector3(0.0f, 4.0f, 0.0f) * (float)(meshBufferIdx);
+        posOffset += rotate(rbRotation, FmVector3(0.5f, 0.0f, 0.0f) - FmVector3(gCubeX, gCubeY, -gCubeZ) * 0.5f);
+        velOffset = FmVector3(0.0f, 20.0f, 0.0f);
 #else
         rotation = FmMatrix3::identity();
-        posOffset = FmInitVector3(-2.0f, 0.5f, 0.0f) + FmInitVector3(0.0f, 3.0f * gDeltaY, 0.0f) * (float)meshBufferIdx;
-        posOffset += FmInitVector3(0.0f, 1.1f, 0.0f);
-        velOffset = FmInitVector3(0.0f, 0.0f, 0.0f);
+        posOffset = FmVector3(-2.0f, 0.5f, 0.0f) + FmVector3(0.0f, 3.0f * gDeltaY, 0.0f) * (float)meshBufferIdx;
+        posOffset += FmVector3(0.0f, 1.1f, 0.0f);
+        velOffset = FmVector3(0.0f, 0.0f, 0.0f);
 #endif
 
         FmInitVertState(&tetMesh, vertRestPositions, rotation, posOffset, 1.0f, velOffset);
@@ -2333,8 +2081,8 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
         for (uint i = 0; i < numMeshVerts; i++)
         {
             FmSetVertMass(&tetMesh, i, 1.0f);
-            FmSetVertPosition(NULL, &tetMesh, i, posOffset + mul(rotation, FmGetVertRestPosition(tetMesh, i)));
-            FmSetVertVelocity(NULL, &tetMesh, i, FmInitVector3(0.0f) + velOffset);
+            FmSetVertPosition(nullptr, &tetMesh, i, posOffset + rotation * FmGetVertRestPosition(tetMesh, i));
+            FmSetVertVelocity(nullptr, &tetMesh, i, FmVector3(0.0f) + velOffset);
         }
 #endif
 
@@ -2356,9 +2104,7 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
 
         FmAddTetMeshBufferToScene(gScene, tetMeshBuffer);
 
-#if WOOD_PANELS_SCENE
-        gWoodPanelProjectileMeshBufferIds[meshBufferIdx] = FmGetTetMeshBufferId(*tetMeshBuffer);
-#elif PROJECTILE_IN_SCENE
+#if PROJECTILE_IN_SCENE
         if (meshBufferIdx == 0)
         {
             gProjectileMeshBufferId = FmGetTetMeshBufferId(*tetMeshBuffer);
@@ -2370,7 +2116,7 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
         delete[] vertIncidentTets;
     }
 
-#if CARS_PANELS_TIRES_SCENE
+#if CARS_SCENE
     uint numRigidBodies = CarSimObject::numRigidBodies * gNumCars;
 #elif GLUE_TEST
     uint numRigidBodies = 1;
@@ -2416,20 +2162,19 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
 #if GLUE_TEST
         rigidBodyState.pos = rbPos;
         rigidBodyState.quat = rbRotation;
-        //rigidBodyState.quat = normalize(FmQuat(0.0f, 0.0f, 0.0f, 1.0f));
-        rigidBodyState.vel = FmInitVector3(0.0f, 0.0f, 0.0f);
-        rigidBodyState.angvel = FmInitVector3(0.0f);
+        rigidBodyState.vel = FmVector3(0.0f, 0.0f, 0.0f);
+        rigidBodyState.angVel = FmVector3(0.0f);
 
         float hx = 1.8f * 0.6f;
         float hy = 1.0f * 0.6f;
         float hz = 1.6f * 0.6f;
 #else
         float offsetY = (rbIdx / 2) * 3.0f * gDeltaY + (rbIdx % 2) * gDeltaY;
-        rigidBodyState.pos = FmInitVector3(0.0f, 3.5f, -0.5f) + FmInitVector3(0.0, offsetY, 0.0f);// *(float)rbIdx;
-        rigidBodyState.pos += FmInitVector3(0.5f*randfloat2(), 0.0f, 0.0f);
+        rigidBodyState.pos = FmVector3(0.0f, 3.5f, -0.5f) + FmVector3(0.0, offsetY, 0.0f);// *(float)rbIdx;
+        rigidBodyState.pos += FmVector3(0.5f*randfloat2(), 0.0f, 0.0f);
         rigidBodyState.quat = normalize(FmQuat(0.0f, 0.0f, 0.0f, 1.0f));
-        rigidBodyState.vel = FmInitVector3(0.0f);
-        rigidBodyState.angVel = FmInitVector3(0.0f);
+        rigidBodyState.vel = FmVector3(0.0f);
+        rigidBodyState.angVel = FmVector3(0.0f);
 
         float hx = 1.0f * 0.6f;
         float hy = 1.0f * 0.6f;
@@ -2480,7 +2225,7 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
         exit(-1);
     }
 
-    FmVector3 modelPosition = FmInitVector3(0.0f, 2.0f, 0.0f);
+    FmVector3 modelPosition = FmVector3(0.0f, 2.0f, 0.0f);
     FmMatrix3 modelRotation = FmMatrix3::identity();
 
     for (int i = 0; i < (int)resource.ComponentResources.size(); i++)
@@ -2495,7 +2240,7 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
 
         int setKinematic = 0;
 
-        FmTetMeshBuffer* tetMeshBuffer = CreateTetMeshBuffer(resource.ComponentResources[i], materialParams, modelPosition, modelRotation, FmInitVector3(0.0f), 0.0f, false, true, isKinematic, setKinematic, 0.05f);
+        FmTetMeshBuffer* tetMeshBuffer = CreateTetMeshBuffer(resource.ComponentResources[i], materialParams, modelPosition, modelRotation, FmVector3(0.0f), 0.0f, false, true, isKinematic, setKinematic, 0.05f);
         FmAddTetMeshBufferToScene(gScene, tetMeshBuffer);
     }
 
@@ -2506,10 +2251,10 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
 
         FRigidBody temp = resource.ActorResource.RigidBodies[i];
 
-        bodyParams.state.pos = AMD::FmInitVector3(temp.Position.X, temp.Position.Y, temp.Position.Z);
-        bodyParams.state.quat = AMD::FmInitQuat(temp.Rotation.X, temp.Rotation.Y, temp.Rotation.Z, temp.Rotation.W);
-        bodyParams.state.vel = AMD::FmInitVector3(0.0f, 0.0f, 0.0f);
-        bodyParams.state.angVel = AMD::FmInitVector3(0.0f, 0.0f, 0.0f);
+        bodyParams.state.pos = AMD::FmVector3(temp.Position.X, temp.Position.Y, temp.Position.Z);
+        bodyParams.state.quat = AMD::FmQuat(temp.Rotation.X, temp.Rotation.Y, temp.Rotation.Z, temp.Rotation.W);
+        bodyParams.state.vel = AMD::FmVector3(0.0f, 0.0f, 0.0f);
+        bodyParams.state.angVel = AMD::FmVector3(0.0f, 0.0f, 0.0f);
 
         bodyParams.halfDimX = temp.Dimensions.X;
         bodyParams.halfDimY = temp.Dimensions.Y;
@@ -2517,14 +2262,14 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
 
         bodyParams.mass = temp.mass;
 
-        AMD::FmVector3 col1 = AMD::FmInitVector3(temp.BodyInertiaTensor[0], temp.BodyInertiaTensor[1], temp.BodyInertiaTensor[2]);
-        AMD::FmVector3 col2 = AMD::FmInitVector3(temp.BodyInertiaTensor[3], temp.BodyInertiaTensor[4], temp.BodyInertiaTensor[5]);
-        AMD::FmVector3 col3 = AMD::FmInitVector3(temp.BodyInertiaTensor[6], temp.BodyInertiaTensor[7], temp.BodyInertiaTensor[8]);
+        AMD::FmVector3 col1 = AMD::FmVector3(temp.BodyInertiaTensor[0], temp.BodyInertiaTensor[1], temp.BodyInertiaTensor[2]);
+        AMD::FmVector3 col2 = AMD::FmVector3(temp.BodyInertiaTensor[3], temp.BodyInertiaTensor[4], temp.BodyInertiaTensor[5]);
+        AMD::FmVector3 col3 = AMD::FmVector3(temp.BodyInertiaTensor[6], temp.BodyInertiaTensor[7], temp.BodyInertiaTensor[8]);
 
-        bodyParams.bodyInertiaTensor = AMD::FmInitMatrix3(col1, col2, col3);
+        bodyParams.bodyInertiaTensor = AMD::FmMatrix3(col1, col2, col3);
 
-        bodyParams.state.pos = modelPosition + mul(rotation, bodyParams.state.pos);
-        bodyParams.state.quat = mul(FmQuat(modelRotation), bodyParams.state.quat);
+        bodyParams.state.pos = modelPosition + rotation * bodyParams.state.pos;
+        bodyParams.state.quat = FmQuat(modelRotation) * bodyParams.state.quat;
 
         FmRigidBody* rigidBody = FmCreateRigidBody(bodyParams);
         gRigidBodies[gNumRigidBodies] = rigidBody;
@@ -2544,8 +2289,8 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
         constraint.objectIdA = it->BodyA | FM_RB_FLAG;
         constraint.objectIdB = it->BodyB | FM_RB_FLAG;
 
-        constraint.axisBodySpaceA = AMD::FmInitVector3(it->AxisBodySpaceA.X, it->AxisBodySpaceA.Y, it->AxisBodySpaceA.Z);
-        constraint.axisBodySpaceB = AMD::FmInitVector3(it->AxisBodySpaceB.X, it->AxisBodySpaceB.Y, it->AxisBodySpaceB.Z);
+        constraint.axisBodySpaceA = AMD::FmVector3(it->AxisBodySpaceA.X, it->AxisBodySpaceA.Y, it->AxisBodySpaceA.Z);
+        constraint.axisBodySpaceB = AMD::FmVector3(it->AxisBodySpaceB.X, it->AxisBodySpaceB.Y, it->AxisBodySpaceB.Z);
 
         AMD::FmAddRigidBodyAngleConstraintToScene(gScene, constraint);
     }
@@ -2584,25 +2329,23 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
     }
 #endif
 
-#if CARS_PANELS_TIRES_SCENE
+#if CARS_SCENE
     const float instanceSpacingX = 10.0f;
 
     const float woodPanelsSpacingZ = 4.0f;
     const float woodPanelsHalfZ = 0.5f * (float)(gNumWoodPanelsPerInstance - 1) * woodPanelsSpacingZ;
     const float woodPanelsMinZ = -woodPanelsHalfZ;
     const float woodPanelsMaxZ = woodPanelsHalfZ;
-#endif
 
-#if CARS_IN_SCENE
     // Create car instances and place in scene
     for (uint carIdx = 0; carIdx < gNumCars; carIdx++)
     {
         FmVector3 position, velocity;
-#if CARS_PANELS_TIRES_SCENE
+#if CARS_SCENE
         int instanceIdx = carIdx / gNumCarsPerInstance;
-        position = FmInitVector3((float)(instanceIdx - (int)(gNumInstances / 2)) * instanceSpacingX, 0.0f, woodPanelsMinZ - 4.0f);
+        position = FmVector3((float)(instanceIdx - (int)(gNumInstances / 2)) * instanceSpacingX, 0.0f, woodPanelsMinZ - 4.0f);
         rotation = FmMatrix3::rotationY(-FM_PI * 0.5f + 0.025f * FM_PI * randfloat2());
-        velocity = FmInitVector3(0.0f);
+        velocity = FmVector3(0.0f);
 #else
         // collisions
         const float spacing = 5.0f;
@@ -2611,7 +2354,7 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
         const float speed = (gNumCars == 1) ? 0.0f : 35.0f;
         if (carIdx < gNumCars / 2)
         {
-            position = FmInitVector3(-totalWidth * 0.5f, 0.0f, 5.0f) + FmInitVector3(spacing, 0.0f, 0.0f) * (float)carIdx;
+            position = FmVector3(-totalWidth * 0.5f, 0.0f, 5.0f) + FmVector3(spacing, 0.0f, 0.0f) * (float)carIdx;
             //rotation = FmMatrix3::rotationY(0.05f * 3.14159265f * randfloat2());
             rotation = FmMatrix3::rotationY(3.14159265f * 0.5f + 0.05f * 3.14159265f * randfloat2());
             //rotation = FmMatrix3::rotationY(3.14159265f * 0.5f);//FmMatrix3::identity();
@@ -2619,7 +2362,7 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
         }
         else
         {
-            position = FmInitVector3(-totalWidth * 0.5f, 0.0f, -5.0f) + FmInitVector3(spacing, 0.0f, 0.0f) * (float)((int)carIdx - (int)gNumCars / 2);
+            position = FmVector3(-totalWidth * 0.5f, 0.0f, -5.0f) + FmVector3(spacing, 0.0f, 0.0f) * (float)((int)carIdx - (int)gNumCars / 2);
             //rotation = FmMatrix3::rotationY(-3.14159265f + 0.05f * 3.14159265f * randfloat2());
             rotation = FmMatrix3::rotationY(-3.14159265f * 0.5f + 0.05f * 3.14159265f * randfloat2());
             //rotation = FmMatrix3::rotationY(-3.14159265f * 0.5f);// FmMatrix3::rotationY(-3.14159265f);
@@ -2630,28 +2373,19 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
         CreateCarSimObject(&gCars[carIdx], gCarTemplate, position, rotation, velocity);
         AddCarSimObjectToScene(&gCars[carIdx], gCarTemplate, gScene);
     }
-#endif
 
-#if WOOD_PANELS_IN_SCENE
     // Create wood panels instances and place in scene
     for (uint i = 0; i < gNumWoodPanels; i++)
     {
-#if CARS_PANELS_TIRES_SCENE
         int instanceIdx = i / gNumWoodPanelsPerInstance;
         uint rowIdx = i % gNumWoodPanelsPerInstance;
-        FmVector3 position = FmInitVector3((float)(instanceIdx - (int)(gNumInstances / 2)) * instanceSpacingX, params.distContactThreshold * 1.1f, woodPanelsSpacingZ * ((float)rowIdx - 0.5f * (gNumWoodPanelsPerInstance - 1)));
-#else
-        uint rowIdx = i / NUM_WOOD_PANELS_PER_ROW;
-        uint colIdx = i % NUM_WOOD_PANELS_PER_ROW;
-        FmVector3 position = FmInitVector3(gWoodPanelsRowSpacing * (float)rowIdx, params.distContactThreshold * 1.1f, 2.5f * (float)((int)colIdx - 2));
-#endif
-        CreateWoodPanelSimObject(&gWoodPanels[i], gWoodPanelTemplate, position, FmMatrix3::identity(), FmInitVector3(0.0f));
+        FmVector3 position = FmVector3((float)(instanceIdx - (int)(gNumInstances / 2)) * instanceSpacingX, params.distContactThreshold * 1.1f, woodPanelsSpacingZ * ((float)rowIdx - 0.5f * (gNumWoodPanelsPerInstance - 1)));
+
+        CreateWoodPanelSimObject(&gWoodPanels[i], gWoodPanelTemplate, position, FmMatrix3::identity(), FmVector3(0.0f));
 
         AddWoodPanelSimObjectToScene(&gWoodPanels[i], gScene);
     }
-#endif
 
-#if CARS_PANELS_TIRES_SCENE
     // Create tractor tire instances and place in scene
     uint numTireStacksPerInstance = NUM_TRACTOR_TIRE_STACKS;
     uint numTireStacks = numTireStacksPerInstance*gNumInstances;
@@ -2664,7 +2398,7 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
         uint stackIdx = i % numTireStacksPerInstance;
 
         rotation = FmMatrix3::identity();
-        FmVector3 basePosition = FmInitVector3((float)(instanceIdx - (int)(gNumInstances / 2)) * instanceSpacingX, TRACTOR_TIRE_HALF_DEPTH, woodPanelsMaxZ + tireStackSpacing + tireStackSpacing * stackIdx);
+        FmVector3 basePosition = FmVector3((float)(instanceIdx - (int)(gNumInstances / 2)) * instanceSpacingX, TRACTOR_TIRE_HALF_DEPTH, woodPanelsMaxZ + tireStackSpacing + tireStackSpacing * stackIdx);
 
         for (uint levelIdx = 0; levelIdx < TRACTOR_TIRE_STACK_BASE; levelIdx++)
         {
@@ -2679,9 +2413,9 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
             {
                 for (uint tireIdx = 0; tireIdx < numOnLevel; tireIdx++)
                 {
-                    //FmVector3 position = basePosition + FmInitVector3(minX + gapX * tireIdx, height, 0.0f);
-                    FmVector3 position = basePosition + FmInitVector3(minX + gapX * tireIdx, height + ti * gapY, 0.0f);
-                    CreateTractorTireSimObject(&gTractorTires[tireObjectIdx], gTractorTireTemplate, position, rotation, FmInitVector3(0.0f));
+                    //FmVector3 position = basePosition + FmVector3(minX + gapX * tireIdx, height, 0.0f);
+                    FmVector3 position = basePosition + FmVector3(minX + gapX * tireIdx, height + ti * gapY, 0.0f);
+                    CreateTractorTireSimObject(&gTractorTires[tireObjectIdx], gTractorTireTemplate, position, rotation, FmVector3(0.0f));
                     AddTractorTireSimObjectToScene(&gTractorTires[tireObjectIdx], gScene);
                     tireObjectIdx++;
                 }
@@ -2797,10 +2531,7 @@ void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, 
     }
 #endif
 
-#if FIX_INITIAL_CONDITIONS && WOOD_PANELS_SCENE
-    FireProjectile(FmMatrix3::identity(), FmInitVector3(0.0f), 60.0f, true);
-#endif
-#if FIX_INITIAL_CONDITIONS && CARS_PANELS_TIRES_SCENE
+#if FIX_INITIAL_CONDITIONS && CARS_SCENE
     for (uint i = 0; i < gNumInstances; i++)
     {
         LaunchCarSimObject(i, 36.0f);
@@ -2816,44 +2547,16 @@ void UpdateObjects()
     {
         return;
     }
-#if WOOD_PANELS_SCENE && KINEMATIC_TEST
-    const FmSceneControlParams& sceneParams = FmGetSceneControlParams(*gScene);
-
-    for (uint i = 0; i < gNumWoodPanels; i++)
-    {
-        WoodPanelSimObject& simObject = gWoodPanels[i];
-        for (uint mvIdx = 0; mvIdx < simObject.movingVerts.size(); mvIdx++)
-        {
-            uint meshVertId;
-            uint bufferVertId;
-            FmTetMesh* tetMesh = FmGetTetMeshContainingVert(&meshVertId, &bufferVertId, *simObject.tetMeshBuffer, simObject.movingVerts[mvIdx]);
-
-            if (FmGetVertFlags(*tetMesh, meshVertId) & FM_VERT_FLAG_KINEMATIC)
-            {
-                float offset = GetZOffset(sceneParams.simTime);
-                float nextOffset = GetZOffset(sceneParams.simTime + sceneParams.timestep);
-                float goalVel = (nextOffset - offset) / sceneParams.timestep;
-
-                FmVector3 pos = simObject.movingVertOrigPos[mvIdx];
-                pos.z += offset;
-
-                FmSetVertPosition(gScene, tetMesh, meshVertId, pos);
-                FmSetVertVelocity(gScene, tetMesh, meshVertId, FmInitVector3(0.0f, 0.0f, goalVel));
-            }
-        }
-    }
-#endif
 #if BLOCKS_SCENE && KINEMATIC_TEST
     const float period = 3.0f;
-    const float amp = 1.0f;
+    const float amp = 4.0f;
 
     const FmSceneControlParams& params = FmGetSceneControlParams(*gScene);
 
-    float offset = amp * sinf(2.0f * AMD_PI * (params.simTime / period));
-    float nextOffset = amp * sinf(2.0f * AMD_PI * ((params.simTime + params.timestep) / period));
+    float offset = amp - amp * cosf(2.0f * FM_PI * (params.simTime / period));
+    float nextOffset = amp - amp * cosf(2.0f * FM_PI * ((params.simTime + params.timestep) / period));
 
-    FmVector3 vel = FmInitVector3(0.0f, (nextOffset - offset) / params.timestep, 0.0f);
-    //FmVector3 vel = FmInitVector3(0.0f);
+    FmVector3 vel = FmVector3(0.0f, (nextOffset - offset) / params.timestep, 0.0f);
 
     FmTetMesh* tetMesh = FmGetTetMesh(*gScene, 0);
 
@@ -2868,18 +2571,18 @@ void UpdateObjects()
     const FmSceneControlParams& params = FmGetSceneControlParams(*gScene);
 
     const float period = 3.0f;
-    const float amp = 1.0f;
+    const float amp = 2.5f;
 
-    float offset = amp * sinf(2.0f * AMD_PI * (params.simTime / period));
-    float nextOffset = amp * sinf(2.0f * AMD_PI * ((params.simTime + params.timestep) / period));
+    float offset = amp * sinf(2.0f * FM_PI * (params.simTime / period));
+    float nextOffset = amp * sinf(2.0f * FM_PI * ((params.simTime + params.timestep) / period));
 
     FmRigidBody* rigidBody = FmGetRigidBody(*gScene, 0 | FM_RB_FLAG);
     FmRigidBodyState state = FmGetState(*rigidBody);
-    state.vel = FmInitVector3(0.0f, (nextOffset - offset) / params.timestep, 0.0f);
+    state.vel = FmVector3(0.0f, (nextOffset - offset) / params.timestep, 0.0f);
 
     FmSetState(gScene, rigidBody, state);
 #endif
-#if CARS_IN_SCENE
+#if CARS_SCENE
     for (uint carIdx = 0; carIdx < gNumCars; carIdx++)
     {
         CarSimObject& car = gCars[carIdx];
@@ -2905,7 +2608,7 @@ void UpdateObjects()
             uint tetId, meshIdx;
             FmTetMesh* tetMesh = FmGetTetMeshContainingTet(&tetId, &meshIdx, *FmGetTetMeshBuffer(*gScene, car.tetMeshBufferIds[0]), planeConstraint.bufferTetIdB);
 
-            FmVector3 planeNormal0 = mul(FmGetTetRotation(*tetMesh, tetId), FmInitVector3(0.0f, 1.0f, 0.0f));
+            FmVector3 planeNormal0 = FmGetTetRotation(*tetMesh, tetId) * FmVector3(0.0f, 1.0f, 0.0f);
             FmSetPlaneConstraintNormals(gScene, planeConstraintId, planeNormal0, planeNormal0, planeNormal0);
         }
 
@@ -2968,7 +2671,7 @@ void UpdateObjects()
             FmVector3 hoodPoint = FmGetInterpolatedPosition(planeConstraint.posBaryA, *hoodTetMesh, tetId);
 
             // Apply constraint only if hood point within a box near point on the car body
-            FmVector3 hoodPointEngine = mul(transpose(engineConstraintRotation), hoodPoint - engineConstraintPosition);
+            FmVector3 hoodPointEngine = transpose(engineConstraintRotation) * (hoodPoint - engineConstraintPosition);
 
             if (hoodPointEngine.x > -0.75f && hoodPointEngine.x < 0.75f
                 && hoodPointEngine.y > 0.05f && hoodPointEngine.y <= planeConstraint.bias0 * 1.25f
@@ -3014,7 +2717,7 @@ void UpdateObjects()
             FmVector3 hoodPoint = FmGetInterpolatedPosition(planeConstraint.posBaryA, *hoodTetMesh, tetId);
 
             // Apply constraint only if hood point within a box near point on the car body
-            FmVector3 hoodPointCabin = mul(transpose(cabinConstraintRotation), hoodPoint - cabinConstraintPosition);
+            FmVector3 hoodPointCabin = transpose(cabinConstraintRotation) * (hoodPoint - cabinConstraintPosition);
 
             if (hoodPointCabin.x > -0.75f && hoodPointCabin.x < 0.75f
                 && hoodPointCabin.y > 0.05f && hoodPointCabin.y <= planeConstraint.bias0 * 1.25f
@@ -3037,7 +2740,7 @@ void FreeScene()
     if (gRbScene)
     {
         delete gRbScene;
-        gRbScene = NULL;
+        gRbScene = nullptr;
     }
 #endif
 
@@ -3047,42 +2750,38 @@ void FreeScene()
         if (gTimingsFile)
         {
             fclose(gTimingsFile);
-            gTimingsFile = NULL;
+            gTimingsFile = nullptr;
         }
 #endif
 
         for (uint meshBufferIdx = 0; meshBufferIdx < gNumTetMeshBuffers; meshBufferIdx++)
         {
             FmDestroyTetMeshBuffer(gTetMeshBuffers[meshBufferIdx]);
-            gTetMeshBuffers[meshBufferIdx] = NULL;
+            gTetMeshBuffers[meshBufferIdx] = nullptr;
         }
         gNumTetMeshBuffers = 0;
 
         for (uint rbIdx = 0; rbIdx < gNumRigidBodies; rbIdx++)
         {
             FmDestroyRigidBody(gRigidBodies[rbIdx]);
-            gRigidBodies[rbIdx] = NULL;
+            gRigidBodies[rbIdx] = nullptr;
         }
         gNumRigidBodies = 0;
 
         FmDestroyScene(gScene);
-        gScene = NULL;
+        gScene = nullptr;
     }
 
-#if CARS_IN_SCENE
+#if CARS_SCENE
     delete[] gCars;
     FreeCarSimObjectTemplate(&gCarTemplate);
     for (uint i = 0; i < NUM_CAR_TEMPLATES; i++)
     {
-        gCarTemplates[i] = NULL;
+        gCarTemplates[i] = nullptr;
     }
-#endif
-#if WOOD_PANELS_IN_SCENE
     FreeWoodPanelSimObjectTemplate(&gWoodPanelTemplate);
-#endif
-#if CARS_PANELS_TIRES_SCENE
     FreeTractorTireSimObjectTemplate(&gTractorTireTemplate);
 #endif
 
-    SampleDestroyTaskSystem();
+    TLDestroyTaskSystem();
 }

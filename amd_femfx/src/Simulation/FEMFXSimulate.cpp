@@ -28,7 +28,7 @@ THE SOFTWARE.
 
 #include "FEMFXSvd3x3.h"
 #include "FEMFXMpcgSolverSetup.h"
-#include "FEMFXParallelFor.h"
+#include "FEMFXThreading.h"
 #include "FEMFXBoxCcd.h"
 #include "FEMFXScene.h"
 #include "FEMFXSleeping.h"
@@ -40,10 +40,6 @@ THE SOFTWARE.
 
 #if FM_SOA_TET_MATH
 #include "FEMFXSoaTetMath.h"
-#endif
-
-#if FM_USE_TRACE
-bool gFEMFXTraceEnabled = false;
 #endif
 
 int FmAssertBreak()
@@ -66,10 +62,13 @@ namespace AMD
     double gFEMFXConstraintSolveTime = 0.0;
     double gFEMFXTotalStepTime = 0.0;
 #endif
+#if FM_USE_TRACE
+    bool gFEMFXTraceEnabled = false;
+#endif
 
 #if FM_DEBUG_MESHES
-    FmTetMesh* gFEMFXPreConstraintSolveMeshes = NULL;
-    FmRigidBody* gFEMFXPreConstraintSolveRigidBodies = NULL;
+    FmTetMesh* gFEMFXPreConstraintSolveMeshes = nullptr;
+    FmRigidBody* gFEMFXPreConstraintSolveRigidBodies = nullptr;
     uint gFEMFXNumPreConstraintSolveMeshes = 0;
     uint gFEMFXNumPreConstraintSolveRigidBodies = 0;
 #endif
@@ -191,9 +190,9 @@ namespace AMD
 
         struct TetGroupAssignment
         {
-            uint                       tetId;
-            int                        groupId;
-            float                      tetMass;
+            uint                    tetId = FM_INVALID_ID;
+            int                     groupId = -1;
+            float                   tetMass = 0.0f;
             FmTetVertIds            tetVerts;
             FmTetFaceIncidentTetIds tetFaceIncidentTets;
         };
@@ -734,9 +733,9 @@ namespace AMD
                 continue;
             }
 
-            if (scene.tetMeshPtrFromId[meshId] == NULL)
+            if (scene.tetMeshPtrFromId[meshId] == nullptr)
             {
-                FM_PRINT(("ERROR in ValidateScene: tetMeshPtrFromId of mesh in awakeTetMeshIds is NULL\n"));
+                FM_PRINT(("ERROR in ValidateScene: tetMeshPtrFromId of mesh in awakeTetMeshIds is nullptr\n"));
                 validated = false;
                 continue;
             }
@@ -827,7 +826,7 @@ namespace AMD
 
             FmRigidBody* pRigidBody = FmGetRigidBodyPtrById(scene, rbId);
 
-            if (pRigidBody == NULL)
+            if (pRigidBody == nullptr)
             {
                 FM_PRINT(("ERROR in ValidateScene: rigid body in rigidBodyIds is deleted\n"));
                 validated = false;
@@ -886,9 +885,9 @@ namespace AMD
                     continue;
                 }
 
-                if (scene.tetMeshPtrFromId[meshId] == NULL)
+                if (scene.tetMeshPtrFromId[meshId] == nullptr)
                 {
-                    FM_PRINT(("ERROR in ValidateScene: tetMeshPtrFromId of mesh in island tetMeshIds is NULL\n"));
+                    FM_PRINT(("ERROR in ValidateScene: tetMeshPtrFromId of mesh in island tetMeshIds is nullptr\n"));
                     validated = false;
                     continue;
                 }
@@ -907,7 +906,7 @@ namespace AMD
 
                 FmRigidBody* pRigidBody = FmGetRigidBodyPtrById(scene, rbId);
 
-                if (pRigidBody == NULL)
+                if (pRigidBody == nullptr)
                 {
                     FM_PRINT(("ERROR in ValidateScene: rigid body in island rigidBodyIds is deleted\n"));
                     validated = false;
@@ -941,9 +940,9 @@ namespace AMD
                     continue;
                 }
 
-                if (scene.tetMeshPtrFromId[meshId] == NULL)
+                if (scene.tetMeshPtrFromId[meshId] == nullptr)
                 {
-                    FM_PRINT(("ERROR in ValidateScene: tetMeshPtrFromId of mesh in sleeping island tetMeshIds is NULL\n"));
+                    FM_PRINT(("ERROR in ValidateScene: tetMeshPtrFromId of mesh in sleeping island tetMeshIds is nullptr\n"));
                     validated = false;
                     continue;
                 }
@@ -962,7 +961,7 @@ namespace AMD
 
                 FmRigidBody* pRigidBody = FmGetRigidBodyPtrById(scene, rbId);
 
-                if (pRigidBody == NULL)
+                if (pRigidBody == nullptr)
                 {
                     FM_PRINT(("ERROR in ValidateScene: rigid body in sleeping island rigidBodyIds is deleted\n"));
                     validated = false;
@@ -974,7 +973,7 @@ namespace AMD
         // Check all objects
         for (uint meshBufferIdx = 0; meshBufferIdx < scene.numTetMeshBufferSlots; meshBufferIdx++)
         {
-            if (scene.tetMeshBuffers[meshBufferIdx] == NULL)
+            if (scene.tetMeshBuffers[meshBufferIdx] == nullptr)
             {
                 continue;
             }
@@ -1047,7 +1046,7 @@ namespace AMD
         {
             FmRigidBody* pRigidBody = scene.rigidBodies[rbIdx];
 
-            if (pRigidBody == NULL)
+            if (pRigidBody == nullptr)
             {
                 continue;
             }
@@ -1132,7 +1131,7 @@ namespace AMD
     {
         FmTetShapeParams shapeParams;
         FmComputeShapeParams(&shapeParams, tetRestPosition0, tetRestPosition1, tetRestPosition2, tetRestPosition3);
-        return shapeParams.baryMatrix;
+        return shapeParams.ComputeBaryMatrix();
     }
 
     FmMatrix4 FmComputeTetBarycentricMatrix(const FmVector3* vertRestPositions, const FmTetVertIds& tetVerts)
@@ -1147,12 +1146,12 @@ namespace AMD
 
     FmVector4 FmComputeBarycentricCoords(const FmVector3& tetRestPosition0, const FmVector3& tetRestPosition1, const FmVector3& tetRestPosition2, const FmVector3& tetRestPosition3, const FmVector3& point)
     {
-        return mul(FmComputeTetBarycentricMatrix(tetRestPosition0, tetRestPosition1, tetRestPosition2, tetRestPosition3), FmVector4(point, 1.0f));
+        return FmComputeTetBarycentricMatrix(tetRestPosition0, tetRestPosition1, tetRestPosition2, tetRestPosition3) * FmVector4(point, 1.0f);
     }
 
     FmVector4 FmComputeBarycentricCoords(const FmVector3* vertRestPositions, const FmTetVertIds& tetVerts, const FmVector3& point)
     {
-        return mul(FmComputeTetBarycentricMatrix(vertRestPositions, tetVerts), FmVector4(point, 1.0f));
+        return FmComputeTetBarycentricMatrix(vertRestPositions, tetVerts) * FmVector4(point, 1.0f);
     }
 
     void FmResetFromRestPositions(FmScene* scene, FmTetMesh* tetMesh, const FmMatrix3& rotation, const FmVector3& translation, const FmVector3& velocity)
@@ -1160,7 +1159,7 @@ namespace AMD
         uint numVerts = tetMesh->numVerts;
         for (uint vId = 0; vId < numVerts; vId++)
         {
-            tetMesh->vertsPos[vId] = translation + mul(rotation, tetMesh->vertsRestPos[vId]);
+            tetMesh->vertsPos[vId] = translation + rotation * tetMesh->vertsRestPos[vId];
             tetMesh->vertsVel[vId] = velocity;
         }
 
@@ -1197,7 +1196,7 @@ namespace AMD
 
                 // Add object to fracture report
                 FmFractureReport& fractureReport = scene->fractureReport;
-                if (fractureReport.tetMeshReportsBuffer != NULL)
+                if (fractureReport.tetMeshReportsBuffer != nullptr)
                 {
                     if (FmAtomicRead(&fractureReport.numTetMeshReports.val) < fractureReport.maxTetMeshReports)
                     {
@@ -1243,7 +1242,7 @@ namespace AMD
         const FmVector3& gravityVector, 
         float kRayleighMassDamping, float kRayleighStiffnessDamping, float extForceSpeedLimit, float timestep, float epsilonCG)
     {
-        uint workerIndex = scene->taskSystemCallbacks.GetTaskSystemWorkerIndex();
+        uint workerIndex = TLGetTaskSystemThreadIndex();
         uint8_t* tempBuffer = scene->threadTempMemoryBuffer->buffers[workerIndex];
         uint8_t* tempBufferEnd = tempBuffer + scene->threadTempMemoryBuffer->numBytesPerBuffer;
         FmMpcgSolverDataTemps solverTemps;
@@ -1269,18 +1268,14 @@ namespace AMD
         uint numVerts = tetMesh->numVerts;
         for (uint vId = 0; vId < numVerts; vId++)
         {
-#if FM_SOLVE_DELTAV
-            FmVector3 endOfStepVelocity = tetMesh->vertsVel[vId] + FmInitVector3(solverTemps.solution[vId]);
-#else
-            FmVector3 endOfStepVelocity = FmInitVector3(solverTemps.solution[vId]);
-#endif
+            FmVector3 endOfStepVelocity = tetMesh->vertsVel[vId] + FmVector3(solverTemps.solution[vId]);
             FmVertTetValues& vertTetValues = tetMesh->vertsTetValues[vId];
 
             tetMesh->vertsVel[vId] = endOfStepVelocity;
 
             // Reset fractured flag and tetQuatSum
             vertTetValues.tetStrainMagAvg = 0.0f;
-            vertTetValues.tetQuatSum = FmInitQuat(0.0f, 0.0f, 0.0f, 0.0f);
+            vertTetValues.tetQuatSum = FmQuat(0.0f, 0.0f, 0.0f, 0.0f);
             tetMesh->vertsFlags[vId] &= ~FM_VERT_FLAG_FRACTURED;
         }
 
@@ -1297,13 +1292,13 @@ namespace AMD
         {
             FmVertTetValues& vertTetValues = tetMesh->vertsTetValues[vId];
             vertTetValues.tetStrainMagAvg = 0.0f;
-            vertTetValues.tetQuatSum = FmInitQuat(0.0f, 0.0f, 0.0f, 0.0f);
+            vertTetValues.tetQuatSum = FmQuat(0.0f, 0.0f, 0.0f, 0.0f);
         }
     }
 
     void FmAddDeformationConstraints(FmTetMesh* tetMesh, FmConstraintsBuffer* constraintsBuffer, float timestep);
 
-    class FmTaskDataStepVelocityRebuildBvh : public FmAsyncTaskData
+    class FmTaskDataStepVelocityRebuildBvh : public TLTaskDataBase
     {
     public:
         FM_CLASS_NEW_DELETE(FmTaskDataStepVelocityRebuildBvh)
@@ -1324,7 +1319,7 @@ namespace AMD
     void FmTaskFuncTetMeshStepVelocityRebuildBvh(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(MESH_STEP_VELOCITY_REBUILD_BVH);
+        FM_TRACE_SCOPED_EVENT("MeshStepVelocityRebuildBvh");
 
         FmTaskDataStepVelocityRebuildBvh* taskData = (FmTaskDataStepVelocityRebuildBvh*)inTaskData;
         FmScene* scene = taskData->scene;
@@ -1365,14 +1360,12 @@ namespace AMD
                 FmAddDeformationConstraints(tetMesh, constraintsBuffer, timestep);
             }
         }
-
-        taskData->progress.TaskIsFinished(taskData);
     }
 
     void FmTaskFuncRbStepVelocityRebuildBvh(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(RB_STEP_VELOCITY_REBUILD_BVH);
+        FM_TRACE_SCOPED_EVENT("RbStepVelocityRebuildBvh");
 
         FmTaskDataStepVelocityRebuildBvh* taskData = (FmTaskDataStepVelocityRebuildBvh*)inTaskData;
         FmScene* scene = taskData->scene;
@@ -1388,7 +1381,7 @@ namespace AMD
         {
             FmRigidBody* pRigidBody = FmGetRigidBodyPtrById(*scene, scene->awakeRigidBodyIds[i]);
 
-            FM_ASSERT(pRigidBody != NULL);
+            FM_ASSERT(pRigidBody != nullptr);
 
             FmRigidBody& rigidBody = *pRigidBody;
 
@@ -1413,7 +1406,7 @@ namespace AMD
             FmVector3 boxPos = rigidBody.state.pos;
             FmVector3 boxVel = rigidBody.state.vel;
             FmVector3 boxAngVel = rigidBody.state.angVel;
-            FmMatrix3 boxRot = FmInitMatrix3(rigidBody.state.quat);
+            FmMatrix3 boxRot = FmMatrix3(rigidBody.state.quat);
 
             if (rigidBody.collisionObj)
             {
@@ -1421,7 +1414,7 @@ namespace AMD
                 uint numVerts = rbTetMesh.numVerts;
                 for (uint vId = 0; vId < numVerts; vId++)
                 {
-                    rbTetMesh.vertsPos[vId] = mul(boxRot, rbTetMesh.vertsRestPos[vId]) + boxPos;
+                    rbTetMesh.vertsPos[vId] = boxRot * rbTetMesh.vertsRestPos[vId] + boxPos;
                     rbTetMesh.vertsVel[vId] = boxVel + cross(boxAngVel, rbTetMesh.vertsPos[vId]);
                     if (isKinematic)
                     {
@@ -1441,22 +1434,20 @@ namespace AMD
             }
 
             // Reset the delta state values which are used in the constraint solve
-            rigidBody.deltaVel = FmInitVector3(0.0f);
-            rigidBody.deltaAngVel = FmInitVector3(0.0f);
-            rigidBody.deltaPos = FmInitVector3(0.0f);
-            rigidBody.deltaAngPos = FmInitVector3(0.0f);
+            rigidBody.deltaVel = FmVector3(0.0f);
+            rigidBody.deltaAngVel = FmVector3(0.0f);
+            rigidBody.deltaPos = FmVector3(0.0f);
+            rigidBody.deltaAngPos = FmVector3(0.0f);
         }
-
-        taskData->progress.TaskIsFinished(taskData);
     }
 
-    FM_WRAPPED_TASK_FUNC(FmTaskFuncStepVelocityRebuildBvh)
+    void FmTaskFuncStepVelocityRebuildBvh(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
         FmTaskDataStepVelocityRebuildBvh* taskData = (FmTaskDataStepVelocityRebuildBvh*)inTaskData;
 
-        uint objIndex = taskData->progress.GetNextIndex();
+        uint objIndex = taskData->GetNextWorkItemIndex();
 
         if (objIndex < taskData->numTetMeshes)
         {
@@ -1469,7 +1460,7 @@ namespace AMD
         }
     }
 
-    void FmUpdatePositionsFracturePlasticity(FmScene* scene, FmTetMesh* tetMesh, float timestep, FmAsyncTaskData* parentTaskData)
+    void FmUpdatePositionsFracturePlasticity(FmScene* scene, FmTetMesh* tetMesh, float timestep, TLTaskDataBase* updateIslandsProgress)
     {
         if (FM_IS_SET(tetMesh->flags, FM_OBJECT_FLAG_SLEEPING))
         {
@@ -1485,7 +1476,7 @@ namespace AMD
 
                 FmUpdateVertPositions(tetMesh, timestep);
 
-                FmUpdateTetStateAndFracture(scene, tetMesh, false, false, parentTaskData);
+                FmUpdateTetStateAndFracture(scene, tetMesh, false, false, updateIslandsProgress);
             }
         }
         else
@@ -1494,7 +1485,7 @@ namespace AMD
 
             FmUpdateVertPositions(tetMesh, timestep);
 
-            FmUpdateTetStateAndFracture(scene, tetMesh, true, true, parentTaskData);
+            FmUpdateTetStateAndFracture(scene, tetMesh, true, true, updateIslandsProgress);
         }
     }
 
@@ -1504,7 +1495,7 @@ namespace AMD
         for (uint i = 0; i < constraintIsland->numTetMeshes; i++)
         {
             FmTetMesh& tetMesh = *FmGetTetMeshPtrById(*scene, constraintIsland->tetMeshIds[i]);
-            FmUpdatePositionsFracturePlasticity(scene, &tetMesh, timestep, NULL);
+            FmUpdatePositionsFracturePlasticity(scene, &tetMesh, timestep, nullptr);
         }
 
         if (!scene->params.rigidBodiesExternal)
@@ -1517,28 +1508,29 @@ namespace AMD
         }
     }
 
-    class FmTaskDataConstraintIslandSolve : public FmAsyncTaskData
+    class FmTaskDataConstraintIslandSolve : public TLTaskDataBase
     {
     public:
         FM_CLASS_NEW_DELETE(FmTaskDataConstraintIslandSolve)
 
         FmScene* scene;
+        TLTask postConstraintSolveTask;
 
-        FmTaskDataConstraintIslandSolve(FmScene* inScene, FmTaskFuncCallback inFollowTaskFunc, void* inFollowTaskData)
+        FmTaskDataConstraintIslandSolve(FmScene* inScene, TLTaskFuncCallback inPostConstraintSolveTaskFunc, void* inPostConstraintSolveTaskData)
         {
             scene = inScene;
-            followTask.func = inFollowTaskFunc;
-            followTask.data = inFollowTaskData;
+            postConstraintSolveTask.func = inPostConstraintSolveTaskFunc;
+            postConstraintSolveTask.data = inPostConstraintSolveTaskData;
         }
     };
 
     void FmTaskFuncConstraintIslandSolveBegin(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
 
-    void FmTaskFuncConstraintIslandSolve(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK(FmTaskFuncConstraintIslandSolve)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(ISLAND_SOLVE);
+        FM_TRACE_SCOPED_EVENT("IslandSolve");
 
         FmTaskDataConstraintIslandSolve* taskData = (FmTaskDataConstraintIslandSolve*)inTaskData;
         FmScene* scene = taskData->scene;
@@ -1551,7 +1543,7 @@ namespace AMD
         uint endIdx = (uint)inTaskBeginIndex + 1;
         for (uint i = beginIdx; i < endIdx; i++)
         {
-            uint sortedi = taskData->progress.GetNextIndex();
+            uint sortedi = taskData->GetNextWorkItemIndex();
             FmConstraintIsland* constraintIsland = &constraintsBuffer->constraintIslands[sortedi];
             FmConstraintSolverData* constraintSolverData = &constraintSolverBuffer->islandSolverData[sortedi];
 
@@ -1596,11 +1588,11 @@ namespace AMD
 #if FM_ASYNC_THREADING
     void FmTaskFuncConstraintIslandSolveRunSolve(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
 
-    FM_WRAPPED_TASK_FUNC(FmTaskFuncConstraintIslandSolveBegin)
+    FM_ASYNC_TASK(FmTaskFuncConstraintIslandSolveBegin)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(ISLAND_SOLVE_SETUP);
+        FM_TRACE_SCOPED_EVENT("IslandSolveSetup");
 
         FmTaskDataConstraintIslandSolve* taskData = (FmTaskDataConstraintIslandSolve*)inTaskData;
         FmScene* scene = taskData->scene;
@@ -1609,13 +1601,13 @@ namespace AMD
 
         float timestep = scene->params.timestep;
 
-        uint islandIdx = taskData->progress.GetNextIndex();
+        uint islandIdx = taskData->GetNextWorkItemIndex();
         FmConstraintIsland* constraintIsland = &constraintsBuffer->constraintIslands[islandIdx];
         FmConstraintSolverData* constraintSolverData = &constraintSolverBuffer->islandSolverData[islandIdx];
 
         if (!constraintSolverData->isAllocated)
         {
-            taskData->progress.TaskIsFinished();
+            taskData->WorkItemFinished();
             return;
         }
 
@@ -1625,7 +1617,7 @@ namespace AMD
             FmUpdatePositionsFracturePlasticity(scene, constraintIsland);
             FmShutdownConstraintSolve(constraintSolverData);
 
-            taskData->progress.TaskIsFinished();
+            taskData->WorkItemFinished();
             return;
         }
 
@@ -1635,12 +1627,12 @@ namespace AMD
     void FmTaskFuncConstraintIslandSolveSetupStabilization(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
     void FmTaskFuncConstraintIslandSolveApplyDeltasTestSleeping(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
 
-    void FmTaskFuncConstraintIslandSolveRunSolve(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK(FmTaskFuncConstraintIslandSolveRunSolve)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
 
-        FM_TRACE_SCOPED_EVENT(ISLAND_SOLVE_RUN_SOLVE);
+        FM_TRACE_SCOPED_EVENT("IslandSolveRunSolve");
 
         FmTaskDataConstraintIslandSolve* taskData = (FmTaskDataConstraintIslandSolve*)inTaskData;
         FmScene* scene = taskData->scene;
@@ -1661,12 +1653,12 @@ namespace AMD
 #if FM_CONSTRAINT_STABILIZATION_SOLVE
     void FmTaskFuncConstraintIslandSolveRunStabilization(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
 
-    void FmTaskFuncConstraintIslandSolveSetupStabilization(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK(FmTaskFuncConstraintIslandSolveSetupStabilization)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
 
-        FM_TRACE_SCOPED_EVENT(ISLAND_SOLVE_SETUP_STABILIZATION);
+        FM_TRACE_SCOPED_EVENT("IslandSolveSetupStabilization");
 
         FmTaskDataConstraintIslandSolve* taskData = (FmTaskDataConstraintIslandSolve*)inTaskData;
         FmScene* scene = taskData->scene;
@@ -1684,12 +1676,12 @@ namespace AMD
         FmSetupConstraintStabilization(scene, constraintSolverData, constraintIsland, timestep, FmTaskFuncConstraintIslandSolveRunStabilization, taskData);
     }
 
-    void FmTaskFuncConstraintIslandSolveRunStabilization(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK(FmTaskFuncConstraintIslandSolveRunStabilization)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
 
-        FM_TRACE_SCOPED_EVENT(ISLAND_SOLVE_RUN_STABILIZATION);
+        FM_TRACE_SCOPED_EVENT("IslandSolveRunStabilization");
 
         FmTaskDataConstraintIslandSolve* taskData = (FmTaskDataConstraintIslandSolve*)inTaskData;
         FmScene* scene = taskData->scene;
@@ -1706,12 +1698,12 @@ namespace AMD
 
     void FmTaskFuncConstraintIslandSolveEnd(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
 
-    void FmTaskFuncConstraintIslandSolveApplyDeltasTestSleeping(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK(FmTaskFuncConstraintIslandSolveApplyDeltasTestSleeping)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
 
-        FM_TRACE_SCOPED_EVENT(ISLAND_SOLVE_END);
+        FM_TRACE_SCOPED_EVENT("IslandSolveEnd");
 
         FmTaskDataConstraintIslandSolve* taskData = (FmTaskDataConstraintIslandSolve*)inTaskData;
         FmScene* scene = taskData->scene;
@@ -1729,12 +1721,12 @@ namespace AMD
         FmApplyConstraintSolveDeltasAndTestSleeping(scene, constraintSolverData, *constraintIsland, FmTaskFuncConstraintIslandSolveEnd, taskData);
     }
 
-    void FmTaskFuncConstraintIslandSolveEnd(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK_COUNTED(FmTaskFuncConstraintIslandSolveEnd, FmTaskDataConstraintIslandSolve)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
 
-        FM_TRACE_SCOPED_EVENT(ISLAND_SOLVE_END);
+        FM_TRACE_SCOPED_EVENT("IslandSolveEnd");
 
         FmTaskDataConstraintIslandSolve* taskData = (FmTaskDataConstraintIslandSolve*)inTaskData;
         FmScene* scene = taskData->scene;
@@ -1759,8 +1751,6 @@ namespace AMD
                 constraintIsland->rigidBodyIds, constraintIsland->numRigidBodiesInFEMSolve,
                 constraintIsland->userRigidBodyIslandIndices, constraintIsland->numUserRigidBodyIslands);
         }
-
-        taskData->progress.TaskIsFinished();
     }
 #endif
 
@@ -1773,7 +1763,7 @@ namespace AMD
         for (uint rbIdx = 0; rbIdx < numRigidBodySlots; rbIdx++)
         {
             FmRigidBody* pRigidBody = scene->rigidBodies[rbIdx];
-            if (pRigidBody == NULL)
+            if (pRigidBody == nullptr)
             {
                 continue;
             }
@@ -1817,13 +1807,13 @@ namespace AMD
         scene->numAwakenedRigidBodies = 0;
     }
 
-    void FmUpdateUnconstrained(FmScene* scene, float timestep, FmTaskFuncCallback followTaskFunc, void* followTaskData)
+    void FmUpdateUnconstrained(FmScene* scene, float timestep, TLTaskFuncCallback followTaskFunc, void* followTaskData)
     {
         FM_SET_START_TIME();
 
         FmSceneControlParams& sceneParams = scene->params;
         sceneParams.timestep = timestep;
-        sceneParams.numThreads = scene->taskSystemCallbacks.GetTaskSystemNumThreads();
+        sceneParams.numThreads = TLGetTaskSystemNumThreads();
         
         // Override some settings when rigid bodies not external
         if (!sceneParams.rigidBodiesExternal)
@@ -1836,7 +1826,7 @@ namespace AMD
         FmValidateScene(*scene, FM_SCENE_UPDATE_PHASE_START);
 #endif
 
-        FM_TRACE_START_EVENT(CONNECTED_COMPONENTS);
+        FM_TRACE_START_EVENT("ConnectedComponents");
         // Complete waking of any islands marked between steps
         FmWakeIslandsChangedBetweenSteps(scene);
 
@@ -1847,7 +1837,7 @@ namespace AMD
         // Make arrays of active and sleeping object ids
         FmCollectTetMeshIds(scene);
         FmCollectRigidBodyIds(scene);
-        FM_TRACE_STOP_EVENT(CONNECTED_COMPONENTS);
+        FM_TRACE_STOP_EVENT("ConnectedComponents");
 
         FM_SET_MESH_COMPONENTS_TIME();
 
@@ -1858,42 +1848,46 @@ namespace AMD
 #endif
 
         // Reset count before finding new deformation constraints.
-        FmAtomicWrite(&scene->constraintsBuffer->numDeformationConstraints.val, 0);
+        scene->constraintsBuffer->numDeformationConstraints.val = 0;
 
         // Reset number of fracture reports
-        FmAtomicWrite(&scene->fractureReport.numTetMeshReports.val, 0);
+        scene->fractureReport.numTetMeshReports.val = 0;
 
         FM_SET_START_TIME();
 
         uint numTetMeshes = scene->numAwakeTetMeshes;
         uint numRigidBodies = scene->numAwakeRigidBodies;
 
-        uint numTasks = numTetMeshes;
+        uint numItems = numTetMeshes;
         
         if (!scene->params.rigidBodiesExternal)
         {
             // FEMFX library handling all rigid body updating; add tasks to step velocity and rebuild BVH
-            numTasks += numRigidBodies;
+            numItems += numRigidBodies;
         }
 
 #if FM_ASYNC_THREADING
         if (followTaskFunc)
         {
-            if (numTasks > 0)
+            if (numItems > 0)
             {
                 FmTaskDataStepVelocityRebuildBvh* taskData = new FmTaskDataStepVelocityRebuildBvh(scene, numTetMeshes, numRigidBodies);
-                taskData->progress.Init(numTasks, followTaskFunc, followTaskData);
 
-                FmParallelForAsync("StepVelocityRebuildBvh", FM_TASK_AND_WRAPPED_TASK_ARGS(FmTaskFuncStepVelocityRebuildBvh), NULL, taskData, numTasks, scene->taskSystemCallbacks.SubmitAsyncTask, scene->params.numThreads);
+                TLTask followTask(followTaskFunc, followTaskData);
+
+                TLParallelForAsync(FmTaskFuncStepVelocityRebuildBvh, taskData, 0, numItems, TLParallelForOptions::GrainSize(1), followTask, true);
             }
             else
             {
-                FmSetNextTask(followTaskFunc, followTaskData, 0, 1);
+                TLSetNextTask(followTaskFunc, followTaskData, 0, 1);
             }
         }
 #else
+        (void)followTaskFunc;
+        (void)followTaskData;
+
         FmTaskDataStepVelocityRebuildBvh taskData(scene, numTetMeshes, numRigidBodies);
-        scene->taskSystemCallbacks.ParallelFor("ImplicitSolveBvhBuild", FmTaskFuncStepVelocityRebuildBvh, &taskData, numTasks);
+        TLParallelFor(FmTaskFuncStepVelocityRebuildBvh, &taskData, 0, numItems);
 
         // Add to warnings report if hit deformation constraint limit
         if (FmAtomicRead(&scene->constraintsBuffer->numDeformationConstraints.val) >= scene->constraintsBuffer->maxDeformationConstraints)
@@ -1936,7 +1930,7 @@ namespace AMD
                 glueConstraint.objectIdA = glueConstraint.bufferIdA;
 
                 FmRigidBody* pRigidBodyA = FmGetRigidBodyPtrById(*scene, glueConstraint.objectIdA);
-                if (pRigidBodyA == NULL)
+                if (pRigidBodyA == nullptr)
                 {
                     glueConstraint.objectIdA = FM_INVALID_ID;
                     glueConstraint.objectIdB = FM_INVALID_ID;
@@ -1946,7 +1940,7 @@ namespace AMD
 
                 FmRigidBody& rigidBodyA = *pRigidBodyA;
 
-                FmVector3 posBodySpaceA = FmInitVector3(glueConstraint.posBodySpaceA[0], glueConstraint.posBodySpaceA[1], glueConstraint.posBodySpaceA[2]);
+                FmVector3 posBodySpaceA = FmVector3(glueConstraint.posBodySpaceA[0], glueConstraint.posBodySpaceA[1], glueConstraint.posBodySpaceA[2]);
 
                 glueConstraint.comToPosA = rotate(rigidBodyA.state.quat, posBodySpaceA);
 
@@ -1961,7 +1955,7 @@ namespace AMD
             {
                 // Skip constraint if tet mesh buffer has been removed.
                 FmTetMeshBuffer* pTetMeshBuffer = tetMeshBuffers[glueConstraint.bufferIdA];
-                if (pTetMeshBuffer == NULL)
+                if (pTetMeshBuffer == nullptr)
                 {
                     glueConstraint.objectIdA = FM_INVALID_ID;
                     glueConstraint.objectIdB = FM_INVALID_ID;
@@ -1996,7 +1990,7 @@ namespace AMD
                 // bufferIdB invalid interpreted as point in world
                 glueConstraint.objectIdB = FM_INVALID_ID;
 
-                posB = FmInitVector3(glueConstraint.posWorldB[0], glueConstraint.posWorldB[1], glueConstraint.posWorldB[2]);
+                posB = FmVector3(glueConstraint.posWorldB[0], glueConstraint.posWorldB[1], glueConstraint.posWorldB[2]);
             }
             else if (glueConstraint.bufferIdB & FM_RB_FLAG)
             {
@@ -2004,7 +1998,7 @@ namespace AMD
                 glueConstraint.objectIdB = glueConstraint.bufferIdB;
 
                 FmRigidBody* pRigidBodyB = FmGetRigidBodyPtrById(*scene, glueConstraint.objectIdB);
-                if (pRigidBodyB == NULL)
+                if (pRigidBodyB == nullptr)
                 {
                     glueConstraint.objectIdA = FM_INVALID_ID;
                     glueConstraint.objectIdB = FM_INVALID_ID;
@@ -2014,7 +2008,7 @@ namespace AMD
 
                 FmRigidBody& rigidBodyB = *pRigidBodyB;
 
-                FmVector3 posBodySpaceB = FmInitVector3(glueConstraint.posBodySpaceB[0], glueConstraint.posBodySpaceB[1], glueConstraint.posBodySpaceB[2]);
+                FmVector3 posBodySpaceB = FmVector3(glueConstraint.posBodySpaceB[0], glueConstraint.posBodySpaceB[1], glueConstraint.posBodySpaceB[2]);
 
                 glueConstraint.comToPosB = rotate(rigidBodyB.state.quat, posBodySpaceB);
 
@@ -2029,7 +2023,7 @@ namespace AMD
             {
                 // Skip constraint if tet mesh buffer has been removed.
                 FmTetMeshBuffer* pTetMeshBuffer = tetMeshBuffers[glueConstraint.bufferIdB];
-                if (pTetMeshBuffer == NULL)
+                if (pTetMeshBuffer == nullptr)
                 {
                     glueConstraint.objectIdA = FM_INVALID_ID;
                     glueConstraint.objectIdB = FM_INVALID_ID;
@@ -2163,7 +2157,7 @@ namespace AMD
                 planeConstraint.objectIdA = planeConstraint.bufferIdA;
 
                 FmRigidBody* pRigidBodyA = FmGetRigidBodyPtrById(*scene, planeConstraint.objectIdA);
-                if (pRigidBodyA == NULL)
+                if (pRigidBodyA == nullptr)
                 {
                     planeConstraint.objectIdA = FM_INVALID_ID;
                     planeConstraint.objectIdB = FM_INVALID_ID;
@@ -2173,7 +2167,7 @@ namespace AMD
 
                 FmRigidBody& rigidBodyA = *pRigidBodyA;
 
-                FmVector3 posBodySpaceA = FmInitVector3(planeConstraint.posBodySpaceA[0], planeConstraint.posBodySpaceA[1], planeConstraint.posBodySpaceA[2]);
+                FmVector3 posBodySpaceA = FmVector3(planeConstraint.posBodySpaceA[0], planeConstraint.posBodySpaceA[1], planeConstraint.posBodySpaceA[2]);
 
                 planeConstraint.comToPosA = rotate(rigidBodyA.state.quat, posBodySpaceA);
 
@@ -2188,7 +2182,7 @@ namespace AMD
             {
                 // Skip constraint if tet mesh buffer has been removed.
                 FmTetMeshBuffer* pTetMeshBuffer = tetMeshBuffers[planeConstraint.bufferIdA];
-                if (pTetMeshBuffer == NULL)
+                if (pTetMeshBuffer == nullptr)
                 {
                     planeConstraint.objectIdA = FM_INVALID_ID;
                     planeConstraint.objectIdB = FM_INVALID_ID;
@@ -2223,7 +2217,7 @@ namespace AMD
                 // bufferIdB invalid interpreted as point in world
                 planeConstraint.objectIdB = FM_INVALID_ID;
 
-                posB = FmInitVector3(planeConstraint.posWorldB[0], planeConstraint.posWorldB[1], planeConstraint.posWorldB[2]);
+                posB = FmVector3(planeConstraint.posWorldB[0], planeConstraint.posWorldB[1], planeConstraint.posWorldB[2]);
             }
             else if (planeConstraint.bufferIdB & FM_RB_FLAG)
             {
@@ -2231,7 +2225,7 @@ namespace AMD
                 planeConstraint.objectIdB = planeConstraint.bufferIdB;
 
                 FmRigidBody* pRigidBodyB = FmGetRigidBodyPtrById(*scene, planeConstraint.objectIdB);
-                if (pRigidBodyB == NULL)
+                if (pRigidBodyB == nullptr)
                 {
                     planeConstraint.objectIdA = FM_INVALID_ID;
                     planeConstraint.objectIdB = FM_INVALID_ID;
@@ -2241,7 +2235,7 @@ namespace AMD
 
                 FmRigidBody& rigidBodyB = *pRigidBodyB;
 
-                FmVector3 posBodySpaceB = FmInitVector3(planeConstraint.posBodySpaceB[0], planeConstraint.posBodySpaceB[1], planeConstraint.posBodySpaceB[2]);
+                FmVector3 posBodySpaceB = FmVector3(planeConstraint.posBodySpaceB[0], planeConstraint.posBodySpaceB[1], planeConstraint.posBodySpaceB[2]);
 
                 planeConstraint.comToPosB = rotate(rigidBodyB.state.quat, posBodySpaceB);
 
@@ -2256,7 +2250,7 @@ namespace AMD
             {
                 // Skip constraint if tet mesh buffer has been removed.
                 FmTetMeshBuffer* pTetMeshBuffer = tetMeshBuffers[planeConstraint.bufferIdB];
-                if (pTetMeshBuffer == NULL)
+                if (pTetMeshBuffer == nullptr)
                 {
                     planeConstraint.objectIdA = FM_INVALID_ID;
                     planeConstraint.objectIdB = FM_INVALID_ID;
@@ -2320,7 +2314,7 @@ namespace AMD
         {
             // axisBodySpaceB is actually world space vector
             hingeAxisB = hingeAngleConstraint.axisBodySpaceB;
-            angVelB = FmInitVector3(0.0f);
+            angVelB = FmVector3(0.0f);
         }
         else
         {
@@ -2340,7 +2334,7 @@ namespace AMD
     {
         FmRigidBodyAngleConstraint* pConstraint = FmGetRigidBodyAngleConstraint(scene, rigidBodyAngleConstraintId);
 
-        if (pConstraint == NULL)
+        if (pConstraint == nullptr)
         {
             return 0.0f;
         }
@@ -2359,7 +2353,7 @@ namespace AMD
         uint dynamicFlagsA = 0, dynamicFlagsB = 0, movingFlagsA = 0, movingFlagsB = 0;
 
         FmRigidBody* pRigidBodyA = FmGetRigidBodyPtrById(*scene, hingeAngleConstraint.objectIdA);
-        if (pRigidBodyA == NULL)
+        if (pRigidBodyA == nullptr)
         {
             hingeAngleConstraint.objectIdA = FM_INVALID_ID;
             hingeAngleConstraint.objectIdB = FM_INVALID_ID;
@@ -2386,7 +2380,7 @@ namespace AMD
         else
         {
             FmRigidBody* pRigidBodyB = FmGetRigidBodyPtrById(*scene, hingeAngleConstraint.objectIdB);
-            if (pRigidBodyB == NULL)
+            if (pRigidBodyB == nullptr)
             {
                 hingeAngleConstraint.objectIdA = FM_INVALID_ID;
                 hingeAngleConstraint.objectIdB = FM_INVALID_ID;
@@ -2471,7 +2465,7 @@ namespace AMD
         FmScene* scene,
         const FmUserConstraints* userConstraints)
     {
-        FM_TRACE_SCOPED_EVENT(CONSTRAINT_ISLANDS);
+        FM_TRACE_SCOPED_EVENT("ConstraintIslands");
 
         FM_SET_START_TIME();
 
@@ -2546,8 +2540,8 @@ namespace AMD
         }
         else
         {
-            scene->constraintsBuffer->innerIterationCallback = NULL;
-            scene->constraintsBuffer->islandCompletedCallback = NULL;
+            scene->constraintsBuffer->innerIterationCallback = nullptr;
+            scene->constraintsBuffer->islandCompletedCallback = nullptr;
             scene->constraintsBuffer->numUserRigidBodyIslands = 0;
         }
 
@@ -2569,12 +2563,12 @@ namespace AMD
 
     void FmTaskFuncSceneConstraintSolvePutIslandsToSleep(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
 
-    void FmSceneConstraintSolve(FmScene* scene, FmTaskFuncCallback followTaskFunc, void* followTaskData)
+    void FmSceneConstraintSolve(FmScene* scene, TLTaskFuncCallback postConstraintSolveTaskFunc, void* postConstraintSolveTaskData)
     {
 #if !FM_ASYNC_THREADING
-        (void)followTaskFunc;
-        (void)followTaskData;
-        FM_TRACE_SCOPED_EVENT(CONSTRAINT_SOLVE);
+        (void)postConstraintSolveTaskFunc;
+        (void)postConstraintSolveTaskData;
+        FM_TRACE_SCOPED_EVENT("ConstraintSolve");
 #endif
 
         FM_SET_START_TIME();
@@ -2582,28 +2576,30 @@ namespace AMD
         FmConstraintsBuffer* constraintsBuffer = scene->constraintsBuffer;
 
 #if FM_ASYNC_THREADING
-        if (followTaskFunc)
+        if (postConstraintSolveTaskFunc)
         {
-            FmTaskDataConstraintIslandSolve* taskData = new FmTaskDataConstraintIslandSolve(scene, followTaskFunc, followTaskData);
+            FmTaskDataConstraintIslandSolve* taskData = new FmTaskDataConstraintIslandSolve(scene, postConstraintSolveTaskFunc, postConstraintSolveTaskData);
 
-            uint numTasks = constraintsBuffer->numConstraintIslands;
+            uint numItems = constraintsBuffer->numConstraintIslands;
 
-            taskData->progress.Init(numTasks, FmTaskFuncSceneConstraintSolvePutIslandsToSleep, taskData);
+            // NOTE: taskData used in asynchronous tasks after the parallel-for, must be managed by task
+            TLTask followTask(FmTaskFuncSceneConstraintSolvePutIslandsToSleep, taskData);
+            taskData->Init(numItems, followTask);
 
-            if (numTasks > 0)
+            if (numItems > 0)
             {
-                FmParallelForAsync("ConstraintIslandSolve", FM_TASK_AND_WRAPPED_TASK_ARGS(FmTaskFuncConstraintIslandSolveBegin), NULL, taskData, numTasks, scene->taskSystemCallbacks.SubmitAsyncTask, scene->params.numThreads);
+                TLParallelForAsync(FmTaskFuncConstraintIslandSolveBegin, taskData, 0, numItems, TLParallelForOptions::GrainSize(1));
             }
             else
             {
-                FmSetNextTask(FmTaskFuncSceneConstraintSolvePutIslandsToSleep, taskData, 0, 1);
+                TLSetNextTask(FmTaskFuncSceneConstraintSolvePutIslandsToSleep, taskData, 0, 1);
             }
         }
 #else
-        FmTaskDataConstraintIslandSolve taskData(scene, NULL, NULL);
-        scene->taskSystemCallbacks.ParallelFor("ConstraintIslandSolve", FmTaskFuncConstraintIslandSolve, &taskData, (int)constraintsBuffer->numConstraintIslands);
+        FmTaskDataConstraintIslandSolve taskData(scene, nullptr, nullptr);
+        TLParallelFor(FmTaskFuncConstraintIslandSolve, &taskData, 0, (int)constraintsBuffer->numConstraintIslands);
 
-        FmPutMarkedIslandsToSleep(scene, NULL);
+        FmPutMarkedIslandsToSleep(scene, nullptr);
 
         FM_SET_CONSTRAINT_SOLVE_TIME();
 #endif
@@ -2612,7 +2608,7 @@ namespace AMD
 #if FM_ASYNC_THREADING
     void FmTaskFuncSceneConstraintSolveEnd(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
 
-    FM_WRAPPED_TASK_FUNC(FmTaskFuncSceneConstraintSolvePutIslandsToSleep)
+    FM_ASYNC_TASK_COUNTED(FmTaskFuncSceneConstraintSolvePutIslandsToSleep, FmTaskDataConstraintIslandSolve)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
@@ -2622,14 +2618,12 @@ namespace AMD
         // Reuse the taskData->progress for putting islands to sleep.  
         // Initialize to 1 so FmPutMarkedIslandsToSleep is completed, in addition to all 
         // the dispatches for islands, before follow task is triggered.
-        taskData->progress.Init(1, FmTaskFuncSceneConstraintSolveEnd, taskData);
+        taskData->Init(1, TLTask(FmTaskFuncSceneConstraintSolveEnd, taskData));
 
         FmPutMarkedIslandsToSleep(scene, taskData);
-
-        taskData->progress.TaskIsFinished();
     }
 
-    void FmTaskFuncSceneConstraintSolveEnd(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK(FmTaskFuncSceneConstraintSolveEnd)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
@@ -2637,7 +2631,7 @@ namespace AMD
 
         FM_SET_CONSTRAINT_SOLVE_TIME();
 
-        FmSetNextTask(taskData->followTask.func, taskData->followTask.data, 0, 1);
+        TLSetNextTask(taskData->postConstraintSolveTask.func, taskData->postConstraintSolveTask.data, 0, 1);
 
         delete taskData;
     }
@@ -2645,22 +2639,32 @@ namespace AMD
 
     void FmUpdateSceneAsync(FmScene* scene, float timestep);
 
-    void FmUpdateScene(FmScene* scene, float timestep)
+#if !FM_ASYNC_THREADING
+    struct FmUpdateSceneTaskData
     {
-#if FM_ASYNC_THREADING
-        FmUpdateSceneAsync(scene, timestep);
-#else
+        FmScene* scene = nullptr;
+        float timestep = (1.0f / 60.0f);
+    };
+
+    void FmUpdateSceneTask(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    {
+        (void)inTaskBeginIndex;
+        (void)inTaskEndIndex;
+        FmUpdateSceneTaskData* taskData = (FmUpdateSceneTaskData*)inTaskData;
+        FmScene* scene = taskData->scene;
+        float timestep = taskData->timestep;
+
         FM_TRACE_START_FRAME();
-        FM_TRACE_START_EVENT(SCENE_UPDATE);
+        FM_TRACE_START_EVENT("SceneUpdate");
 
         double t0;
         FM_GET_TIME(t0);
 
-        FmUpdateUnconstrained(scene, timestep, NULL, NULL);
+        FmUpdateUnconstrained(scene, timestep, nullptr, nullptr);
 
-        FmFindContacts(scene, NULL, NULL);
+        FmFindContacts(scene, nullptr, nullptr);
 
-        FmWakeCollidedIslandsAndFindContacts(scene, NULL, NULL);
+        FmWakeCollidedIslandsAndFindContacts(scene, nullptr, nullptr);
 
 #if FM_DEBUG_MESHES
         for (uint meshIdx = 0; meshIdx < gFEMFXNumPreConstraintSolveMeshes; meshIdx++)
@@ -2690,24 +2694,42 @@ namespace AMD
         }
 #endif
 
-        FmFindConstraintIslands(scene, NULL);
+        FmFindConstraintIslands(scene, nullptr);
 
-        FmSceneConstraintSolve(scene, NULL, NULL);
+        FmSceneConstraintSolve(scene, nullptr, nullptr);
 
-        FM_TRACE_STOP_EVENT(SCENE_UPDATE);
+        FM_TRACE_STOP_EVENT("SceneUpdate");
         FM_TRACE_STOP_FRAME();
         FM_DISABLE_TRACE();
 
         FM_SET_TOTAL_STEP_TIME(t0);
 
         scene->params.simTime += timestep;
+    }
+#endif
+
+    void FmUpdateScene(FmScene* scene, float timestep)
+    {
+#if FM_ASYNC_THREADING
+        FmUpdateSceneAsync(scene, timestep);
+#else
+        TLTaskWaitCounter* waitCounter = TLCreateTaskWaitCounter();
+
+        FmUpdateSceneTaskData taskData;
+        taskData.scene = scene;
+        taskData.timestep = timestep;
+        TLSubmitTask(FmUpdateSceneTask, &taskData, 0, 1, waitCounter);
+
+        TLWaitForTaskWaitCounter(waitCounter);
+
+        TLDestroyTaskWaitCounter(waitCounter);
 #endif
     }
 
 #if FM_ASYNC_THREADING
     void FmTaskFuncUpdateSceneFindContacts(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
 
-    void FmTaskFuncUpdateSceneStartAux(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK(FmTaskFuncUpdateSceneStart)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
@@ -2719,14 +2741,9 @@ namespace AMD
         FmUpdateUnconstrained(scene, timestep, FmTaskFuncUpdateSceneFindContacts, taskData);
     }
 
-    void FmTaskFuncUpdateSceneStart(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
-    {
-        FmExecuteTask(FmTaskFuncUpdateSceneStartAux, inTaskData, inTaskBeginIndex, inTaskEndIndex);
-    }
-
     void FmTaskFuncUpdateSceneWakeAndFindContacts(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
 
-    void FmTaskFuncUpdateSceneFindContacts(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK(FmTaskFuncUpdateSceneFindContacts)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
@@ -2742,7 +2759,7 @@ namespace AMD
 
     void FmTaskFuncUpdateSceneConstraintSolve(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
 
-    void FmTaskFuncUpdateSceneWakeAndFindContacts(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK(FmTaskFuncUpdateSceneWakeAndFindContacts)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
@@ -2759,7 +2776,7 @@ namespace AMD
 
     void FmTaskFuncUpdateSceneEnd(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
 
-    void FmTaskFuncUpdateSceneConstraintSolve(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK(FmTaskFuncUpdateSceneConstraintSolve)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
@@ -2775,9 +2792,9 @@ namespace AMD
             FmFreeTetMeshData(&gFEMFXPreConstraintSolveMeshes[meshIdx]);
         }
         delete[] gFEMFXPreConstraintSolveMeshes;
-        gFEMFXPreConstraintSolveMeshes = NULL;
+        gFEMFXPreConstraintSolveMeshes = nullptr;
         delete[] gFEMFXPreConstraintSolveRigidBodies;
-        gFEMFXPreConstraintSolveRigidBodies = NULL;
+        gFEMFXPreConstraintSolveRigidBodies = nullptr;
 
         uint numSceneTetMeshes = FmGetNumEnabledTetMeshes(*scene);
         uint numSceneRigidBodies = FmGetNumEnabledRigidBodies(*scene);
@@ -2799,12 +2816,12 @@ namespace AMD
         }
 #endif
 
-        FmFindConstraintIslands(scene, NULL);
+        FmFindConstraintIslands(scene, nullptr);
 
         FmSceneConstraintSolve(scene, FmTaskFuncUpdateSceneEnd, taskData);
     }
 
-    void FmTaskFuncUpdateSceneEnd(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK(FmTaskFuncUpdateSceneEnd)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
@@ -2822,47 +2839,48 @@ namespace AMD
 
     struct FmUpdateSceneFinishedData
     {
-        FmSyncEvent* taskEvent;
+        TLTaskWaitCounter* waitCounter;
         FmScene* scene;
 
-        FmUpdateSceneFinishedData(FmSyncEvent* inTaskEvent, FmScene* inScene)
+        FmUpdateSceneFinishedData(TLTaskWaitCounter* inWaitCounter, FmScene* inScene)
         {
-            taskEvent = inTaskEvent;
+            waitCounter = inWaitCounter;
             scene = inScene;
         }
     };
 
-    static void FmTaskFuncUpdateSceneFinished(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    static FM_ASYNC_TASK(FmTaskFuncUpdateSceneFinished)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
         FmUpdateSceneFinishedData* taskData = (FmUpdateSceneFinishedData*)inTaskData;
-        taskData->scene->taskSystemCallbacks.TriggerSyncEvent(taskData->taskEvent);
+        TLDecrementTaskWaitCounter(taskData->waitCounter);
     }
 
     void FmUpdateSceneAsync(FmScene* scene, float timestep)
     {
-        FmSyncEvent* updateSceneFinishedEvent = scene->taskSystemCallbacks.CreateSyncEvent();
+        TLTaskWaitCounter* updateSceneFinishedWaitCounter = TLCreateTaskWaitCounter();
+        TLIncrementTaskWaitCounter(updateSceneFinishedWaitCounter);
 
         FM_TRACE_START_FRAME();
-        FM_TRACE_START_EVENT(SCENE_UPDATE);
+        FM_TRACE_START_EVENT("SceneUpdate");
 
         double t0;
         FM_GET_TIME(t0);
 
-        FmUpdateSceneFinishedData updateSceneFinishedData(updateSceneFinishedEvent, scene);
+        FmUpdateSceneFinishedData updateSceneFinishedData(updateSceneFinishedWaitCounter, scene);
         scene->postUpdateSceneCallback = FmTaskFuncUpdateSceneFinished;
         scene->postUpdateSceneData = &updateSceneFinishedData;
 
         FmTaskDataUpdateScene* taskData = new FmTaskDataUpdateScene(scene, timestep);
 
-        scene->taskSystemCallbacks.SubmitAsyncTask("FEMFXTaskFuncUpdateSceneStart", FmTaskFuncUpdateSceneStart, taskData, 0, 1);
+        TLSubmitAsyncTask(FmTaskFuncUpdateSceneStart, taskData, 0, 1);
 
-        scene->taskSystemCallbacks.WaitForSyncEvent(updateSceneFinishedEvent);
+        TLWaitForTaskWaitCounter(updateSceneFinishedWaitCounter);
 
-        scene->taskSystemCallbacks.DestroySyncEvent(updateSceneFinishedEvent);
+        TLDestroyTaskWaitCounter(updateSceneFinishedWaitCounter);
 
-        FM_TRACE_STOP_EVENT(SCENE_UPDATE);
+        FM_TRACE_STOP_EVENT("SceneUpdate");
         FM_TRACE_STOP_FRAME();
         FM_DISABLE_TRACE();
 

@@ -251,6 +251,12 @@ template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE SoaQuat<SoaNFloat> & Soa
     return *this;
 }
 
+template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE SoaQuat<SoaNFloat> & SoaQuat<SoaNFloat>::operator*=( const SoaQuat& quat )
+{
+    *this = *this * quat;
+    return *this;
+}
+
 template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE SoaQuat<SoaNFloat> & SoaQuat<SoaNFloat>::operator *=( SoaNFloat scalar )
 {
     *this = *this * scalar;
@@ -366,13 +372,13 @@ template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaQuat<SoaNFloat>
     return SoaQuat<SoaNFloat>( 0.0f, 0.0f, s, c );
 }
 
-template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaQuat<SoaNFloat> mul(const SoaQuat<SoaNFloat> & quat0, const SoaQuat<SoaNFloat> & quat1 )
+template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaQuat<SoaNFloat> SoaQuat<SoaNFloat>::operator *( const SoaQuat<SoaNFloat> & quat ) const
 {
     return SoaQuat<SoaNFloat>(
-        ((((quat0.w * quat1.x) + (quat0.x * quat1.w)) + (quat0.y * quat1.z)) - (quat0.z * quat1.y)),
-        ((((quat0.w * quat1.y) + (quat0.y * quat1.w)) + (quat0.z * quat1.x)) - (quat0.x * quat1.z)),
-        ((((quat0.w * quat1.z) + (quat0.z * quat1.w)) + (quat0.x * quat1.y)) - (quat0.y * quat1.x)),
-        ((((quat0.w * quat1.w) - (quat0.x * quat1.x)) - (quat0.y * quat1.y)) - (quat0.z * quat1.z ) )
+        ((((w * quat.x) + (x * quat.w)) + (y * quat.z)) - (z * quat.y)),
+        ((((w * quat.y) + (y * quat.w)) + (z * quat.x)) - (x * quat.z)),
+        ((((w * quat.z) + (z * quat.w)) + (x * quat.y)) - (y * quat.x)),
+        ((((w * quat.w) - (x * quat.x)) - (y * quat.y)) - (z * quat.z ) )
     );
 }
 

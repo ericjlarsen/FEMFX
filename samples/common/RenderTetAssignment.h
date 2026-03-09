@@ -89,9 +89,9 @@ namespace AMD
 
         NonFractureRegionData()
         {
-            tetIds = NULL;
-            tetVertIds = NULL;
-            bvh = NULL;
+            tetIds = nullptr;
+            tetVertIds = nullptr;
+            bvh = nullptr;
             numTets = 0;
         }
 
@@ -175,7 +175,7 @@ namespace AMD
     public:
         const ShardVertTetAssignments* shardVertTetAssignments;
 
-        ShardVertGroupKey() : shardVertTetAssignments(NULL) { }
+        ShardVertGroupKey() : shardVertTetAssignments(nullptr) { }
     };
 
     // Value is a set of shard vert indices
@@ -194,7 +194,7 @@ namespace AMD
     public:
         std::size_t operator()(const ShardVertGroupKey& key) const
         {
-            if (key.shardVertTetAssignments == NULL)
+            if (key.shardVertTetAssignments == nullptr)
             {
                 return 0;
             }
@@ -215,7 +215,7 @@ namespace AMD
     public:
         bool operator()(const ShardVertGroupKey& lhs, const ShardVertGroupKey& rhs) const
         {
-            if (lhs.shardVertTetAssignments == NULL || rhs.shardVertTetAssignments == NULL)
+            if (lhs.shardVertTetAssignments == nullptr || rhs.shardVertTetAssignments == nullptr)
             {
                 return false;
             }

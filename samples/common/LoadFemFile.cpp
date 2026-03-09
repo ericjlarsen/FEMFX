@@ -27,14 +27,18 @@ THE SOFTWARE.
 // Adapted from UE4 plugin code.
 //---------------------------------------------------------------------------------------
 #include "LoadFemFile.h"
-#include "FEMResource.h"
+#include "FemResource.h"
 
 #include <fstream>
 #include <sstream>
 #include <vector>
+#if defined(_MSC_VER)
 #pragma warning(push, 0)
+#endif
 #include "nlohmann\json.hpp"
+#if defined(_MSC_VER)
 #pragma warning(pop)
+#endif
 
 using namespace std;
 using json = nlohmann::json;

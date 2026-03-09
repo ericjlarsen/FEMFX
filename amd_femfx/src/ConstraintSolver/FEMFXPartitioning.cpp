@@ -86,7 +86,7 @@ namespace AMD
 #if !FM_ASYNC_THREADING
     static void FmSortIslandConstraints(FmScene* scene, FmConstraintIsland* constraintIsland)
     {
-        FM_TRACE_SCOPED_EVENT(ISLAND_SOLVE_SORT_CONSTRAINTS);
+        FM_TRACE_SCOPED_EVENT("IslandSolveSortConstraints");
 
         FmConstraintIsland& island = *constraintIsland;
 
@@ -125,7 +125,7 @@ namespace AMD
 
     static void FmSortIslandTetMeshes(FmConstraintSolverData* constraintSolverData, FmConstraintIsland* island)
     {
-        FM_TRACE_SCOPED_EVENT(ISLAND_SOLVE_SORT_TET_MESHES);
+        FM_TRACE_SCOPED_EVENT("IslandSolveSortTetMeshes");
 
         FmSort<uint, FmCompareIslandTetMeshes>(island->tetMeshIds, island->numTetMeshes, constraintSolverData);
     }
@@ -593,7 +593,7 @@ namespace AMD
         FmConstraintSolverData* constraintSolverData, FmConstraintIsland* constraintIsland,
         FmSetupConstraintSolveTaskData* taskData)
     {
-        FM_TRACE_SCOPED_EVENT(ISLAND_SOLVE_CREATE_PARTITIONS);
+        FM_TRACE_SCOPED_EVENT("IslandSolveCreatePartitions");
 
 #if FM_CREATE_ONE_PARTITION
         FmBvh& bvh = constraintSolverData->partitionsHierarchy;
@@ -684,9 +684,10 @@ namespace AMD
 
 #if FM_ASYNC_THREADING
         taskData->sortTaskGraph = new FmSortTaskGraph<FmConstraintReference, FmCompareConstraintRefs>();
-        taskData->sortTaskGraph->SetCallbacks(scene->taskSystemCallbacks.SubmitAsyncTask);
-        taskData->sortTaskGraph->CreateAndRunGraph(&constraintIsland->constraintRefs, constraintIsland->constraintRefs, NULL, constraintIsland->numConstraints, NULL, scene->params.numThreads * 4, 128, FmSetupConstraintSolvePostSort, taskData);
+        taskData->sortTaskGraph->CreateAndRunGraph(&constraintIsland->constraintRefs, constraintIsland->constraintRefs, nullptr, constraintIsland->numConstraints, nullptr, scene->params.numThreads * 4, 128, FmTaskFuncSetupConstraintSolvePostSort, taskData);
 #else
+        (void)taskData;
+
         // Sort all island constraints by partition pair, which will group partition-pair constraint data in solver arrays
         FmSortIslandConstraints(scene, constraintIsland);
 #endif
@@ -697,7 +698,7 @@ namespace AMD
         FmScene* scene,
         FmConstraintSolverData* constraintSolverData, FmConstraintIsland* constraintIsland)
     {
-        FM_TRACE_SCOPED_EVENT(ISLAND_SOLVE_CREATE_PARTITIONS);
+        FM_TRACE_SCOPED_EVENT("IslandSolveCreatePartitions");
 
         // Create partition pairs from set.
 
@@ -735,7 +736,7 @@ namespace AMD
                 partitionPair.numConstraints = 0;
                 partitionPair.tetMeshIds = &constraintSolverData->allPartitionObjectIds[objectIdx];
                 partitionPair.numTetMeshes = 0;
-                partitionPair.rigidBodyIds = NULL;  // set later to follow tet mesh ids, once number of tet meshes known
+                partitionPair.rigidBodyIds = nullptr;  // set later to follow tet mesh ids, once number of tet meshes known
                 partitionPair.numRigidBodies = 0;
                 partitionPair.graphColor = FM_INVALID_ID;
                 FmInitHashSet(&partitionPair.objectSet, &constraintSolverData->allPartitionObjectSetElements[objectSetIdx], maxObjectsInSet);
@@ -788,7 +789,7 @@ namespace AMD
                 partitionPair.numConstraints = 0;
                 partitionPair.tetMeshIds = &constraintSolverData->allPartitionObjectIds[objectIdx];
                 partitionPair.numTetMeshes = 0;
-                partitionPair.rigidBodyIds = NULL;  // set later to follow tet mesh ids, once number of tet meshes known
+                partitionPair.rigidBodyIds = nullptr;  // set later to follow tet mesh ids, once number of tet meshes known
                 partitionPair.numRigidBodies = 0;
                 partitionPair.graphColor = FM_INVALID_ID;
                 FmInitHashSet(&partitionPair.objectSet, &constraintSolverData->allPartitionObjectSetElements[objectSetIdx], maxObjectsInSet);

@@ -56,7 +56,7 @@ namespace AMD
 
     struct FmRandomState
     {
-        uint state;
+        uint state = 0;
 
         FM_FORCE_INLINE FmRandomState(uint seed = 0)
         {

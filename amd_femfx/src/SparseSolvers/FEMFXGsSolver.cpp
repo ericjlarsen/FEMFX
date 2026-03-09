@@ -35,7 +35,9 @@ namespace AMD
 
         FmSVector3 rowResult = b[vertOffset + row3];
         FmSMatrix3 DAinv_row = DAinv[row3];
+#if FM_CONSTRAINT_SOLVER_CONVERGENCE_TEST
         FmSVector3 x_row = x[vertOffset + row3];
+#endif
 
         if (!isKinematic)
         {
@@ -52,11 +54,11 @@ namespace AMD
                 uint idx = A.indices[i];
                 FmSVector3 x_idx = x[vertOffset + idx];
 
-                rowResult -= mul(rowMatrix, x_idx);
+                rowResult -= rowMatrix * x_idx;
             }
         }
 
-        FmSVector3 xnew = mul(DAinv_row, rowResult);
+        FmSVector3 xnew = DAinv_row * rowResult;
 
 #if FM_CONSTRAINT_SOLVER_CONVERGENCE_TEST
         FmSVector3 xprev = x_row;

@@ -36,7 +36,9 @@ private:
     // Some included math to avoid dependencies
     struct Vector3
     {
-        float x, y, z;
+        float x = 0.0f;
+        float y = 0.0f;
+        float z = 0.0f;
         inline Vector3() {}
         inline Vector3(float inX, float inY, float inZ) { x = inX; y = inY; z = inZ; }
         inline Vector3 operator + (const Vector3& otherVec) { return Vector3(x + otherVec.x, y + otherVec.y, z + otherVec.z); }

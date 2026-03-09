@@ -251,6 +251,12 @@ VECTORMATH_FORCE_INLINE Quat & Quat::operator -=( const Quat & quat )
     return *this;
 }
 
+VECTORMATH_FORCE_INLINE Quat & Quat::operator*=( const Quat& quat )
+{
+    *this = *this * quat;
+    return *this;
+}
+
 VECTORMATH_FORCE_INLINE Quat & Quat::operator *=( float scalar )
 {
     *this = *this * scalar;
@@ -370,13 +376,13 @@ VECTORMATH_FORCE_INLINE const Quat Quat::rotationZ( float radians )
     return Quat( 0.0f, 0.0f, s, c );
 }
 
-VECTORMATH_FORCE_INLINE const Quat mul(const Quat & quat0, const Quat & quat1 )
+VECTORMATH_FORCE_INLINE const Quat Quat::operator *( const Quat & quat ) const
 {
     return Quat(
-        ((((quat0.w * quat1.x) + (quat0.x * quat1.w)) + (quat0.y * quat1.z)) - (quat0.z * quat1.y)),
-        ((((quat0.w * quat1.y) + (quat0.y * quat1.w)) + (quat0.z * quat1.x)) - (quat0.x * quat1.z)),
-        ((((quat0.w * quat1.z) + (quat0.z * quat1.w)) + (quat0.x * quat1.y)) - (quat0.y * quat1.x)),
-        ((((quat0.w * quat1.w) - (quat0.x * quat1.x)) - (quat0.y * quat1.y)) - (quat0.z * quat1.z ) )
+        ((((w * quat.x) + (x * quat.w)) + (y * quat.z)) - (z * quat.y)),
+        ((((w * quat.y) + (y * quat.w)) + (z * quat.x)) - (x * quat.z)),
+        ((((w * quat.z) + (z * quat.w)) + (x * quat.y)) - (y * quat.x)),
+        ((((w * quat.w) - (x * quat.x)) - (y * quat.y)) - (z * quat.z ) )
     );
 }
 

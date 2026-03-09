@@ -48,7 +48,7 @@ namespace FmVectormath {
         __m128i mData;
 
     public:
-        SIMD_VECTORMATH_FORCE_INLINE Soa4Int() {}
+        SIMD_VECTORMATH_FORCE_INLINE Soa4Int() { mData = _mm_setzero_si128(); }
         SIMD_VECTORMATH_FORCE_INLINE Soa4Int(const Soa4Int& other);
 
         // construct from __m128i
@@ -142,7 +142,7 @@ namespace FmVectormath {
         __m256i mData;
 
     public:
-        SIMD_VECTORMATH_FORCE_INLINE Soa8Int() {}
+        SIMD_VECTORMATH_FORCE_INLINE Soa8Int() { mData = _mm256_setzero_si256(); }
         SIMD_VECTORMATH_FORCE_INLINE Soa8Int(const Soa8Int& other);
 
         // construct from __m256i

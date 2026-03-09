@@ -31,7 +31,7 @@ THE SOFTWARE.
 #include "FEMFXCollisionPairData.h"
 #include "FEMFXScene.h"
 #include "FEMFXBroadPhase.h"
-#include "FEMFXParallelFor.h"
+#include "FEMFXThreading.h"
 #include "FEMFXThreadTempMemory.h"
 #include "FEMFXSleeping.h"
 
@@ -213,7 +213,7 @@ namespace AMD
             && !triPair.isTetInverted  // disabling these contacts if tet is inverted since they may interfere with contact resolution
             )
         {
-            FmVector3 centroid = FmInitVector3(0.0f);
+            FmVector3 centroid = FmVector3(0.0f);
             for (uint i = 0; i < triPair.triIntersectionPoints.numSegments; i++)
             {
                 centroid +=
@@ -372,6 +372,7 @@ namespace AMD
         // Find contact with max impact time
         uint maxImpactTimeIdx = 0;
         float maxImpactTime = vertContacts.contactsTimeWeighted[0].impactTime;
+#if FM_TIME_WEIGHTED_CONTACTS_SIZE > 1
         for (uint i = 1; i < numContactsTimeWeighted; i++)
         {
             float contactImpactTime = vertContacts.contactsTimeWeighted[i].impactTime;
@@ -381,10 +382,12 @@ namespace AMD
                 maxImpactTime = contactImpactTime;
             }
         }
+#endif
 
         // Find contact with max distance
         uint maxDistanceSqrIdx = 0;
         float maxDistanceSqr = vertContacts.contactsDistanceWeighted[0].distanceSqr;
+#if FM_DIST_WEIGHTED_CONTACTS_SIZE > 1
         for (uint i = 1; i < numContactsDistWeighted; i++)
         {
             float contactDistanceSqr = vertContacts.contactsDistanceWeighted[i].distanceSqr;
@@ -394,6 +397,7 @@ namespace AMD
                 maxDistanceSqr = contactDistanceSqr;
             }
         }
+#endif
 
         // If contact impact time less than max, evict max
         if (contact.impactTime < maxImpactTime)
@@ -483,7 +487,7 @@ namespace AMD
             return &destContact;
         }
 
-        return NULL;
+        return nullptr;
     }
 
     void FmReplaceKeptContactTempIndex(FmVertKeptContactSet* vertsContacts, uint vId, uint tempIdx, uint contactIdx)
@@ -728,12 +732,12 @@ namespace AMD
                         continue;
                     }
 
-                    const FmDistanceContactTetVertIds& srcContactTetVertIds = collidedPair->temps.distanceContactTetVertIds[srcIdx];
-
                     constraintsBuffer->distanceContactsPairInfo[dstContactIdx] = srcContactPairInfo;
                     constraintsBuffer->distanceContacts[dstContactIdx] = srcContact;
 
 #if FM_CONTACT_REDUCTION
+                    const FmDistanceContactTetVertIds& srcContactTetVertIds = collidedPair->temps.distanceContactTetVertIds[srcIdx];
+
                     FmContactReductionWorkspace* contactReductionWorkspace = collidedPair->temps.contactReductionWorkspace;
                     if (contactReductionWorkspace && contactReductionWorkspace->numVertsA > 0 && contactReductionWorkspace->numVertsB > 0)
                     {
@@ -825,15 +829,15 @@ namespace AMD
 
     struct FmContactReductionInputs
     {
-        float timeOfImpact;
-        float distanceA0;
-        float distanceA1;
-        float distanceA2;
-        float distanceA3;
-        float distanceB0;
-        float distanceB1;
-        float distanceB2;
-        float distanceB3;
+        float timeOfImpact = 0.0f;
+        float distanceA0 = 0.0f;
+        float distanceA1 = 0.0f;
+        float distanceA2 = 0.0f;
+        float distanceA3 = 0.0f;
+        float distanceB0 = 0.0f;
+        float distanceB1 = 0.0f;
+        float distanceB2 = 0.0f;
+        float distanceB3 = 0.0f;
     };
 
     // Add contact to temp contacts buffer
@@ -862,9 +866,9 @@ namespace AMD
 
         tempContactIdx = temps.numDistanceContacts;
 
+#if FM_CONTACT_REDUCTION
         FmConstraintsBuffer* constraintsBuffer = collidedPair->constraintsBuffer;
 
-#if FM_CONTACT_REDUCTION
         if (contactReductionInputs)
         {
             // Check caches of contacts per vertex to decide if keeping
@@ -879,14 +883,14 @@ namespace AMD
             FmVertKeptContact* kept7 = FmAddToKeptContacts(&temps, temps.contactReductionWorkspace->vertsContactsB, constraintsBuffer->distanceContactsPairInfo, tetVertIdsB.ids[3], timeOfImpact, contactReductionInputs->distanceB3);
 
             uint numTimesAdded =
-                (uint)(kept0 != NULL)
-                + (uint)(kept1 != NULL)
-                + (uint)(kept2 != NULL)
-                + (uint)(kept3 != NULL)
-                + (uint)(kept4 != NULL)
-                + (uint)(kept5 != NULL)
-                + (uint)(kept6 != NULL)
-                + (uint)(kept7 != NULL);
+                (uint)(kept0 != nullptr)
+                + (uint)(kept1 != nullptr)
+                + (uint)(kept2 != nullptr)
+                + (uint)(kept3 != nullptr)
+                + (uint)(kept4 != nullptr)
+                + (uint)(kept5 != nullptr)
+                + (uint)(kept6 != nullptr)
+                + (uint)(kept7 != nullptr);
 
             if (numTimesAdded == 0)
             {
@@ -896,6 +900,8 @@ namespace AMD
             // Set number of references from vertices
             contactPairInfo->refCount = (uint8_t)numTimesAdded;
         }
+#else
+        (void)contactReductionInputs;
 #endif
 
         collidedPair->numDistanceContacts++;
@@ -1155,14 +1161,14 @@ namespace AMD
             numPairs = 0;
             for (uint sliceIdx = 0; sliceIdx < SoaTypes::width; sliceIdx++)
             {
-                triPair[sliceIdx] = NULL;
-                vApos[sliceIdx] = FmInitVector3(0.0f);
-                vAvel[sliceIdx] = FmInitVector3(0.0f);
-                fBpos1[sliceIdx] = FmInitVector3(0.0f);
-                fBpos2[sliceIdx] = FmInitVector3(0.0f);
-                fBvel0[sliceIdx] = FmInitVector3(0.0f);
-                fBvel1[sliceIdx] = FmInitVector3(0.0f);
-                fBvel2[sliceIdx] = FmInitVector3(0.0f);
+                triPair[sliceIdx] = nullptr;
+                vApos[sliceIdx] = FmVector3(0.0f);
+                vAvel[sliceIdx] = FmVector3(0.0f);
+                fBpos1[sliceIdx] = FmVector3(0.0f);
+                fBpos2[sliceIdx] = FmVector3(0.0f);
+                fBvel0[sliceIdx] = FmVector3(0.0f);
+                fBvel1[sliceIdx] = FmVector3(0.0f);
+                fBvel2[sliceIdx] = FmVector3(0.0f);
                 i[sliceIdx] = 0;
             }
         }
@@ -1191,15 +1197,15 @@ namespace AMD
             numPairs = 0;
             for (uint sliceIdx = 0; sliceIdx < SoaTypes::width; sliceIdx++)
             {
-                triPair[sliceIdx] = NULL;
-                fApos0[sliceIdx] = FmInitVector3(0.0f);
-                fApos1[sliceIdx] = FmInitVector3(0.0f);
-                fApos2[sliceIdx] = FmInitVector3(0.0f);
-                fAvel0[sliceIdx] = FmInitVector3(0.0f);
-                fAvel1[sliceIdx] = FmInitVector3(0.0f);
-                fAvel2[sliceIdx] = FmInitVector3(0.0f);
-                vBpos[sliceIdx] = FmInitVector3(0.0f);
-                vBvel[sliceIdx] = FmInitVector3(0.0f);
+                triPair[sliceIdx] = nullptr;
+                fApos0[sliceIdx] = FmVector3(0.0f);
+                fApos1[sliceIdx] = FmVector3(0.0f);
+                fApos2[sliceIdx] = FmVector3(0.0f);
+                fAvel0[sliceIdx] = FmVector3(0.0f);
+                fAvel1[sliceIdx] = FmVector3(0.0f);
+                fAvel2[sliceIdx] = FmVector3(0.0f);
+                vBpos[sliceIdx] = FmVector3(0.0f);
+                vBvel[sliceIdx] = FmVector3(0.0f);
                 j[sliceIdx] = 0;
             }
         }
@@ -1230,15 +1236,15 @@ namespace AMD
             numPairs = 0;
             for (uint sliceIdx = 0; sliceIdx < SoaTypes::width; sliceIdx++)
             {
-                triPair[sliceIdx] = NULL;
-                eApos0[sliceIdx] = FmInitVector3(0.0f);
-                eApos1[sliceIdx] = FmInitVector3(0.0f);
-                eAvel0[sliceIdx] = FmInitVector3(0.0f);
-                eAvel1[sliceIdx] = FmInitVector3(0.0f);
-                eBpos0[sliceIdx] = FmInitVector3(0.0f);
-                eBpos1[sliceIdx] = FmInitVector3(0.0f);
-                eBvel0[sliceIdx] = FmInitVector3(0.0f);
-                eBvel1[sliceIdx] = FmInitVector3(0.0f);
+                triPair[sliceIdx] = nullptr;
+                eApos0[sliceIdx] = FmVector3(0.0f);
+                eApos1[sliceIdx] = FmVector3(0.0f);
+                eAvel0[sliceIdx] = FmVector3(0.0f);
+                eAvel1[sliceIdx] = FmVector3(0.0f);
+                eBpos0[sliceIdx] = FmVector3(0.0f);
+                eBpos1[sliceIdx] = FmVector3(0.0f);
+                eBvel0[sliceIdx] = FmVector3(0.0f);
+                eBvel1[sliceIdx] = FmVector3(0.0f);
                 i[sliceIdx] = 0;
                 j[sliceIdx] = 0;
             }
@@ -1717,12 +1723,12 @@ namespace AMD
 
         for (uint sliceIdx = 0; sliceIdx < SoaTypes::width; sliceIdx++)
         {
-            aosTriPosA0[sliceIdx] = FmInitVector3(0.0f);
-            aosTriPosA1[sliceIdx] = FmInitVector3(0.0f);
-            aosTriPosA2[sliceIdx] = FmInitVector3(0.0f);
-            aosTriPosB0[sliceIdx] = FmInitVector3(0.0f);
-            aosTriPosB1[sliceIdx] = FmInitVector3(0.0f);
-            aosTriPosB2[sliceIdx] = FmInitVector3(0.0f);
+            aosTriPosA0[sliceIdx] = FmVector3(0.0f);
+            aosTriPosA1[sliceIdx] = FmVector3(0.0f);
+            aosTriPosA2[sliceIdx] = FmVector3(0.0f);
+            aosTriPosB0[sliceIdx] = FmVector3(0.0f);
+            aosTriPosB1[sliceIdx] = FmVector3(0.0f);
+            aosTriPosB2[sliceIdx] = FmVector3(0.0f);
         }
 
         for (uint pairIdx = 0; pairIdx < objectPair->temps.numMeshCollisionTriPairs; pairIdx++)
@@ -2032,13 +2038,13 @@ namespace AMD
 
     void FmInitFindContacts(FmConstraintsBuffer* constraintsBuffer, FmCollisionReport* collisionReport)
     {
-        FmAtomicWrite(&constraintsBuffer->foundContacts.val, 0);
-        FmAtomicWrite(&constraintsBuffer->numDistanceContacts.val, 0);
-        FmAtomicWrite(&constraintsBuffer->numVolumeContactVerts.val, 0);
-        FmAtomicWrite(&constraintsBuffer->numVolumeContacts.val, 0);
-        FmAtomicWrite(&constraintsBuffer->exceededVolumeContactVerts.val, 0);
-        FmAtomicWrite(&collisionReport->numDistanceContacts.val, 0);
-        FmAtomicWrite(&collisionReport->numVolumeContacts.val, 0);
+        constraintsBuffer->foundContacts.val = 0;
+        constraintsBuffer->numDistanceContacts.val = 0;
+        constraintsBuffer->numVolumeContactVerts.val = 0;
+        constraintsBuffer->numVolumeContacts.val = 0;
+        constraintsBuffer->exceededVolumeContactVerts.val = 0;
+        collisionReport->numDistanceContacts.val = 0;
+        collisionReport->numVolumeContacts.val = 0;
     }
 
     uint FmFindDistanceContacts(FmCollidedObjectPair* objectPair)
@@ -2060,7 +2066,6 @@ namespace AMD
         float volContactV = objectPair->volContactV;
         float volContactBias = objectPair->volContactBias;
         float volContactThreshold = objectPair->volContactThreshold;
-        float distContactBias = objectPair->distContactBias;
 
         uint numEntriesA = FmGetNumEntries(volContactWorkspace->meshAVertSets);
         uint numEntriesB = FmGetNumEntries(volContactWorkspace->meshBVertSets);
@@ -2070,11 +2075,13 @@ namespace AMD
         float lenSqrVolContactNormal = lengthSqr(volContactNormal);
         const float lenSqrThreshold = 1.0e-12f;
 
+#if FM_SURFACE_INTERSECTION_CONTACTS
+        float distContactBias = objectPair->distContactBias;
+
         bool isSelfCollision = (meshA == meshB);
         FmVolumeContactVertSetExpandable& vertSetA = volContactWorkspace->meshAVertSets;
-        FmVolumeContactVertSetExpandable& vertSetB = isSelfCollision? vertSetA : volContactWorkspace->meshBVertSets;
+        FmVolumeContactVertSetExpandable& vertSetB = isSelfCollision ? vertSetA : volContactWorkspace->meshBVertSets;
 
-#if FM_SURFACE_INTERSECTION_CONTACTS
         if (volContactV < volContactThreshold
             && lenSqrVolContactNormal > lenSqrThreshold)
         {
@@ -2241,7 +2248,7 @@ namespace AMD
 
                 if (contactPairInfo.dynamicFlags && valid)
                 {
-                    FmAddTempDistanceContact(objectPair, &contactPairInfo, &contact, tetVertIdsA, tetVertIdsB, dynamicFlagsA, dynamicFlagsB, NULL);
+                    FmAddTempDistanceContact(objectPair, &contactPairInfo, &contact, tetVertIdsA, tetVertIdsB, dynamicFlagsA, dynamicFlagsB, nullptr);
                 }
             }
         }
@@ -2275,12 +2282,12 @@ namespace AMD
             if (numTotalVerts <= constraintsBuffer->maxVolumeContactVerts)
             {
                 // Compute normal and tangents for volume contact
-                FmVector3 backupDir = FmInitVector3(0.0f, 1.0f, 0.0f);
+                FmVector3 backupDir = FmVector3(0.0f, 1.0f, 0.0f);
                 volContactNormal = FmSafeNormalize(volContactNormal, backupDir);
 
                 float V = 0.0f;
 
-                FmVector3 velRel = FmInitVector3(0.0f, 0.0f, 0.0f);
+                FmVector3 velRel = FmVector3(0.0f, 0.0f, 0.0f);
 
                 uint finalVertsStartOffsetA = volContactVertStartIdx;
                 FmVolumeContactVert* volContactVerts = &constraintsBuffer->volumeContactVerts[finalVertsStartOffsetA];
@@ -2555,7 +2562,7 @@ namespace AMD
 
         contact.tangent1 = tangentVelBA;
 
-        return FmAddTempDistanceContact(objectPair, &contactPairInfo, &contact, tetVertIds, tetVertIds, dynamicFlagsA, 0, NULL);
+        return FmAddTempDistanceContact(objectPair, &contactPairInfo, &contact, tetVertIds, tetVertIds, dynamicFlagsA, 0, nullptr);
     }
 
     uint FmGenerateFaceCollisionPlaneContacts(
@@ -2597,27 +2604,27 @@ namespace AMD
 
                     if (posEnd.x <= collisionPlanes.minX + distContactThreshold)
                     {
-                        numContacts += FmAddPlaneContact(objectPair, tetId, tetCornerId, tetVertIds, posStart, vel, FmInitVector3(1.0f, 0.0f, 0.0f), FmInitVector3(collisionPlanes.minX, 0.0f, 0.0f));
+                        numContacts += FmAddPlaneContact(objectPair, tetId, tetCornerId, tetVertIds, posStart, vel, FmVector3(1.0f, 0.0f, 0.0f), FmVector3(collisionPlanes.minX, 0.0f, 0.0f));
                     }
                     if (posEnd.x >= collisionPlanes.maxX - distContactThreshold)
                     {
-                        numContacts += FmAddPlaneContact(objectPair, tetId, tetCornerId, tetVertIds, posStart, vel, FmInitVector3(-1.0f, 0.0f, 0.0f), FmInitVector3(collisionPlanes.maxX, 0.0f, 0.0f));
+                        numContacts += FmAddPlaneContact(objectPair, tetId, tetCornerId, tetVertIds, posStart, vel, FmVector3(-1.0f, 0.0f, 0.0f), FmVector3(collisionPlanes.maxX, 0.0f, 0.0f));
                     }
                     if (posEnd.y <= collisionPlanes.minY + distContactThreshold)
                     {
-                        numContacts += FmAddPlaneContact(objectPair, tetId, tetCornerId, tetVertIds, posStart, vel, FmInitVector3(0.0f, 1.0f, 0.0f), FmInitVector3(0.0f, collisionPlanes.minY, 0.0f));
+                        numContacts += FmAddPlaneContact(objectPair, tetId, tetCornerId, tetVertIds, posStart, vel, FmVector3(0.0f, 1.0f, 0.0f), FmVector3(0.0f, collisionPlanes.minY, 0.0f));
                     }
                     if (posEnd.y >= collisionPlanes.maxY - distContactThreshold)
                     {
-                        numContacts += FmAddPlaneContact(objectPair, tetId, tetCornerId, tetVertIds, posStart, vel, FmInitVector3(0.0f, -1.0f, 0.0f), FmInitVector3(0.0f, collisionPlanes.maxY, 0.0f));
+                        numContacts += FmAddPlaneContact(objectPair, tetId, tetCornerId, tetVertIds, posStart, vel, FmVector3(0.0f, -1.0f, 0.0f), FmVector3(0.0f, collisionPlanes.maxY, 0.0f));
                     }
                     if (posEnd.z <= collisionPlanes.minZ + distContactThreshold)
                     {
-                        numContacts += FmAddPlaneContact(objectPair, tetId, tetCornerId, tetVertIds, posStart, vel, FmInitVector3(0.0f, 0.0f, 1.0f), FmInitVector3(0.0f, 0.0f, collisionPlanes.minZ));
+                        numContacts += FmAddPlaneContact(objectPair, tetId, tetCornerId, tetVertIds, posStart, vel, FmVector3(0.0f, 0.0f, 1.0f), FmVector3(0.0f, 0.0f, collisionPlanes.minZ));
                     }
                     if (posEnd.z >= collisionPlanes.maxZ - distContactThreshold)
                     {
-                        numContacts += FmAddPlaneContact(objectPair, tetId, tetCornerId, tetVertIds, posStart, vel, FmInitVector3(0.0f, 0.0f, -1.0f), FmInitVector3(0.0f, 0.0f, collisionPlanes.maxZ));
+                        numContacts += FmAddPlaneContact(objectPair, tetId, tetCornerId, tetVertIds, posStart, vel, FmVector3(0.0f, 0.0f, -1.0f), FmVector3(0.0f, 0.0f, collisionPlanes.maxZ));
                     }
                 }
             }
@@ -2671,7 +2678,7 @@ namespace AMD
 
         if (FM_IS_SET(tetMesh.flags, FM_OBJECT_FLAG_KINEMATIC)
             || FM_IS_SET(tetMesh.flags, FM_OBJECT_FLAG_SURFACE_COLLISION_CALLBACK_DISABLED)
-            || scene->surfaceCollisionCallback == NULL)
+            || scene->surfaceCollisionCallback == nullptr)
         {
             return;
         }
@@ -2725,10 +2732,10 @@ namespace AMD
 
     void FmSetFindContactsWarnings(FmScene* scene);
 
-    void FmTaskFuncFindSceneCollisionPlanesContacts(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK(FmTaskFuncFindSceneCollisionPlanesContacts)
     {
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(FIND_CONTACTS_WORK);
+        FM_TRACE_SCOPED_EVENT("FindContactsWork");
 
         FmTaskDataFindContacts* taskData = (FmTaskDataFindContacts*)inTaskData;
         FmScene* scene = taskData->scene;
@@ -2745,7 +2752,7 @@ namespace AMD
 
         uint taskIndex = (uint)inTaskBeginIndex;
 
-        int workerIndex = scene->taskSystemCallbacks.GetTaskSystemWorkerIndex();
+        int workerIndex = TLGetTaskSystemThreadIndex();
         uint8_t* pTempMemBufferStart = threadTempMemBuffer->buffers[workerIndex];
         uint8_t* pTempMemBufferEnd = pTempMemBufferStart + threadTempMemBuffer->numBytesPerBuffer;
 
@@ -2757,17 +2764,17 @@ namespace AMD
 
             FmCollidedObjectPair objectPair;
             objectPair.objectA = &tetMesh;
-            objectPair.objectB = NULL;
+            objectPair.objectB = nullptr;
             objectPair.tetMeshA = &tetMesh;
-            objectPair.tetMeshB = NULL;
+            objectPair.tetMeshB = nullptr;
             objectPair.objectAId = tetMesh.objectId;
             objectPair.objectBId = FM_INVALID_ID;
             objectPair.objectAHierarchy = &tetMesh.bvh;
-            objectPair.objectBHierarchy = NULL;
+            objectPair.objectBHierarchy = nullptr;
             objectPair.objectAMinPosition = tetMesh.minPosition;
             objectPair.objectAMaxPosition = tetMesh.maxPosition;
-            objectPair.objectBMinPosition = FmInitVector3(0.0f);
-            objectPair.objectBMaxPosition = FmInitVector3(0.0f);
+            objectPair.objectBMinPosition = FmVector3(0.0f);
+            objectPair.objectBMaxPosition = FmVector3(0.0f);
             objectPair.constraintsBuffer = constraintsBuffer;
             objectPair.timestep = timestep;
             objectPair.distContactBias = distContactBias;
@@ -2776,10 +2783,10 @@ namespace AMD
             objectPair.volContactThreshold = 0.0f;
             objectPair.numDistanceContacts = 0;
             objectPair.numVolumeContacts = 0;
-            objectPair.volContactCenter = FmInitVector3(0.0f);
-            objectPair.volContactObjectACenterPos = FmInitVector3(0.0f);
-            objectPair.volContactObjectBCenterPos = FmInitVector3(0.0f);
-            objectPair.volContactNormal = FmInitVector3(0.0f);
+            objectPair.volContactCenter = FmVector3(0.0f);
+            objectPair.volContactObjectACenterPos = FmVector3(0.0f);
+            objectPair.volContactObjectBCenterPos = FmVector3(0.0f);
+            objectPair.volContactNormal = FmVector3(0.0f);
             objectPair.volContactV = 0.0f;
             objectPair.collisionReport = &scene->collisionReport;
             objectPair.numDistanceContactReports = 0;
@@ -2826,9 +2833,9 @@ namespace AMD
                 objectPair.numDistanceContacts = 0;
                 objectPair.numVolumeContacts = 0;
                 objectPair.volContactCenter = tetMesh.centerOfMass;
-                objectPair.volContactObjectACenterPos = FmInitVector3(0.0f);
-                objectPair.volContactObjectBCenterPos = FmInitVector3(0.0f);
-                objectPair.volContactNormal = FmInitVector3(0.0f);
+                objectPair.volContactObjectACenterPos = FmVector3(0.0f);
+                objectPair.volContactObjectBCenterPos = FmVector3(0.0f);
+                objectPair.volContactNormal = FmVector3(0.0f);
                 objectPair.volContactV = 0.0f;
                 objectPair.collisionReport = &scene->collisionReport;
                 objectPair.numDistanceContactReports = 0;
@@ -2854,17 +2861,17 @@ namespace AMD
 
             FmCollidedObjectPair objectPair;
             objectPair.objectA = pRigidBody;
-            objectPair.objectB = NULL;
-            objectPair.tetMeshA = NULL;
-            objectPair.tetMeshB = NULL;
+            objectPair.objectB = nullptr;
+            objectPair.tetMeshA = nullptr;
+            objectPair.tetMeshB = nullptr;
             objectPair.objectAId = pRigidBody->objectId;
             objectPair.objectBId = FM_INVALID_ID;
-            objectPair.objectAHierarchy = NULL;
-            objectPair.objectBHierarchy = NULL;
-            objectPair.objectAMinPosition = FmInitVector3(0.0f);
-            objectPair.objectAMaxPosition = FmInitVector3(0.0f);
-            objectPair.objectBMinPosition = FmInitVector3(0.0f);
-            objectPair.objectBMaxPosition = FmInitVector3(0.0f);
+            objectPair.objectAHierarchy = nullptr;
+            objectPair.objectBHierarchy = nullptr;
+            objectPair.objectAMinPosition = FmVector3(0.0f);
+            objectPair.objectAMaxPosition = FmVector3(0.0f);
+            objectPair.objectBMinPosition = FmVector3(0.0f);
+            objectPair.objectBMaxPosition = FmVector3(0.0f);
             objectPair.constraintsBuffer = constraintsBuffer;
             objectPair.timestep = timestep;
             objectPair.distContactBias = distContactBias;
@@ -2873,10 +2880,10 @@ namespace AMD
             objectPair.volContactThreshold = 0.0f;
             objectPair.numDistanceContacts = 0;
             objectPair.numVolumeContacts = 0;
-            objectPair.volContactCenter = FmInitVector3(0.0f);
-            objectPair.volContactObjectACenterPos = FmInitVector3(0.0f);
-            objectPair.volContactObjectBCenterPos = FmInitVector3(0.0f);
-            objectPair.volContactNormal = FmInitVector3(0.0f);
+            objectPair.volContactCenter = FmVector3(0.0f);
+            objectPair.volContactObjectACenterPos = FmVector3(0.0f);
+            objectPair.volContactObjectBCenterPos = FmVector3(0.0f);
+            objectPair.volContactNormal = FmVector3(0.0f);
             objectPair.volContactV = 0.0f;
             objectPair.collisionReport = &scene->collisionReport;
             objectPair.numDistanceContactReports = 0;
@@ -2903,16 +2910,20 @@ namespace AMD
             FmAtomicOr(&constraintsBuffer->foundContacts.val, 1);
         }
 
-        if (taskData->progress.TaskIsFinished(taskData))
+#if FM_ASYNC_THREADING
+        if (taskData->WorkItemFinished(taskData))
+#else
+        if (taskData->WorkItemFinished())
+#endif
         {
             FmSetFindContactsWarnings(scene);
         }
     }
 
-    void FmTaskFuncFindContacts(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK(FmTaskFuncFindContacts)
     {
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(FIND_CONTACTS_WORK);
+        FM_TRACE_SCOPED_EVENT("FindContactsWork");
 
         FmTaskDataFindContacts* taskData = (FmTaskDataFindContacts*)inTaskData;
         FmScene* scene = taskData->scene;
@@ -2926,7 +2937,7 @@ namespace AMD
         float volContactBias = sceneParams.volContactBias;
         float volContactThreshold = sceneParams.volContactThreshold;
 
-        int workerIndex = scene->taskSystemCallbacks.GetTaskSystemWorkerIndex();
+        int workerIndex = TLGetTaskSystemThreadIndex();
         uint8_t* pTempMemBufferStart = threadTempMemBuffer->buffers[workerIndex];
         uint8_t* pTempMemBufferEnd = pTempMemBufferStart + threadTempMemBuffer->numBytesPerBuffer;
 
@@ -2942,8 +2953,8 @@ namespace AMD
                 FmRigidBody* rigidBodyA = FmGetRigidBodyPtrById(*scene, pair.objectIdA);
                 FmRigidBody* rigidBodyB = FmGetRigidBodyPtrById(*scene, pair.objectIdB);
 
-                FM_ASSERT(rigidBodyA != NULL);
-                FM_ASSERT(rigidBodyB != NULL);
+                FM_ASSERT(rigidBodyA != nullptr);
+                FM_ASSERT(rigidBodyB != nullptr);
 
                 uint collisionGroupA = rigidBodyA->collisionGroup;
                 uint collisionGroupB = rigidBodyB->collisionGroup;
@@ -2987,7 +2998,7 @@ namespace AMD
                 objectPair.volContactObjectACenterPos = objectACenterPos - objectPair.volContactCenter;
                 objectPair.volContactObjectBCenterPos = objectBCenterPos - objectPair.volContactCenter;
 
-                objectPair.volContactNormal = FmInitVector3(0.0f);
+                objectPair.volContactNormal = FmVector3(0.0f);
                 objectPair.volContactV = 0.0f;
                 objectPair.collisionReport = &scene->collisionReport;
                 objectPair.numDistanceContactReports = 0;
@@ -3006,7 +3017,7 @@ namespace AMD
                 }
 
                 FmBoxBoxCcdTemps* ccdTemps = FmAllocBoxCcdTemps(pTempMemBuffer, (size_t)(pTempMemBufferEnd - pTempMemBuffer));
-                if (ccdTemps == NULL)
+                if (ccdTemps == nullptr)
                 {
                     continue;
                 }
@@ -3071,7 +3082,7 @@ namespace AMD
                 objectPair.volContactObjectACenterPos = objectACenterPos - objectPair.volContactCenter;
                 objectPair.volContactObjectBCenterPos = objectBCenterPos - objectPair.volContactCenter;
 
-                objectPair.volContactNormal = FmInitVector3(0.0f);
+                objectPair.volContactNormal = FmVector3(0.0f);
                 objectPair.volContactV = 0.0f;
                 objectPair.collisionReport = &scene->collisionReport;
                 objectPair.numDistanceContactReports = 0;
@@ -3148,7 +3159,7 @@ namespace AMD
                 objectPair.volContactObjectACenterPos = objectACenterPos - objectPair.volContactCenter;
                 objectPair.volContactObjectBCenterPos = objectBCenterPos - objectPair.volContactCenter;
 
-                objectPair.volContactNormal = FmInitVector3(0.0f);
+                objectPair.volContactNormal = FmVector3(0.0f);
                 objectPair.volContactV = 0.0f;
                 objectPair.collisionReport = &scene->collisionReport;
                 objectPair.numDistanceContactReports = 0;
@@ -3186,13 +3197,17 @@ namespace AMD
             }
         }
 
-        if (taskData->progress.TaskIsFinished(taskData))
+#if FM_ASYNC_THREADING
+        if (taskData->WorkItemFinished(taskData))
+#else
+        if (taskData->WorkItemFinished())
+#endif
         {
             FmSetFindContactsWarnings(scene);
         }
     }
 
-    FM_WRAPPED_TASK_FUNC(FmTaskFuncFindContactsMeshPairsAndCollisionPlanes)
+    FM_ASYNC_TASK(FmTaskFuncFindContactsMeshPairsAndCollisionPlanes)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
@@ -3200,7 +3215,7 @@ namespace AMD
 
         uint numBroadPhasePairs = taskData->numBroadPhasePairs;
 
-        int32_t taskIndex = taskData->progress.GetNextIndex();
+        int32_t taskIndex = taskData->GetNextWorkItemIndex();
 
         if (taskIndex < (int32_t)numBroadPhasePairs)
         {
@@ -3215,12 +3230,12 @@ namespace AMD
 
     void FmFindContactsMidAndNarrowPhase(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
 
-    void FmFindContacts(FmScene* scene, FmTaskFuncCallback followTaskFunc, void* followTaskData)
+    void FmFindContacts(FmScene* scene, TLTaskFuncCallback postFindContactsTaskFunc, void* postFindContactsTaskData)
     {
 #if !FM_ASYNC_THREADING
-        (void)followTaskFunc;
-        (void)followTaskData;
-        FM_TRACE_SCOPED_EVENT(FIND_CONTACTS);
+        (void)postFindContactsTaskFunc;
+        (void)postFindContactsTaskData;
+        FM_TRACE_SCOPED_EVENT("FindContacts");
 #endif
         FM_SET_START_TIME();
         FM_RESET_BROAD_PHASE_TIME();
@@ -3239,13 +3254,13 @@ namespace AMD
             scene->numAwakeTetMeshes, scene->numAwakeRigidBodies,
             includeRigidBodiesInBroadPhase, collideRigidBodiesWithPlanes, testWithSleepingObjects);
 
-        taskData->followTask.func = followTaskFunc;
-        taskData->followTask.data = followTaskData;
+        taskData->postFindContactsTask.func = postFindContactsTaskFunc;
+        taskData->postFindContactsTask.data = postFindContactsTaskData;
 
 #if FM_PARALLEL_BROAD_PHASE_TRAVERSAL
         FmBroadPhase(taskData, FmFindContactsMidAndNarrowPhase, taskData);
 #else
-        FmBroadPhase(taskData, NULL, NULL);
+        FmBroadPhase(taskData, nullptr, nullptr);
         FmFindContactsMidAndNarrowPhase(taskData, 0, 1);
 #endif
     }
@@ -3269,9 +3284,9 @@ namespace AMD
         }
     }
 
-    void FmWakeCollidedIslandsAndFindContacts(FmScene* scene, FmTaskFuncCallback followTaskFunc, void* followTaskData)
+    void FmWakeCollidedIslandsAndFindContacts(FmScene* scene, TLTaskFuncCallback postFindContactsTaskFunc, void* postFindContactsTaskData)
     {
-        FM_TRACE_SCOPED_EVENT(WAKE_COLLIDED_FIND_CONTACTS);
+        FM_TRACE_SCOPED_EVENT("WakeCollidedFindContacts");
 
         FmWakeMarkedIslands(scene);
 
@@ -3294,13 +3309,13 @@ namespace AMD
             numAwakenedTetMeshes, numAwakenedRigidBodies,
             includeRigidBodiesInBroadPhase, collideRigidBodiesWithPlanes, testWithSleepingObjects);
 
-        taskData->followTask.func = followTaskFunc;
-        taskData->followTask.data = followTaskData;
+        taskData->postFindContactsTask.func = postFindContactsTaskFunc;
+        taskData->postFindContactsTask.data = postFindContactsTaskData;
 
 #if FM_PARALLEL_BROAD_PHASE_TRAVERSAL
         FmBroadPhase(taskData, FmFindContactsMidAndNarrowPhase, taskData);
 #else
-        FmBroadPhase(taskData, NULL, NULL);
+        FmBroadPhase(taskData, nullptr, nullptr);
         FmFindContactsMidAndNarrowPhase(taskData, 0, 1);
 #endif
     }
@@ -3322,10 +3337,10 @@ namespace AMD
         uint numPairs = FmAtomicRead(&constraintsBuffer.numBroadPhasePairs.val);
 
         // Perform contact finding with awakened bodies
-        uint numTasks = numPairs + numTetMeshes;
+        uint numItems = numPairs + numTetMeshes;
         if (collideRigidBodiesWithPlanes)
         {
-            numTasks += numRigidBodies;
+            numItems += numRigidBodies;
         }
 
         // Reset number of awakened bodies
@@ -3333,25 +3348,27 @@ namespace AMD
         scene->numAwakenedRigidBodies = 0;
 
         taskData->numBroadPhasePairs = numPairs;
-        taskData->progress.ResetNextIndex();
+        taskData->ResetNextWorkItemIndex();
 
 #if FM_ASYNC_THREADING
-        if (taskData->followTask.func)
+        if (taskData->postFindContactsTask.func)
         {
-            if (numTasks > 0)
+            if (numItems > 0)
             {
-                taskData->progress.Init(numTasks, taskData->followTask.func, taskData->followTask.data);
+                // NOTE: taskData used in asynchronous tasks after the parallel-for, must be managed by task
+                TLTask followTask(taskData->postFindContactsTask.func, taskData->postFindContactsTask.data);
+                taskData->Init(numItems, followTask);
 
-                FmParallelForAsync("FindContacts", FM_TASK_AND_WRAPPED_TASK_ARGS(FmTaskFuncFindContactsMeshPairsAndCollisionPlanes), NULL, taskData, numTasks, scene->taskSystemCallbacks.SubmitAsyncTask, scene->params.numThreads);
+                TLParallelForAsync(FmTaskFuncFindContactsMeshPairsAndCollisionPlanes, taskData, 0, numItems, TLParallelForOptions::GrainSize(1));
             }
             else
             {
-                FmSetNextTask(taskData->followTask.func, taskData->followTask.data, 0, 1);
+                TLSetNextTask(taskData->postFindContactsTask.func, taskData->postFindContactsTask.data, 0, 1);
                 delete taskData;
             }
         }
 #else
-        scene->taskSystemCallbacks.ParallelFor("FindContacts", FmTaskFuncFindContactsMeshPairsAndCollisionPlanes, taskData, numTasks);
+        TLParallelFor(FmTaskFuncFindContactsMeshPairsAndCollisionPlanes, taskData, 0, numItems);
 
         FM_ADD_MESH_CONTACTS_TIME();
 

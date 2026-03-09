@@ -25,7 +25,7 @@ THE SOFTWARE.
 #pragma once
 
 #include "AMD_FEMFX.h"
-#include "FEMFXTaskGraph.h"
+#include "FEMFXThreading.h"
 
 namespace AMD
 {
@@ -34,11 +34,9 @@ namespace AMD
 
     struct FmTaskGraphSolveData
     {
-        FmScene* scene;
-        FmConstraintSolverData* constraintSolverData;
-        const FmConstraintIsland* constraintIsland;
-
-        FmTaskGraphSolveData() : scene(NULL), constraintSolverData(NULL), constraintIsland(NULL) {}
+        FmScene* scene = nullptr;
+        FmConstraintSolverData* constraintSolverData = nullptr;
+        const FmConstraintIsland* constraintIsland = nullptr;
     };
 
 #if FM_CONSTRAINT_ISLAND_DEPENDENCY_GRAPH
@@ -48,32 +46,22 @@ namespace AMD
     public:
         FM_CLASS_NEW_DELETE(FmPartitionPairConstraintNodeState)
 
-        uint passIdx;
-        uint innerIteration;
-        uint outerIteration;
-        uint numPredecessorsSameIteration;
-        uint numTimesReached;
-        bool hasSameIterationPredecessorWithRigidBodies;
+        uint passIdx = 0;
+        uint innerIteration = 0;
+        uint outerIteration = 0;
+        uint numPredecessorsSameIteration = 0;
+        uint numTimesReached = 0;
+        bool hasSameIterationPredecessorWithRigidBodies = false;
 
-        FmTaskGraphNode firstIterationNode;  // Node for task in the first iteration; start node may link to this
-        FmTaskGraphNode repeat0Node;         // Alternating between two copies of nodes to support PGS solve inner loop
-        FmTaskGraphNode repeat1Node;
-        FmTaskGraphNode nextOuterIterationNode;  // Node for task in the next outer iteration
+        TLTaskGraphNode firstIterationNode;  // Node for task in the first iteration; start node may link to this
+        TLTaskGraphNode repeat0Node;         // Alternating between two copies of nodes to support PGS solve inner loop
+        TLTaskGraphNode repeat1Node;
+        TLTaskGraphNode nextOuterIterationNode;  // Node for task in the next outer iteration
 
-        FmTaskGraphEvent nextIteration0Successors; // Successor partition pairs, which are messaged if continuing to iterate the PGS constraint solve
-        FmTaskGraphEvent nextIteration1Successors; // Successor partition pairs, which are messaged if continuing to iterate the PGS constraint solve
-        FmTaskGraphEvent partitionMpcgSuccessors;  // Successor partitions, which are messaged if moving to object GS or MPCG solving
-        FmTaskGraphEvent partitionGsSuccessors;    // Successor partitions, which are messaged if moving to object GS or MPCG solving
-
-        FmPartitionPairConstraintNodeState()
-        {
-            passIdx = 0;
-            innerIteration = 0;
-            outerIteration = 0;
-            numPredecessorsSameIteration = 0;
-            numTimesReached = 0;
-            hasSameIterationPredecessorWithRigidBodies = false;
-        }
+        TLTaskGraphEvent nextIteration0Successors; // Successor partition pairs, which are messaged if continuing to iterate the PGS constraint solve
+        TLTaskGraphEvent nextIteration1Successors; // Successor partition pairs, which are messaged if continuing to iterate the PGS constraint solve
+        TLTaskGraphEvent partitionMpcgSuccessors;  // Successor partitions, which are messaged if moving to object GS or MPCG solving
+        TLTaskGraphEvent partitionGsSuccessors;    // Successor partitions, which are messaged if moving to object GS or MPCG solving
     };
 
     // Graph nodes for partition object solving tasks.
@@ -82,30 +70,22 @@ namespace AMD
     public:
         FM_CLASS_NEW_DELETE(FmPartitionObjectNodeState)
 
-        FmTaskGraphNode  gsIterationRbDeltaNode;
-        FmTaskGraphNode  mpcgSolveNode;
-        FmTaskGraphEvent partitionPairSuccessors;     // Successor partition pairs, when restarting outer iteration
+        TLTaskGraphNode  gsIterationRbDeltaNode;
+        TLTaskGraphNode  mpcgSolveNode;
+        TLTaskGraphEvent partitionPairSuccessors;     // Successor partition pairs, when restarting outer iteration
     };
 
     // Contains the task graph and nodes needed for one outer iteration of constraint solve.
-    class FmConstraintSolveTaskGraph : public FmTaskGraph
+    class FmConstraintSolveTaskGraph : public TLTaskGraph
     {
     public:
         FM_CLASS_NEW_DELETE(FmConstraintSolveTaskGraph)
 
         FmTaskGraphSolveData                 solveData;
-        FmPartitionPairConstraintNodeState*  partitionPairConstraintNodes;
-        FmPartitionObjectNodeState*          partitionObjectNodes;
-        uint                                 numPartitions;
-        uint                                 numPartitionPairs;
-
-        FmConstraintSolveTaskGraph()
-        {
-            partitionPairConstraintNodes = NULL;
-            partitionObjectNodes = NULL;
-            numPartitions = 0;
-            numPartitionPairs = 0;
-        }
+        FmPartitionPairConstraintNodeState*  partitionPairConstraintNodes = nullptr;
+        FmPartitionObjectNodeState*          partitionObjectNodes = nullptr;
+        uint                                 numPartitions = 0;
+        uint                                 numPartitionPairs = 0;
     };
 
     // Create task graph
@@ -121,7 +101,7 @@ namespace AMD
     // This will skip over the Start, Middle, End tasks that used to implement the outer loops and transition between passes.  
     // Loop counters and other control parameters are accessible or updated by the graph. 
     // The graph will start with the GS pass if there are no CG pass iterations.
-    void FmRunConstraintSolveTaskGraphAsync(FmConstraintSolveTaskGraph* taskGraph, FmTaskFuncCallback followTask, void* followTaskData);
+    void FmRunConstraintSolveTaskGraphAsync(FmConstraintSolveTaskGraph* taskGraph, TLTaskFuncCallback followTask, void* followTaskData);
 
     // Make edge from start node to partition pair node.
     void FmMakeStartDependency(FmConstraintSolveTaskGraph* graph, uint partitionPairIdx);
@@ -138,18 +118,16 @@ namespace AMD
     // Register dependency between partition node and partition pair node in the next outer solve iteration
     void FmMakeNextOuterIterationDependency(FmConstraintSolveTaskGraph* graph, uint partitionIdx, uint partitionPairIdx);
 
-    class FmTaskGraphNode;
-
     // Send messages to partition pair nodes in next iteration.
-    void FmNextIterationMessages(FmConstraintSolveTaskGraph* graph, uint partitionPairIdx, uint iteration, FmTaskGraphNode** ppNextNode);
+    void FmNextIterationMessages(FmConstraintSolveTaskGraph* graph, uint partitionPairIdx, uint iteration);
 
     // Send messages to partition nodes to run MPCG.
-    void FmPartitionMpcgTaskMessages(FmConstraintSolveTaskGraph* graph, uint partitionPairIdx, uint outerIteration, FmTaskGraphNode** ppNextNode);
+    void FmPartitionMpcgTaskMessages(FmConstraintSolveTaskGraph* graph, uint partitionPairIdx, uint outerIteration);
 
     // Send messages to partition nodes to run GS iteration.
-    void FmPartitionGsTaskMessages(FmConstraintSolveTaskGraph* graph, uint partitionPairIdx, uint outerIteration, FmTaskGraphNode** ppNextNode);
+    void FmPartitionGsTaskMessages(FmConstraintSolveTaskGraph* graph, uint partitionPairIdx, uint outerIteration);
 
     // Send messages to partition pair nodes in next outer iteration.
-    void FmNextOuterIterationMessages(FmConstraintSolveTaskGraph* graph, uint partitionIdx, FmTaskGraphNode** ppNextNode);
+    void FmNextOuterIterationMessages(FmConstraintSolveTaskGraph* graph, uint partitionIdx);
 #endif
 }

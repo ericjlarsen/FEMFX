@@ -314,6 +314,12 @@ SIMD_VECTORMATH_FORCE_INLINE SimdMatrix3 & SimdMatrix3::operator *=( const SimdF
     return *this;
 }
 
+SIMD_VECTORMATH_FORCE_INLINE SimdMatrix3 & SimdMatrix3::operator*=( const SimdMatrix3& mat )
+{
+    *this = *this * mat;
+    return *this;
+}
+
 SIMD_VECTORMATH_FORCE_INLINE const SimdMatrix3 operator *( float scalar, const SimdMatrix3 & mat )
 {
     return SimdFloat(scalar) * mat;
@@ -324,25 +330,25 @@ SIMD_VECTORMATH_FORCE_INLINE const SimdMatrix3 operator *( const SimdFloat &scal
     return mat * scalar;
 }
 
-SIMD_VECTORMATH_FORCE_INLINE const SimdVector3 mul(const SimdMatrix3 & mat, const SimdVector3 & vec )
+SIMD_VECTORMATH_FORCE_INLINE const SimdVector3 SimdMatrix3::operator *( const SimdVector3 & vec ) const
 {
     __m128 res;
     __m128 xxxx, yyyy, zzzz;
     xxxx = simd_broadcast_ps( vec.get128(), 0 );
     yyyy = simd_broadcast_ps( vec.get128(), 1 );
     zzzz = simd_broadcast_ps( vec.get128(), 2 );
-    res = _mm_mul_ps( mat.col0.get128(), xxxx );
-    res = simd_madd_ps( mat.col1.get128(), yyyy, res );
-    res = simd_madd_ps( mat.col2.get128(), zzzz, res );
+    res = _mm_mul_ps( col0.get128(), xxxx );
+    res = simd_madd_ps( col1.get128(), yyyy, res );
+    res = simd_madd_ps( col2.get128(), zzzz, res );
     return SimdVector3( res );
 }
 
-SIMD_VECTORMATH_FORCE_INLINE const SimdMatrix3 mul(const SimdMatrix3 & mat0, const SimdMatrix3 & mat1 ) 
+SIMD_VECTORMATH_FORCE_INLINE const SimdMatrix3 SimdMatrix3::operator *( const SimdMatrix3 & mat ) const
 {
     return SimdMatrix3(
-        mul( mat0, mat1.col0 ),
-        mul( mat0, mat1.col1 ),
-        mul( mat0, mat1.col2 )
+        *this * mat.col0,
+        *this * mat.col1,
+        *this * mat.col2
     );
 }
 
@@ -973,6 +979,18 @@ SIMD_VECTORMATH_FORCE_INLINE SimdMatrix4 & SimdMatrix4::operator *=( const SimdF
     return *this;
 }
 
+SIMD_VECTORMATH_FORCE_INLINE SimdMatrix4 & SimdMatrix4::operator*=( const SimdMatrix4& mat )
+{
+    *this = *this * mat;
+    return *this;
+}
+
+SIMD_VECTORMATH_FORCE_INLINE SimdMatrix4 & SimdMatrix4::operator*=( const SimdTransform3& tfrm )
+{
+    *this = *this * tfrm;
+    return *this;
+}
+
 SIMD_VECTORMATH_FORCE_INLINE const SimdMatrix4 operator *( float scalar, const SimdMatrix4 & mat )
 {
     return SimdFloat(scalar) * mat;
@@ -983,12 +1001,8 @@ SIMD_VECTORMATH_FORCE_INLINE const SimdMatrix4 operator *( const SimdFloat &scal
     return mat * scalar;
 }
 
-SIMD_VECTORMATH_FORCE_INLINE const SimdVector4 mul(const SimdMatrix4 & mat, const SimdVector4 & vec )
+SIMD_VECTORMATH_FORCE_INLINE const SimdVector4 SimdMatrix4::operator *( const SimdVector4 & vec ) const
 {
-    SimdVector4 col0 = mat.col0;
-    SimdVector4 col1 = mat.col1;
-    SimdVector4 col2 = mat.col2;
-    SimdVector4 col3 = mat.col3;
     return SimdVector4(
         _mm_add_ps(
             _mm_add_ps(_mm_mul_ps(col0.get128(), _mm_shuffle_ps(vec.get128(), vec.get128(), _MM_SHUFFLE(0,0,0,0))), _mm_mul_ps(col1.get128(), _mm_shuffle_ps(vec.get128(), vec.get128(), _MM_SHUFFLE(1,1,1,1)))),
@@ -996,12 +1010,8 @@ SIMD_VECTORMATH_FORCE_INLINE const SimdVector4 mul(const SimdMatrix4 & mat, cons
         );
 }
 
-SIMD_VECTORMATH_FORCE_INLINE const SimdVector4 mul(const SimdMatrix4 & mat, const SimdVector3 & vec )
+SIMD_VECTORMATH_FORCE_INLINE const SimdVector4 SimdMatrix4::operator *( const SimdVector3 & vec ) const
 {
-    SimdVector4 col0 = mat.col0;
-    SimdVector4 col1 = mat.col1;
-    SimdVector4 col2 = mat.col2;
-    SimdVector4 col3 = mat.col3;
     return SimdVector4(
         _mm_add_ps(
             _mm_add_ps(_mm_mul_ps(col0.get128(), _mm_shuffle_ps(vec.get128(), vec.get128(), _MM_SHUFFLE(0,0,0,0))), _mm_mul_ps(col1.get128(), _mm_shuffle_ps(vec.get128(), vec.get128(), _MM_SHUFFLE(1,1,1,1)))),
@@ -1009,12 +1019,8 @@ SIMD_VECTORMATH_FORCE_INLINE const SimdVector4 mul(const SimdMatrix4 & mat, cons
         );
 }
 
-SIMD_VECTORMATH_FORCE_INLINE const SimdVector4 mul(const SimdMatrix4 & mat, const SimdPoint3 & pnt ) 
+SIMD_VECTORMATH_FORCE_INLINE const SimdVector4 SimdMatrix4::operator *( const SimdPoint3 & pnt ) const
 {
-    SimdVector4 col0 = mat.col0;
-    SimdVector4 col1 = mat.col1;
-    SimdVector4 col2 = mat.col2;
-    SimdVector4 col3 = mat.col3;
     return SimdVector4(
         _mm_add_ps(
             _mm_add_ps(_mm_mul_ps(col0.get128(), _mm_shuffle_ps(pnt.get128(), pnt.get128(), _MM_SHUFFLE(0,0,0,0))), _mm_mul_ps(col1.get128(), _mm_shuffle_ps(pnt.get128(), pnt.get128(), _MM_SHUFFLE(1,1,1,1)))),
@@ -1022,23 +1028,23 @@ SIMD_VECTORMATH_FORCE_INLINE const SimdVector4 mul(const SimdMatrix4 & mat, cons
         );
 }
 
-SIMD_VECTORMATH_FORCE_INLINE const SimdMatrix4 mul(const SimdMatrix4 & mat, const SimdTransform3 & tfrm )
+SIMD_VECTORMATH_FORCE_INLINE const SimdMatrix4 SimdMatrix4::operator *( const SimdTransform3 & tfrm ) const
 {
     return SimdMatrix4(
-        mul( mat, tfrm.getCol0() ),
-        mul( mat, tfrm.getCol1() ),
-        mul( mat, tfrm.getCol2() ),
-        mul( mat, SimdPoint3( tfrm.getCol3() ) )
+        *this * tfrm.getCol0(),
+        *this * tfrm.getCol1(),
+        *this * tfrm.getCol2(),
+        *this * SimdPoint3( tfrm.getCol3() )
     );
 }
 
-SIMD_VECTORMATH_FORCE_INLINE const SimdMatrix4 mul(const SimdMatrix4 & mat0, const SimdMatrix4 & mat1 )
+SIMD_VECTORMATH_FORCE_INLINE const SimdMatrix4 SimdMatrix4::operator *( const SimdMatrix4 & mat ) const
 {
     return SimdMatrix4(
-        mul(mat0, mat1.getCol0()),
-        mul(mat0, mat1.getCol1()),
-        mul(mat0, mat1.getCol2()),
-        mul(mat0, mat1.getCol3())
+        *this * mat.getCol0(),
+        *this * mat.getCol1(),
+        *this * mat.getCol2(),
+        *this * mat.getCol3()
     );
 }
 
@@ -1670,11 +1676,8 @@ SIMD_VECTORMATH_FORCE_INLINE const SimdTransform3 abs( const SimdTransform3 & tf
     );
 }
 
-SIMD_VECTORMATH_FORCE_INLINE const SimdVector3 mul(const SimdTransform3 & tfrm, const SimdVector3 & vec )
+SIMD_VECTORMATH_FORCE_INLINE const SimdVector3 SimdTransform3::operator *( const SimdVector3 & vec ) const
 {
-    SimdVector3 col0 = tfrm.col0;
-    SimdVector3 col1 = tfrm.col1;
-    SimdVector3 col2 = tfrm.col2;
     __m128 res;
     __m128 xxxx, yyyy, zzzz;
     xxxx = simd_broadcast_ps( vec.get128(), 0 );
@@ -1686,12 +1689,8 @@ SIMD_VECTORMATH_FORCE_INLINE const SimdVector3 mul(const SimdTransform3 & tfrm, 
     return SimdVector3( res );
 }
 
-SIMD_VECTORMATH_FORCE_INLINE const SimdPoint3 mul(const SimdTransform3 & tfrm, const SimdPoint3 & pnt )
+SIMD_VECTORMATH_FORCE_INLINE const SimdPoint3 SimdTransform3::operator *( const SimdPoint3 & pnt ) const
 {
-    SimdVector3 col0 = tfrm.col0;
-    SimdVector3 col1 = tfrm.col1;
-    SimdVector3 col2 = tfrm.col2;
-    SimdVector3 col3 = tfrm.col3;
     __m128 tmp0, tmp1, res;
     __m128 xxxx, yyyy, zzzz;
     xxxx = simd_broadcast_ps( pnt.get128(), 0 );
@@ -1705,14 +1704,20 @@ SIMD_VECTORMATH_FORCE_INLINE const SimdPoint3 mul(const SimdTransform3 & tfrm, c
     return SimdPoint3( res );
 }
 
-SIMD_VECTORMATH_FORCE_INLINE const SimdTransform3 mul(const SimdTransform3 & tfrm0, const SimdTransform3 & tfrm )
+SIMD_VECTORMATH_FORCE_INLINE const SimdTransform3 SimdTransform3::operator *( const SimdTransform3 & tfrm ) const
 {
     return SimdTransform3(
-        mul( tfrm0, tfrm.col0 ),
-        mul( tfrm0, tfrm.col1 ),
-        mul( tfrm0, tfrm.col2 ),
-        SimdVector3( mul( tfrm0, SimdPoint3( tfrm.col3 ) ) )
+        *this * tfrm.col0,
+        *this * tfrm.col1,
+        *this * tfrm.col2,
+        SimdVector3( *this * SimdPoint3( tfrm.col3 ) )
     );
+}
+
+SIMD_VECTORMATH_FORCE_INLINE SimdTransform3& SimdTransform3::operator *=(const SimdTransform3& tfrm)
+{
+    *this = *this * tfrm;
+    return *this;
 }
 
 SIMD_VECTORMATH_FORCE_INLINE const SimdTransform3 SimdTransform3::identity( )
@@ -2049,7 +2054,7 @@ SIMD_VECTORMATH_FORCE_INLINE const SimdMatrix4 outer( const SimdVector4 &tfrm0, 
     );
 }
 
-SIMD_VECTORMATH_FORCE_INLINE const SimdVector3 mul( const SimdVector3 & vec, const SimdMatrix3 & mat )
+SIMD_VECTORMATH_FORCE_INLINE const SimdVector3 operator *( const SimdVector3 & vec, const SimdMatrix3 & mat )
 {
     __m128 tmp0, tmp1, mcol0, mcol1, mcol2, res;
     __m128 xxxx, yyyy, zzzz;

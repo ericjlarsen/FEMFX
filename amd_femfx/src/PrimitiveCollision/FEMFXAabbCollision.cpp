@@ -61,25 +61,6 @@ namespace AMD
         return (proj01X <= 0.0f && proj01Y <= 0.0f && proj10X <= 0.0f && proj10Y <= 0.0f);
     }
 
-    static FM_FORCE_INLINE bool FmAabbCcdOverlap(const FmAabb& aabb0, const FmAabb& aabb1, float t)
-    {
-        FmVector3 min0CornerPos, max0CornerPos, min1CornerPos, max1CornerPos;
-
-        min0CornerPos = aabb0.pmin + aabb0.vmin * t;
-        max0CornerPos = aabb0.pmax + aabb0.vmax * t;
-        min1CornerPos = aabb1.pmin + aabb1.vmin * t;
-        max1CornerPos = aabb1.pmax + aabb1.vmax * t;
-
-        float proj01X = min0CornerPos.x - max1CornerPos.x;
-        float proj01Y = min0CornerPos.y - max1CornerPos.y;
-        float proj01Z = min0CornerPos.z - max1CornerPos.z;
-        float proj10X = min1CornerPos.x - max0CornerPos.x;
-        float proj10Y = min1CornerPos.y - max0CornerPos.y;
-        float proj10Z = min1CornerPos.z - max0CornerPos.z;
-
-        return (proj01X <= 0.0f && proj01Y <= 0.0f && proj01Z <= 0.0f && proj10X <= 0.0f && proj10Y <= 0.0f && proj10Z <= 0.0f);
-    }
-
     // Find the impact time of two AABBs that move/deform during the time interval.
     // The FmAabb motion is defined by constant velocities of the min and max corners
     // at the start of the step towards min and max corners respectively at the end 
@@ -90,7 +71,7 @@ namespace AMD
 
     bool FmAabbCcd(float& impactTime, const FmAabb& aabb0, const FmAabb& aabb1, float deltaTime)
     {
-#if 0
+#if !FM_SIMD_ENABLED
         float proj01X = aabb0.pmin.x - aabb1.pmax.x;
         float proj01Y = aabb0.pmin.y - aabb1.pmax.y;
         float proj01Z = aabb0.pmin.z - aabb1.pmax.z;
@@ -152,17 +133,21 @@ namespace AMD
         impactTime = deltaTime;
         return false;
 #else
-        FmSimdVector3 pmin0 = FmInitSimdVector3(aabb0.pmin);
-        FmSimdVector3 pmax0 = FmInitSimdVector3(aabb0.pmax);
-        FmSimdVector3 pmin1 = FmInitSimdVector3(aabb1.pmin);
-        FmSimdVector3 pmax1 = FmInitSimdVector3(aabb1.pmax);
-        FmSimdVector3 vmin0 = FmInitSimdVector3(aabb0.vmin);
-        FmSimdVector3 vmax0 = FmInitSimdVector3(aabb0.vmax);
-        FmSimdVector3 vmin1 = FmInitSimdVector3(aabb1.vmin);
-        FmSimdVector3 vmax1 = FmInitSimdVector3(aabb1.vmax);
+        FmSimdVector3 pmin0 = FmSimdVector3(aabb0.pmin);
+        FmSimdVector3 pmax0 = FmSimdVector3(aabb0.pmax);
+        FmSimdVector3 pmin1 = FmSimdVector3(aabb1.pmin);
+        FmSimdVector3 pmax1 = FmSimdVector3(aabb1.pmax);
+        FmSimdVector3 vmin0 = FmSimdVector3(aabb0.vmin);
+        FmSimdVector3 vmax0 = FmSimdVector3(aabb0.vmax);
+        FmSimdVector3 vmin1 = FmSimdVector3(aabb1.vmin);
+        FmSimdVector3 vmax1 = FmSimdVector3(aabb1.vmax);
 
         FmSoa4Float proj01((pmin0 - pmax1).get128());
         FmSoa4Float proj10((pmin1 - pmax0).get128());
+
+        // Duplicate element to not impact tests
+        proj01.setSlice(3, proj01.getSlice(0));
+        proj10.setSlice(3, proj10.getSlice(0));
 
         if (all(proj01 <= 0.0f) && all(proj10 <= 0.0f))
         {
@@ -172,6 +157,10 @@ namespace AMD
 
         FmSoa4Float dVel01((vmax1 - vmin0).get128());
         FmSoa4Float dVel10((vmax0 - vmin1).get128());
+
+        // Duplicate element to not impact tests
+        dVel01.setSlice(3, dVel01.getSlice(0));
+        dVel10.setSlice(3, dVel10.getSlice(0));
 
         // Make any negative velocities 0, causing inf below
         FmSoa4Float dVel01Clamped = max(dVel01, 0.0f);

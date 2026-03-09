@@ -42,6 +42,9 @@ THE SOFTWARE.
 namespace AMD
 {
 
+#define FM_GREEDY_SEQUENTIAL_COLORING 1
+
+#if !FM_GREEDY_SEQUENTIAL_COLORING
     // Return if index0 hash is greater, or if index0 greater when hashes equal.
     // Equal indices will give false.
     static inline bool FmCompareGreaterHash(uint index0, uint index1)
@@ -61,9 +64,6 @@ namespace AMD
         return FmCompareGreaterHash(index0, index1) ? index1 : index0;
     }
 
-#define FM_GREEDY_SEQUENTIAL_COLORING 1
-
-#if !FM_GREEDY_SEQUENTIAL_COLORING
     // Iterate over the partition pairs to find min and max hashes for member objects
     void FmObjectsMinMaxHash(
         FmConstraintSolverData* constraintSolverData,
@@ -147,7 +147,7 @@ namespace AMD
 
     void FmGraphColorPartitionPairs(FmConstraintSolverData* constraintSolverData)
     {
-        FM_TRACE_SCOPED_EVENT(ISLAND_SOLVE_CREATE_GRAPH);
+        FM_TRACE_SCOPED_EVENT("IslandSolveCreateGraph");
 
         uint numPartitionPairs = constraintSolverData->numPartitionPairs;
         for (uint pairIdx = 0; pairIdx < numPartitionPairs; pairIdx++)

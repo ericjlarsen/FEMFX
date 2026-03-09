@@ -36,11 +36,11 @@
 #include <stdio.h>
 #endif
 
-#if (defined (_WIN32) && (_MSC_VER) && _MSC_VER >= 1400)
+#if defined(_MSC_VER)
 #define VECTORMATH_FORCE_INLINE __forceinline
 #else
 #define VECTORMATH_FORCE_INLINE inline
-#endif//_WIN32
+#endif
 
 namespace FmVectormath {
 
@@ -55,17 +55,19 @@ class Quat;
 class Matrix3;
 class Matrix4;
 class Transform3;
+class SimdVector3;
+class SimdMatrix3;
 
 // A 3-D vector in array-of-structures format
 //
 class Vector3
 {
 public:
-    float x;
-    float y;
-    float z;
+    float x = 0.0f;
+    float y = 0.0f;
+    float z = 0.0f;
 
-    // Default constructor; does no initialization
+    // Default constructor
     // 
     VECTORMATH_FORCE_INLINE Vector3( ) { };
 
@@ -84,6 +86,10 @@ public:
     // Set all elements of a 3-D vector to the same scalar value
     // 
     explicit VECTORMATH_FORCE_INLINE Vector3( float scalar );
+
+    // Construct a 3-D vector from SIMD vector
+    //
+    explicit VECTORMATH_FORCE_INLINE Vector3( const SimdVector3& vec );
 
     // Assign one 3-D vector to another
     // 
@@ -179,16 +185,6 @@ public:
 // 
 VECTORMATH_FORCE_INLINE const Vector3 operator *( float scalar, const Vector3 & vec );
 
-// Multiply two 3-D vectors per element
-// 
-VECTORMATH_FORCE_INLINE const Vector3 operator *( const Vector3 & vec0, const Vector3 & vec1 );
-
-// Divide two 3-D vectors per element
-// NOTE: 
-// Floating-point behavior matches standard library function divf4.
-// 
-VECTORMATH_FORCE_INLINE const Vector3 operator /( const Vector3 & vec0, const Vector3 & vec1 );
-
 // Compute the reciprocal of a 3-D vector per element
 // NOTE: 
 // Floating-point behavior matches standard library function _mm_rcp_ps.
@@ -263,7 +259,7 @@ VECTORMATH_FORCE_INLINE const Matrix3 outer( const Vector3 & vec0, const Vector3
 
 // Pre-multiply a row vector by a 3x3 matrix
 // 
-VECTORMATH_FORCE_INLINE const Vector3 mul( const Vector3 & vec, const Matrix3 & mat );
+VECTORMATH_FORCE_INLINE const Vector3 operator *( const Vector3 & vec, const Matrix3 & mat );
 
 // Cross-product matrix of a 3-D vector
 // 
@@ -335,13 +331,13 @@ VECTORMATH_FORCE_INLINE void print( const Vector3 & vec, const char * name );
 class Vector4
 {
 public:
-    float x;
-    float y;
-    float z;
-    float w;
+    float x = 0.0f;
+    float y = 0.0f;
+    float z = 0.0f;
+    float w = 0.0f;
 
 public:
-    // Default constructor; does no initialization
+    // Default constructor
     // 
     VECTORMATH_FORCE_INLINE Vector4( ) { };
 
@@ -485,16 +481,6 @@ public:
 // 
 VECTORMATH_FORCE_INLINE const Vector4 operator *( float scalar, const Vector4 & vec );
 
-// Multiply two 4-D vectors per element
-// 
-VECTORMATH_FORCE_INLINE const Vector4 operator *( const Vector4 & vec0, const Vector4 & vec1 );
-
-// Divide two 4-D vectors per element
-// NOTE: 
-// Floating-point behavior matches standard library function divf4.
-// 
-VECTORMATH_FORCE_INLINE const Vector4 operator /( const Vector4 & vec0, const Vector4 & vec1 );
-
 // Compute the reciprocal of a 4-D vector per element
 // NOTE: 
 // Floating-point behavior matches standard library function _mm_rcp_ps.
@@ -623,11 +609,11 @@ VECTORMATH_FORCE_INLINE void print( const Vector4 & vec, const char * name );
 class Point3
 {
 public:
-    float x;
-    float y;
-    float z;
+    float x = 0.0f;
+    float y = 0.0f;
+    float z = 0.0f;
 
-    // Default constructor; does no initialization
+    // Default constructor
     // 
     VECTORMATH_FORCE_INLINE Point3( ) { };
 
@@ -704,16 +690,6 @@ public:
     VECTORMATH_FORCE_INLINE Point3 & operator -=( const Vector3 & vec );
 
 };
-
-// Multiply two 3-D points per element
-// 
-VECTORMATH_FORCE_INLINE const Point3 operator *( const Point3 & pnt0, const Point3 & pnt1 );
-
-// Divide two 3-D points per element
-// NOTE: 
-// Floating-point behavior matches standard library function divf4.
-// 
-VECTORMATH_FORCE_INLINE const Point3 operator /( const Point3 & pnt0, const Point3 & pnt1 );
 
 // Compute the reciprocal of a 3-D point per element
 // NOTE: 
@@ -842,12 +818,12 @@ VECTORMATH_FORCE_INLINE void print( const Point3 & pnt, const char * name );
 class Quat
 {
 public:
-    float x;
-    float y;
-    float z;
-    float w;
+    float x = 0.0f;
+    float y = 0.0f;
+    float z = 0.0f;
+    float w = 1.0f;
 
-    // Default constructor; does no initialization
+    // Default constructor
     // 
     VECTORMATH_FORCE_INLINE Quat( ) { };
 
@@ -937,6 +913,10 @@ public:
     // 
     VECTORMATH_FORCE_INLINE const Quat operator -( const Quat & quat ) const;
 
+    // Multiply two quaternions
+    // 
+    VECTORMATH_FORCE_INLINE const Quat operator *( const Quat & quat ) const;
+
     // Multiply a quaternion by a scalar
     // 
     VECTORMATH_FORCE_INLINE const Quat operator *( float scalar ) const;
@@ -952,6 +932,10 @@ public:
     // Perform compound assignment and subtraction by a quaternion
     // 
     VECTORMATH_FORCE_INLINE Quat & operator -=( const Quat & quat );
+
+    // Perform compound assignment and multiplication by a quaternion
+    // 
+    VECTORMATH_FORCE_INLINE Quat & operator *=( const Quat & quat );
 
     // Perform compound assignment and multiplication by a scalar
     // 
@@ -992,10 +976,6 @@ public:
     static VECTORMATH_FORCE_INLINE const Quat rotationZ( float radians );
 
 };
-
-// Multiply two quaternions
-// 
-VECTORMATH_FORCE_INLINE const Quat mul(const Quat & q0, const Quat & q1);
 
 // Multiply a quaternion by a scalar
 // 
@@ -1083,7 +1063,7 @@ public:
     Vector3 col1;
     Vector3 col2;
 
-    // Default constructor; does no initialization
+    // Default constructor
     // 
     VECTORMATH_FORCE_INLINE Matrix3( ) { };
 
@@ -1102,6 +1082,10 @@ public:
     // Set all elements of a 3x3 matrix to the same scalar value
     // 
     explicit VECTORMATH_FORCE_INLINE Matrix3( float scalar );
+
+    // Construct a 3x3 matrix from SIMD matrix
+    //
+    explicit VECTORMATH_FORCE_INLINE Matrix3( const SimdMatrix3& mat );
 
     // Assign one 3x3 matrix to another
     // 
@@ -1171,6 +1155,14 @@ public:
     // 
     VECTORMATH_FORCE_INLINE const Matrix3 operator *( float scalar ) const;
 
+    // Multiply a 3x3 matrix by a 3-D vector
+    // 
+    VECTORMATH_FORCE_INLINE const Vector3 operator *( const Vector3 & vec ) const;
+
+    // Multiply two 3x3 matrices
+    // 
+    VECTORMATH_FORCE_INLINE const Matrix3 operator *( const Matrix3 & mat ) const;
+
     // Perform compound assignment and addition with a 3x3 matrix
     // 
     VECTORMATH_FORCE_INLINE Matrix3 & operator +=( const Matrix3 & mat );
@@ -1182,6 +1174,10 @@ public:
     // Perform compound assignment and multiplication by a scalar
     // 
     VECTORMATH_FORCE_INLINE Matrix3 & operator *=( float scalar );
+
+    // Perform compound assignment and multiplication by a 3x3 matrix
+    // 
+    VECTORMATH_FORCE_INLINE Matrix3 & operator *=( const Matrix3 & mat );
 
     // Construct an identity 3x3 matrix
     // 
@@ -1216,14 +1212,6 @@ public:
     static VECTORMATH_FORCE_INLINE const Matrix3 scale( const Vector3 & scaleVec );
 
 };
-
-// Multiply a 3x3 matrix by a 3-D vector
-// 
-VECTORMATH_FORCE_INLINE const Vector3 mul(const Matrix3 & mat, const Vector3 & vec);
-
-// Multiply two 3x3 matrices
-// 
-VECTORMATH_FORCE_INLINE const Matrix3 mul(const Matrix3 & mat0, const Matrix3 & mat1);
 
 // Multiply a 3x3 matrix by a scalar
 // 
@@ -1289,7 +1277,7 @@ public:
     Vector4 col2;
     Vector4 col3;
 
-    // Default constructor; does no initialization
+    // Default constructor
     // 
     VECTORMATH_FORCE_INLINE Matrix4( ) { };
 
@@ -1413,6 +1401,26 @@ public:
     // 
     VECTORMATH_FORCE_INLINE const Matrix4 operator *( float scalar ) const;
 
+    // Multiply a 4x4 matrix by a 4-D vector
+    // 
+    VECTORMATH_FORCE_INLINE const Vector4 operator *( const Vector4 & vec ) const;
+
+    // Multiply a 4x4 matrix by a 3-D vector
+    // 
+    VECTORMATH_FORCE_INLINE const Vector4 operator *( const Vector3 & vec ) const;
+
+    // Multiply a 4x4 matrix by a 3-D point
+    // 
+    VECTORMATH_FORCE_INLINE const Vector4 operator *( const Point3 & pnt ) const;
+
+    // Multiply two 4x4 matrices
+    // 
+    VECTORMATH_FORCE_INLINE const Matrix4 operator *( const Matrix4 & mat ) const;
+
+    // Multiply a 4x4 matrix by a 3x4 transformation matrix
+    // 
+    VECTORMATH_FORCE_INLINE const Matrix4 operator *( const Transform3 & tfrm ) const;
+
     // Perform compound assignment and addition with a 4x4 matrix
     // 
     VECTORMATH_FORCE_INLINE Matrix4 & operator +=( const Matrix4 & mat );
@@ -1424,6 +1432,14 @@ public:
     // Perform compound assignment and multiplication by a scalar
     // 
     VECTORMATH_FORCE_INLINE Matrix4 & operator *=( float scalar );
+
+    // Perform compound assignment and multiplication by a 4x4 matrix
+    // 
+    VECTORMATH_FORCE_INLINE Matrix4 & operator *=( const Matrix4 & mat );
+
+    // Perform compound assignment and multiplication by a 3x4 transformation matrix
+    // 
+    VECTORMATH_FORCE_INLINE Matrix4 & operator *=( const Transform3 & tfrm );
 
     // Construct an identity 4x4 matrix
     // 
@@ -1478,26 +1494,6 @@ public:
     static VECTORMATH_FORCE_INLINE const Matrix4 orthographic( float left, float right, float bottom, float top, float zNear, float zFar );
 
 };
-
-// Multiply a 4x4 matrix by a 4-D vector
-// 
-VECTORMATH_FORCE_INLINE const Vector4 mul(const Matrix4& mat, const Vector4 & vec);
-
-// Multiply a 4x4 matrix by a 3-D vector
-// 
-VECTORMATH_FORCE_INLINE const Vector4 mul(const Matrix4& mat, const Vector3 & vec);
-
-// Multiply a 4x4 matrix by a 3-D point
-// 
-VECTORMATH_FORCE_INLINE const Vector4 mul(const Matrix4& mat, const Point3 & pnt);
-
-// Multiply two 4x4 matrices
-// 
-VECTORMATH_FORCE_INLINE const Matrix4 mul(const Matrix4& mat0, const Matrix4 & mat1);
-
-// Multiply a 4x4 matrix by a 3x4 transformation matrix
-// 
-VECTORMATH_FORCE_INLINE const Matrix4 mul(const Matrix4& mat, const Transform3 & tfrm);
 
 // Multiply a 4x4 matrix by a scalar
 // 
@@ -1575,7 +1571,7 @@ public:
     Vector3 col2;
     Vector3 col3;
 
-    // Default constructor; does no initialization
+    // Default constructor
     // 
     VECTORMATH_FORCE_INLINE Transform3( ) { };
 
@@ -1675,6 +1671,22 @@ public:
     // 
     VECTORMATH_FORCE_INLINE float getElem( int col, int row ) const;
 
+    // Multiply a 3x4 transformation matrix by a 3-D vector
+    // 
+    VECTORMATH_FORCE_INLINE const Vector3 operator *( const Vector3 & vec ) const;
+
+    // Multiply a 3x4 transformation matrix by a 3-D point
+    // 
+    VECTORMATH_FORCE_INLINE const Point3 operator *( const Point3 & pnt ) const;
+
+    // Multiply two 3x4 transformation matrices
+    // 
+    VECTORMATH_FORCE_INLINE const Transform3 operator *( const Transform3 & tfrm ) const;
+
+    // Perform compound assignment and multiplication by a 3x4 transformation matrix
+    // 
+    VECTORMATH_FORCE_INLINE Transform3 & operator *=( const Transform3 & tfrm );
+
     // Construct an identity 3x4 transformation matrix
     // 
     static VECTORMATH_FORCE_INLINE const Transform3 identity( );
@@ -1713,18 +1725,6 @@ public:
 
 };
 
-// Multiply a 3x4 transformation matrix by a 3-D vector
-// 
-VECTORMATH_FORCE_INLINE const Vector3 mul(const Transform3 & tfrm, const Vector3 & vec);
-
-// Multiply a 3x4 transformation matrix by a 3-D point
-// 
-VECTORMATH_FORCE_INLINE const Point3 mul(const Transform3 & tfrm, const Point3 & pnt);
-
-// Multiply two 3x4 transformation matrices
-// 
-VECTORMATH_FORCE_INLINE const Transform3 mul(const Transform3 & tfrm0, const Transform3 & tfrm1);
-
 // Append (post-multiply) a scale transformation to a 3x4 transformation matrix
 // NOTE: 
 // Faster than creating and multiplying a scale transformation matrix.
@@ -1736,10 +1736,6 @@ VECTORMATH_FORCE_INLINE const Transform3 appendScale( const Transform3 & tfrm, c
 // Faster than creating and multiplying a scale transformation matrix.
 // 
 VECTORMATH_FORCE_INLINE const Transform3 prependScale( const Vector3 & scaleVec, const Transform3 & tfrm );
-
-// Multiply two 3x4 transformation matrices per element
-// 
-VECTORMATH_FORCE_INLINE const Transform3 operator *( const Transform3 & tfrm0, const Transform3 & tfrm1 );
 
 // Compute the absolute value of a 3x4 transformation matrix per element
 // 

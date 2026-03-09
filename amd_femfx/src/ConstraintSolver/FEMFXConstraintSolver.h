@@ -32,7 +32,7 @@ THE SOFTWARE.
 #include "FEMFXSolverMath.h"
 #include "FEMFXGraphColoring.h"
 #include "FEMFXPartitioning.h"
-#include "FEMFXAsyncThreading.h"
+#include "FEMFXThreading.h"
 #include "FEMFXSort.h"
 
 // Data for constraint solver.
@@ -175,9 +175,8 @@ THE SOFTWARE.
 //
 // To improve this we tried a different approach where constraint forces are first computed as if the FEM mesh vertices
 // are independent, and then the FEM body response is applied using the CG method as in the implicit integration step.
-// Then, because the response will cause velocity changes that violate the constraints, the process is repeated to find 
-// additional constraint forces.  The forces computed on each iteration are summed to produce the total result.  Note the 
-// projection of constraint force lambda values is modified so that it takes into account the running total.
+// Then, because the response will cause velocity changes that violate the constraints, the process is repeated to update
+// the constraint forces.
 //
 // For solving constraint forces on the independent vertices, we modify equation (4) so that the block diagonal values 
 // for the mesh vertices are just inverse(mass) * identity, and on the right hand side we need the current estimated 
@@ -224,87 +223,85 @@ namespace AMD
     // Parameters that may change with each iteration
     struct FmConstraintSolverIterationParams
     {
-        uint outerIteration;
-        bool outerIsLastIteration;
-        bool outerForwardDirection;
-        bool innerForwardDirection;
-
-        FmConstraintSolverIterationParams() : outerIteration(0), outerIsLastIteration(false), outerForwardDirection(true), innerForwardDirection(true) {}
+        uint outerIteration = 0;
+        bool outerIsLastIteration = false;
+        bool outerForwardDirection = true;
+        bool innerForwardDirection = true;
     };
 
     struct FmConstraintSolverData
     {
         // Matrix and vector data used in solver algorithms
 
-        FmSMatrix3*           DAinv;                   // Inverted block diagonal of A matrix, concatenated for all FEM meshes and rigid bodies in solver island
-        FmSMatrix3*           W;                       // Inverted mass matrix, concatenated for all FEM meshes and rigid bodies in solver island
-        FmSVector3*           JTlambda;                // J^T * lambda3.  Can update in constant time for each lambda_k update, then multiply by J_k in constant time
-        FmConstraintJacobian  J;                       // sparse constraint Jacobian
+        FmSMatrix3*           DAinv = nullptr;                   // Inverted block diagonal of A matrix, concatenated for all FEM meshes and rigid bodies in solver island
+        FmSMatrix3*           W = nullptr;                       // Inverted mass matrix, concatenated for all FEM meshes and rigid bodies in solver island
+        FmSVector3*           JTlambda = nullptr;                // J^T * lambda3.  Can update in constant time for each lambda_k update, then multiply by J_k in constant time
+        FmConstraintJacobian  J;                                 // sparse constraint Jacobian
 
 #if FM_CONSTRAINT_STABILIZATION_SOLVE
-        FmSVector3*           deltaPos;                // Position change to correct constraint error
+        FmSVector3*           deltaPos = nullptr;                // Position change to correct constraint error
 #endif
-        FmSVector3*           deltaVel;                // Correction to unconstrained velocities for the computed constraint impulses
-        FmSVector3*           pgsDeltaVelTerm;         // For DAinv * (UA + LA) * deltaVel, used in computing PGS right-hand-side
-        FmSVector3*           velTemp;                 // Temporary for computing pgsRhsConstant in stabilization, and for summing total rigid body JTlambda in first solver pass
+        FmSVector3*           deltaVel = nullptr;                // Correction to unconstrained velocities for the computed constraint impulses
+        FmSVector3*           pgsDeltaVelTerm = nullptr;         // For DAinv * (UA + LA) * deltaVel, used in computing PGS right-hand-side
+        FmSVector3*           velTemp = nullptr;                 // Temporary for computing pgsRhsConstant in stabilization, and for summing total rigid body JTlambda in first solver pass
 
-        FmSVector3*           pgsRhsConstant;          // Constant term of PGS right-hand-side, (-g0 / delta_t, 0.0, 0.0)^T - J * vel_unconstrained
-        FmSVector3*           pgsRhs;                  // PGS right-hand-side for iterative solution of lambda
-        FmSVector3*           lambda3;                 // lambda values for 3D constraints
-        FmSVector3*           lambda3Temp;             // Temporary for -g0 / delta_t; also for holding sum of lambda values in CG pass
+        FmSVector3*           pgsRhsConstant = nullptr;          // Constant term of PGS right-hand-side, (-g0 / delta_t, 0.0, 0.0)^T - J * vel_unconstrained
+        FmSVector3*           pgsRhs = nullptr;                  // PGS right-hand-side for iterative solution of lambda
+        FmSVector3*           lambda3 = nullptr;                 // lambda values for 3D constraints
+        FmSVector3*           lambda3Temp = nullptr;             // Temporary for -g0 / delta_t
 
         // Parameters controlling solver algorithms
 
         FmConstraintSolverControlParams   solveParams;          // Parameters for constraint solve (velocity-based)
         FmConstraintSolverControlParams   stabilizationParams;  // Parameters for constraint stabilization (position-based)
-        FmConstraintSolverControlParams*  currentControlParams;
-        uint                              currentPassIdx;
+        FmConstraintSolverControlParams*  currentControlParams = nullptr;
+        uint                              currentPassIdx = 0;
         FmConstraintSolverIterationParams iterationParams;      // Parameters that may change with each iteration
 
         // Partitioning
 
-        FmObjectPartitionData*       objectPartitionData;             // Partition ids and other state for objects in solver
-        uint*                        allPartitionConstraintIndices;   // Buffer for the constraints for all partitions
-        uint*                        allPartitionObjectIds;           // Buffer for the object ids for all partitions
-        uint*                        allPartitionObjectNumVertices;   // Buffer for the num vertices of all objects
-        FmPartitionObjectSetElement* allPartitionObjectSetElements;   // Buffer for the object set elements for all partitions
-        FmPartitionPairSet           partitionPairSet;                // Set of partition pairs found by going through all the island constraints
-        FmPartitionPair*             partitionPairs;                  // Arrays of constraints and meshes for each island
-        uint                         numPartitionPairs;               // Size of partitionPairs
+        FmObjectPartitionData*       objectPartitionData = nullptr;            // Partition ids and other state for objects in solver
+        uint*                        allPartitionConstraintIndices = nullptr;  // Buffer for the constraints for all partitions
+        uint*                        allPartitionObjectIds = nullptr;          // Buffer for the object ids for all partitions
+        uint*                        allPartitionObjectNumVertices = nullptr;  // Buffer for the num vertices of all objects
+        FmPartitionObjectSetElement* allPartitionObjectSetElements = nullptr;  // Buffer for the object set elements for all partitions
+        FmPartitionPairSet           partitionPairSet;                         // Set of partition pairs found by going through all the island constraints
+        FmPartitionPair*             partitionPairs = nullptr;                 // Arrays of constraints and meshes for each island
+        uint                         numPartitionPairs = 0;                    // Size of partitionPairs
 
-        FmBvh                        partitionsHierarchy;             // Hierarchy used to partition bodies for parallelism
-        uint*                        nodeCounts;                      // Count of constraints for sizing partitions
-        FmPartition*                 partitions;                      // Partitions are taken from hierarchy nodes of sufficient size
-        uint                         numPartitions;                   // Number of partitions
-        uint                         numPartitionsWithConstraints;    // Number of partitions that have constraints (the subset that needs processing in constraint solve)
-        uint*                        partitionPairMinSetElements;     // Memory to hold "min sets" arrays (independent sets with min hash value)
-        uint*                        partitionPairMaxSetElements;     // Memory to hold "max sets" arrays (independent sets with max hash value)
-        FmGraphColoringSet*          partitionPairIndependentSets;    // Independent sets of partition pairs found by graph coloring
-        uint                         numPartitionPairIndependentSets; // Number of independent sets found by graph coloring
+        FmBvh                        partitionsHierarchy;                      // Hierarchy used to partition bodies for parallelism
+        uint*                        nodeCounts = nullptr;                     // Count of constraints for sizing partitions
+        FmPartition*                 partitions = nullptr;                     // Partitions are taken from hierarchy nodes of sufficient size
+        uint                         numPartitions = 0;                        // Number of partitions
+        uint                         numPartitionsWithConstraints = 0;         // Number of partitions that have constraints (the subset that needs processing in constraint solve)
+        uint*                        partitionPairMinSetElements = nullptr;    // Memory to hold "min sets" arrays (independent sets with min hash value)
+        uint*                        partitionPairMaxSetElements = nullptr;    // Memory to hold "max sets" arrays (independent sets with max hash value)
+        FmGraphColoringSet*          partitionPairIndependentSets = nullptr;   // Independent sets of partition pairs found by graph coloring
+        uint                         numPartitionPairIndependentSets = 0;      // Number of independent sets found by graph coloring
 
         // Task graph
 
 #if FM_CONSTRAINT_ISLAND_DEPENDENCY_GRAPH
-        FmConstraintSolveTaskGraph*  taskGraph;
+        FmConstraintSolveTaskGraph*  taskGraph = nullptr;
 #endif
 
 #if FM_CONSTRAINT_SOLVER_CONVERGENCE_TEST
         FmSolverIterationNorms externaPgsNorms;
 #endif
 
-        FmConstraintIsland* constraintIsland;
-        FmConstraintSolverBuffer* constraintSolverBuffer;
+        FmConstraintIsland* constraintIsland = nullptr;
+        FmConstraintSolverBuffer* constraintSolverBuffer = nullptr;
 
-        uint8_t* pDynamicAllocatedBuffer; // If non-NULL, solver memory was dynamically allocated and must be freed
+        uint8_t* pDynamicAllocatedBuffer = nullptr; // If non-null, solver memory was dynamically allocated and must be freed
 
-        uint numTetMeshVerts;
-        uint numRigidBodies;
-        uint numStateVecs3;
-        uint numConstraints;
-        uint maxStateVecs3;
-        uint maxConstraints;
-        uint maxJacobianSubmats;
-        bool isAllocated;
+        uint numTetMeshVerts = 0;
+        uint numRigidBodies = 0;
+        uint numStateVecs3 = 0;
+        uint numConstraints = 0;
+        uint maxStateVecs3 = 0;
+        uint maxConstraints = 0;
+        uint maxJacobianSubmats = 0;
+        bool isAllocated = false;
 
         bool IsInStabilization()
         {
@@ -341,58 +338,48 @@ namespace AMD
         FmConstraintIsland* constraintIsland;
         float delta_t;
         FmSortTaskGraph<FmConstraintReference, FmCompareConstraintRefs>* sortTaskGraph;
-        FmTaskFuncCallback followTaskFunc;
-        void* followTaskData;
+        TLTask postSetupConstraintSolveTask;
 
         FmSetupConstraintSolveTaskData(
             FmScene* inScene, FmConstraintSolverData* inConstraintSolverData, FmConstraintIsland* inConstraintIsland, float inDeltaT,
-            FmTaskFuncCallback inFollowTaskFunc, void* inFollowTaskData) : sortTaskGraph(NULL)
+            TLTaskFuncCallback postSetupConstraintSolveTaskFunc, void* postSetupConstraintSolveTaskData) : sortTaskGraph(nullptr)
         {
             scene = inScene;
             constraintSolverData = inConstraintSolverData;
             constraintIsland = inConstraintIsland;
             delta_t = inDeltaT;
-            followTaskFunc = inFollowTaskFunc;
-            followTaskData = inFollowTaskData;
+            postSetupConstraintSolveTask.func = postSetupConstraintSolveTaskFunc;
+            postSetupConstraintSolveTask.data = postSetupConstraintSolveTaskData;
         }
     };
 
-    void FmSetupConstraintSolvePostSort(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
+    void FmTaskFuncSetupConstraintSolvePostSort(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
 
     // Description of memory needed for all constraint solver islands.
     struct FmConstraintSolverBuffer
     {
-        size_t                    bufferNumBytes;
+        size_t                    bufferNumBytes = 0;
 
-        uint*                     rigidBodySolverOffsets;  // Maps from rigid body idx to a state offset within constraint island solve
-        uint*                     tetMeshIdxFromId;        // Maps from tet mesh object id to index within constraint solve data
-        uint*                     rigidBodyIdxFromId;      // Maps from rigid body object id to index within constraint solve data
+        uint*                     rigidBodySolverOffsets = nullptr;  // Maps from rigid body idx to a state offset within constraint island solve
+        uint*                     tetMeshIdxFromId = nullptr;        // Maps from tet mesh object id to index within constraint solve data
+        uint*                     rigidBodyIdxFromId = nullptr;      // Maps from rigid body object id to index within constraint solve data
 
-        FmConstraintSolverData*   islandSolverData;
+        FmConstraintSolverData*   islandSolverData = nullptr;
 
-        uint8_t*                  islandSolverDataArraysStart;
-        size_t                    islandSolverDataArraysNumBytes;
-        size_t                    islandSolverDataArraysMaxBytes;
-        size_t                    islandSolverDataArraysHighWaterMark;
+        uint8_t*                  islandSolverDataArraysStart = nullptr;
+        size_t                    islandSolverDataArraysNumBytes = 0;
+        size_t                    islandSolverDataArraysMaxBytes = 0;
+        size_t                    islandSolverDataArraysHighWaterMark = 0;
     };
 
     // Parameters needed to allocate constraint solver data
     struct FmConstraintSolverBufferSetupParams
     {
-        uint maxTetMeshes;        // Limit on total tet meshes
-        uint maxTetMeshVerts;     // Limit on total verts of all tet meshes
-        uint maxRigidBodies;      // Limit on total rigid bodies
-        uint maxConstraints;      // Limit on total 3D constraints
-        size_t maxConstraintSolverDataSize;  // Limit on total constraint solver memory size
-
-        inline FmConstraintSolverBufferSetupParams()
-        {
-            maxTetMeshes = 0;
-            maxTetMeshVerts = 0;
-            maxRigidBodies = 0;
-            maxConstraints = 0;
-            maxConstraintSolverDataSize = 0;
-        }
+        uint maxTetMeshes = 0;                   // Limit on total tet meshes
+        uint maxTetMeshVerts = 0;                // Limit on total verts of all tet meshes
+        uint maxRigidBodies = 0;                 // Limit on total rigid bodies
+        uint maxConstraints = 0;                 // Limit on total 3D constraints
+        size_t maxConstraintSolverDataSize = 0;  // Limit on total constraint solver memory size
     };
 
     // Initialize empty constraint solver data
@@ -401,19 +388,19 @@ namespace AMD
         const FmConstraintSolverControlParams& solveParams,
         const FmConstraintSolverControlParams& stabilizationParams)
     {
-        solverData->DAinv = NULL;
-        solverData->W = NULL;
-        solverData->JTlambda = NULL;
+        solverData->DAinv = nullptr;
+        solverData->W = nullptr;
+        solverData->JTlambda = nullptr;
 #if FM_CONSTRAINT_STABILIZATION_SOLVE
-        solverData->deltaPos = NULL;
+        solverData->deltaPos = nullptr;
 #endif
-        solverData->deltaVel = NULL;
-        solverData->pgsDeltaVelTerm = NULL;
-        solverData->velTemp = NULL;
-        solverData->pgsRhsConstant = NULL;
-        solverData->pgsRhs = NULL;
-        solverData->lambda3 = NULL;
-        solverData->lambda3Temp = NULL;
+        solverData->deltaVel = nullptr;
+        solverData->pgsDeltaVelTerm = nullptr;
+        solverData->velTemp = nullptr;
+        solverData->pgsRhsConstant = nullptr;
+        solverData->pgsRhs = nullptr;
+        solverData->lambda3 = nullptr;
+        solverData->lambda3Temp = nullptr;
 
         solverData->solveParams = solveParams;
         solverData->stabilizationParams = stabilizationParams;
@@ -421,30 +408,30 @@ namespace AMD
         solverData->currentPassIdx = 0;
         solverData->iterationParams = FmConstraintSolverIterationParams();
 
-        solverData->objectPartitionData = NULL;
-        solverData->allPartitionConstraintIndices = NULL;
-        solverData->allPartitionObjectIds = NULL;
-        solverData->allPartitionObjectSetElements = NULL;
-        solverData->partitionPairSet.elements = NULL;
+        solverData->objectPartitionData = nullptr;
+        solverData->allPartitionConstraintIndices = nullptr;
+        solverData->allPartitionObjectIds = nullptr;
+        solverData->allPartitionObjectSetElements = nullptr;
+        solverData->partitionPairSet.elements = nullptr;
         solverData->partitionPairSet.maxElements = 0;
         solverData->partitionPairSet.numElements = 0;
-        solverData->partitionPairs = NULL;
+        solverData->partitionPairs = nullptr;
         solverData->numPartitionPairs = 0;
         FmInitBvh(&solverData->partitionsHierarchy);
         solverData->nodeCounts = 0;
-        solverData->partitions = NULL;
+        solverData->partitions = nullptr;
         solverData->numPartitions = 0;
         solverData->numPartitionsWithConstraints = 0;
-        solverData->partitionPairMinSetElements = NULL;
-        solverData->partitionPairMaxSetElements = NULL;
-        solverData->partitionPairIndependentSets = NULL;
+        solverData->partitionPairMinSetElements = nullptr;
+        solverData->partitionPairMaxSetElements = nullptr;
+        solverData->partitionPairIndependentSets = nullptr;
         solverData->numPartitionPairIndependentSets = 0;
 #if FM_CONSTRAINT_ISLAND_DEPENDENCY_GRAPH
-        solverData->taskGraph = NULL;
+        solverData->taskGraph = nullptr;
 #endif
-        solverData->constraintIsland = NULL;
-        solverData->constraintSolverBuffer = NULL;
-        solverData->pDynamicAllocatedBuffer = NULL;
+        solverData->constraintIsland = nullptr;
+        solverData->constraintSolverBuffer = nullptr;
+        solverData->pDynamicAllocatedBuffer = nullptr;
         solverData->numTetMeshVerts = 0;
         solverData->numRigidBodies = 0;
         solverData->numStateVecs3 = 0;
@@ -459,11 +446,11 @@ namespace AMD
     static inline void FmInitConstraintSolverBuffer(FmConstraintSolverBuffer* constraintSolverBuffer)
     {
         constraintSolverBuffer->bufferNumBytes = 0;
-        constraintSolverBuffer->rigidBodySolverOffsets = NULL;
-        constraintSolverBuffer->tetMeshIdxFromId = NULL;
-        constraintSolverBuffer->rigidBodyIdxFromId = NULL;
-        constraintSolverBuffer->islandSolverData = NULL;
-        constraintSolverBuffer->islandSolverDataArraysStart = NULL;
+        constraintSolverBuffer->rigidBodySolverOffsets = nullptr;
+        constraintSolverBuffer->tetMeshIdxFromId = nullptr;
+        constraintSolverBuffer->rigidBodyIdxFromId = nullptr;
+        constraintSolverBuffer->islandSolverData = nullptr;
+        constraintSolverBuffer->islandSolverDataArraysStart = nullptr;
         constraintSolverBuffer->islandSolverDataArraysNumBytes = 0;
         constraintSolverBuffer->islandSolverDataArraysMaxBytes = 0;
     }
@@ -504,44 +491,44 @@ namespace AMD
     FmConstraintSolverBuffer* FmSetupConstraintSolverBuffer(const FmConstraintSolverBufferSetupParams& params, uint8_t*& pBuffer, size_t bufferNumBytes);
 
     // For a test mesh within a constraint island, update positions from velocity, and compute new fractures or plastic deformation.
-    void FmUpdatePositionsFracturePlasticity(FmScene* scene, FmTetMesh* tetMesh, float timestep, FmAsyncTaskData* parentTaskData);
+    void FmUpdatePositionsFracturePlasticity(FmScene* scene, FmTetMesh* tetMesh, float timestep, TLTaskDataBase* updateIslandsProgress);
 
-    // NOTE: with non-NULL followTaskFunc, this function must be called from within FmExecuteTask().
+    // NOTE: with non-null followTaskFunc, this function must be called from TLAsyncTaskFunc.
     void FmSetupConstraintSolve(
         FmScene* scene,
         FmConstraintSolverData* constraintSolverData,
         FmConstraintIsland* constraintIsland,
         float delta_t,
-        FmTaskFuncCallback followTaskFunc = NULL,
-        void* followTaskData = NULL);
+        TLTaskFuncCallback followTaskFunc = nullptr,
+        void* followTaskData = nullptr);
 
     void FmShutdownConstraintSolve(FmConstraintSolverData* constraintSolverData);
 
 #if FM_CONSTRAINT_STABILIZATION_SOLVE
-    // NOTE: with non-NULL followTaskFunc, this function must be called from within FmExecuteTask().
+    // NOTE: with non-null followTaskFunc, this function must be called from within TLAsyncTaskFunc.
     void FmSetupConstraintStabilization(
         FmScene* scene,
         FmConstraintSolverData* constraintSolverData,
         FmConstraintIsland* constraintIsland,
         float delta_t,
-        FmTaskFuncCallback followTaskFunc = NULL,
-        void* followTaskData = NULL);
+        TLTaskFuncCallback followTaskFunc = nullptr,
+        void* followTaskData = nullptr);
 #endif
 
     // Solve for constraint impulses and response.
     // Requires prior setup with FmSetupConstraintSolve() or FmSetupConstraintStabilization() which configure a velocity-based solve or position-based stabilization respectively.
-    // NOTE: with non-NULL followTaskFunc, this function must be called from within FmExecuteTask().
+    // NOTE: with non-null followTaskFunc, this function must be called from within TLAsyncTaskFunc.
     void FmRunConstraintSolve(FmScene* scene, FmConstraintSolverData* constraintSolverData, FmConstraintIsland& constraintIsland,
-        FmTaskFuncCallback followTaskFunc = NULL,
-        void* followTaskData = NULL);
+        TLTaskFuncCallback followTaskFunc = nullptr,
+        void* followTaskData = nullptr);
 
     // Save constraint solver lambda results in the persistent constraints (currently glue, plane, and rb angle) to communicate to application.
     void FmUpdateConstraintLambdas(FmConstraintSolverData* constraintSolverData, FmConstraintsBuffer* constraintsBuffer, const FmConstraintIsland& constraintIsland);
 
     // Apply island solve's delta vel and delta pos, and test objects for sleeping.
-    // NOTE: with non-NULL followTaskFunc, this function must be called from within FmExecuteTask().
+    // NOTE: with non-null followTaskFunc, this function must be called from within TLAsyncTaskFunc.
     void FmApplyConstraintSolveDeltasAndTestSleeping(FmScene* scene, FmConstraintSolverData* constraintSolverData, FmConstraintIsland& constraintIsland,
-        FmTaskFuncCallback followTaskFunc = NULL, void* followTaskData = NULL);
+        TLTaskFuncCallback followTaskFunc = nullptr, void* followTaskData = nullptr);
 
     // Update sleeping stats and mark island for sleeping.
     void FmTestSleepingAndUpdateStats(FmScene* scene, const FmConstraintIsland& constraintIsland);

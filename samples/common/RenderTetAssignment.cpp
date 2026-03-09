@@ -28,6 +28,7 @@ THE SOFTWARE.
 
 #include "RenderTetAssignment.h"
 #include "AMD_FEMFX.h"
+#include <assert.h>
 
 namespace AMD
 {
@@ -255,7 +256,7 @@ namespace AMD
         uint minFaceId = closestTet.faceId;
         bool inside = closestTet.insideTet;
 
-        FmVector4 barycentrics = mul(FmGetTetRestBaryMatrix(tetMesh, minTetId), FmVector4(renderPos, 1.0f));
+        FmVector4 barycentrics = FmGetTetRestBaryMatrix(tetMesh, minTetId) * FmVector4(renderPos, 1.0f);
 
         tetAssignment->tetId = minTetId;
         tetAssignment->nearestFaceId = minFaceId;
@@ -322,7 +323,7 @@ namespace AMD
 
             do
             {
-                FmVector4 barycentrics = mul(FmGetTetRestBaryMatrix(tetMesh, searchTetId), FmVector4(renderPos, 1.0f));
+                FmVector4 barycentrics = FmGetTetRestBaryMatrix(tetMesh, searchTetId) * FmVector4(renderPos, 1.0f);
 
                 RenderVertTetAssignment& tetAssignment = assignments.tetAssignments[assignments.numTets];
                 assignments.numTets++;

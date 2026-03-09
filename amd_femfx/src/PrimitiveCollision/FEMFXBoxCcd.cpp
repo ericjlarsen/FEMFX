@@ -30,8 +30,8 @@ namespace AMD
 {
     struct FmTriFeature
     {
-        uint id;       // point or edge feature
-        uint type;     // 0: point 1: edge 2: face
+        uint id = 0;       // point or edge feature
+        uint type = 0;     // 0: point 1: edge 2: face
     };
 
     // Algorithm:
@@ -297,11 +297,11 @@ namespace AMD
         const float boxHalfWidths[3],
         const FmVector3 triPosBoxSpace[3])
     {
-        FmVector3 boxFaceCenter = FmInitVector3(boxHalfWidths[0], 0.0f, 0.0f);
-        FmVector3 boxFaceNormal = FmInitVector3(1.0f, 0.0f, 0.0f);
-        FmVector3 boxEdgeDirA = FmInitVector3(0.0f, 1.0f, 0.0f);
+        FmVector3 boxFaceCenter = FmVector3(boxHalfWidths[0], 0.0f, 0.0f);
+        FmVector3 boxFaceNormal = FmVector3(1.0f, 0.0f, 0.0f);
+        FmVector3 boxEdgeDirA = FmVector3(0.0f, 1.0f, 0.0f);
         float boxHalfWidthA = boxHalfWidths[1];
-        FmVector3 boxEdgeDirB = FmInitVector3(0.0f, 0.0f, 1.0f);
+        FmVector3 boxEdgeDirB = FmVector3(0.0f, 0.0f, 1.0f);
         float boxHalfWidthB = boxHalfWidths[2];
 
         FmBoxFaceTriClosestPoints(distResult, boxFaceCenter, boxFaceNormal, boxEdgeDirA, boxHalfWidthA, boxEdgeDirB, boxHalfWidthB, triPosBoxSpace);
@@ -312,11 +312,11 @@ namespace AMD
         const float boxHalfWidths[3],
         const FmVector3 triPosBoxSpace[3])
     {
-        FmVector3 boxFaceCenter = FmInitVector3(-boxHalfWidths[0], 0.0f, 0.0f);
-        FmVector3 boxFaceNormal = FmInitVector3(-1.0f, 0.0f, 0.0f);
-        FmVector3 boxEdgeDirA = FmInitVector3(0.0f, 1.0f, 0.0f);
+        FmVector3 boxFaceCenter = FmVector3(-boxHalfWidths[0], 0.0f, 0.0f);
+        FmVector3 boxFaceNormal = FmVector3(-1.0f, 0.0f, 0.0f);
+        FmVector3 boxEdgeDirA = FmVector3(0.0f, 1.0f, 0.0f);
         float boxHalfWidthA = boxHalfWidths[1];
-        FmVector3 boxEdgeDirB = FmInitVector3(0.0f, 0.0f, 1.0f);
+        FmVector3 boxEdgeDirB = FmVector3(0.0f, 0.0f, 1.0f);
         float boxHalfWidthB = boxHalfWidths[2];
 
         FmBoxFaceTriClosestPoints(distResult, boxFaceCenter, boxFaceNormal, boxEdgeDirA, boxHalfWidthA, boxEdgeDirB, boxHalfWidthB, triPosBoxSpace);
@@ -327,11 +327,11 @@ namespace AMD
         const float boxHalfWidths[3],
         const FmVector3 triPosBoxSpace[3])
     {
-        FmVector3 boxFaceCenter = FmInitVector3(0.0f, boxHalfWidths[1], 0.0f);
-        FmVector3 boxFaceNormal = FmInitVector3(0.0f, 1.0f, 0.0f);
-        FmVector3 boxEdgeDirA = FmInitVector3(1.0f, 0.0f, 0.0f);
+        FmVector3 boxFaceCenter = FmVector3(0.0f, boxHalfWidths[1], 0.0f);
+        FmVector3 boxFaceNormal = FmVector3(0.0f, 1.0f, 0.0f);
+        FmVector3 boxEdgeDirA = FmVector3(1.0f, 0.0f, 0.0f);
         float boxHalfWidthA = boxHalfWidths[0];
-        FmVector3 boxEdgeDirB = FmInitVector3(0.0f, 0.0f, 1.0f);
+        FmVector3 boxEdgeDirB = FmVector3(0.0f, 0.0f, 1.0f);
         float boxHalfWidthB = boxHalfWidths[2];
 
         FmBoxFaceTriClosestPoints(distResult, boxFaceCenter, boxFaceNormal, boxEdgeDirA, boxHalfWidthA, boxEdgeDirB, boxHalfWidthB, triPosBoxSpace);
@@ -342,11 +342,11 @@ namespace AMD
         const float boxHalfWidths[3],
         const FmVector3 triPosBoxSpace[3])
     {
-        FmVector3 boxFaceCenter = FmInitVector3(0.0f, -boxHalfWidths[1], 0.0f);
-        FmVector3 boxFaceNormal = FmInitVector3(0.0f, -1.0f, 0.0f);
-        FmVector3 boxEdgeDirA = FmInitVector3(1.0f, 0.0f, 0.0f);
+        FmVector3 boxFaceCenter = FmVector3(0.0f, -boxHalfWidths[1], 0.0f);
+        FmVector3 boxFaceNormal = FmVector3(0.0f, -1.0f, 0.0f);
+        FmVector3 boxEdgeDirA = FmVector3(1.0f, 0.0f, 0.0f);
         float boxHalfWidthA = boxHalfWidths[0];
-        FmVector3 boxEdgeDirB = FmInitVector3(0.0f, 0.0f, 1.0f);
+        FmVector3 boxEdgeDirB = FmVector3(0.0f, 0.0f, 1.0f);
         float boxHalfWidthB = boxHalfWidths[2];
 
         FmBoxFaceTriClosestPoints(distResult, boxFaceCenter, boxFaceNormal, boxEdgeDirA, boxHalfWidthA, boxEdgeDirB, boxHalfWidthB, triPosBoxSpace);
@@ -357,11 +357,11 @@ namespace AMD
         const float boxHalfWidths[3],
         const FmVector3 triPosBoxSpace[3])
     {
-        FmVector3 boxFaceCenter = FmInitVector3(0.0f, 0.0f, boxHalfWidths[2]);
-        FmVector3 boxFaceNormal = FmInitVector3(0.0f, 0.0f, 1.0f);
-        FmVector3 boxEdgeDirA = FmInitVector3(1.0f, 0.0f, 0.0f);
+        FmVector3 boxFaceCenter = FmVector3(0.0f, 0.0f, boxHalfWidths[2]);
+        FmVector3 boxFaceNormal = FmVector3(0.0f, 0.0f, 1.0f);
+        FmVector3 boxEdgeDirA = FmVector3(1.0f, 0.0f, 0.0f);
         float boxHalfWidthA = boxHalfWidths[0];
-        FmVector3 boxEdgeDirB = FmInitVector3(0.0f, 1.0f, 0.0f);
+        FmVector3 boxEdgeDirB = FmVector3(0.0f, 1.0f, 0.0f);
         float boxHalfWidthB = boxHalfWidths[1];
 
         FmBoxFaceTriClosestPoints(distResult, boxFaceCenter, boxFaceNormal, boxEdgeDirA, boxHalfWidthA, boxEdgeDirB, boxHalfWidthB, triPosBoxSpace);
@@ -372,11 +372,11 @@ namespace AMD
         const float boxHalfWidths[3],
         const FmVector3 triPosBoxSpace[3])
     {
-        FmVector3 boxFaceCenter = FmInitVector3(0.0f, 0.0f, -boxHalfWidths[2]);
-        FmVector3 boxFaceNormal = FmInitVector3(0.0f, 0.0f, -1.0f);
-        FmVector3 boxEdgeDirA = FmInitVector3(1.0f, 0.0f, 0.0f);
+        FmVector3 boxFaceCenter = FmVector3(0.0f, 0.0f, -boxHalfWidths[2]);
+        FmVector3 boxFaceNormal = FmVector3(0.0f, 0.0f, -1.0f);
+        FmVector3 boxEdgeDirA = FmVector3(1.0f, 0.0f, 0.0f);
         float boxHalfWidthA = boxHalfWidths[0];
-        FmVector3 boxEdgeDirB = FmInitVector3(0.0f, 1.0f, 0.0f);
+        FmVector3 boxEdgeDirB = FmVector3(0.0f, 1.0f, 0.0f);
         float boxHalfWidthB = boxHalfWidths[1];
 
         FmBoxFaceTriClosestPoints(distResult, boxFaceCenter, boxFaceNormal, boxEdgeDirA, boxHalfWidthA, boxEdgeDirB, boxHalfWidthB, triPosBoxSpace);
@@ -463,11 +463,11 @@ namespace AMD
         const float boxHalfWidths[3],
         const FmVector3& edgePos0BoxSpace, const FmVector3& edgePos1BoxSpace, uint j0, uint j1)
     {
-        FmVector3 boxFaceCenter = FmInitVector3(boxHalfWidths[0], 0.0f, 0.0f);
-        FmVector3 boxFaceNormal = FmInitVector3(1.0f, 0.0f, 0.0f);
-        FmVector3 boxEdgeDirA = FmInitVector3(0.0f, 1.0f, 0.0f);
+        FmVector3 boxFaceCenter = FmVector3(boxHalfWidths[0], 0.0f, 0.0f);
+        FmVector3 boxFaceNormal = FmVector3(1.0f, 0.0f, 0.0f);
+        FmVector3 boxEdgeDirA = FmVector3(0.0f, 1.0f, 0.0f);
         float boxHalfWidthA = boxHalfWidths[1];
-        FmVector3 boxEdgeDirB = FmInitVector3(0.0f, 0.0f, 1.0f);
+        FmVector3 boxEdgeDirB = FmVector3(0.0f, 0.0f, 1.0f);
         float boxHalfWidthB = boxHalfWidths[2];
 
         FmBoxFaceEdgeClosestPoints(distResult,
@@ -480,11 +480,11 @@ namespace AMD
         const float boxHalfWidths[3],
         const FmVector3& edgePos0BoxSpace, const FmVector3& edgePos1BoxSpace, uint j0, uint j1)
     {
-        FmVector3 boxFaceCenter = FmInitVector3(-boxHalfWidths[0], 0.0f, 0.0f);
-        FmVector3 boxFaceNormal = FmInitVector3(-1.0f, 0.0f, 0.0f);
-        FmVector3 boxEdgeDirA = FmInitVector3(0.0f, 1.0f, 0.0f);
+        FmVector3 boxFaceCenter = FmVector3(-boxHalfWidths[0], 0.0f, 0.0f);
+        FmVector3 boxFaceNormal = FmVector3(-1.0f, 0.0f, 0.0f);
+        FmVector3 boxEdgeDirA = FmVector3(0.0f, 1.0f, 0.0f);
         float boxHalfWidthA = boxHalfWidths[1];
-        FmVector3 boxEdgeDirB = FmInitVector3(0.0f, 0.0f, 1.0f);
+        FmVector3 boxEdgeDirB = FmVector3(0.0f, 0.0f, 1.0f);
         float boxHalfWidthB = boxHalfWidths[2];
 
         FmBoxFaceEdgeClosestPoints(distResult,
@@ -497,11 +497,11 @@ namespace AMD
         const float boxHalfWidths[3],
         const FmVector3& edgePos0BoxSpace, const FmVector3& edgePos1BoxSpace, uint j0, uint j1)
     {
-        FmVector3 boxFaceCenter = FmInitVector3(0.0f, boxHalfWidths[1], 0.0f);
-        FmVector3 boxFaceNormal = FmInitVector3(0.0f, 1.0f, 0.0f);
-        FmVector3 boxEdgeDirA = FmInitVector3(1.0f, 0.0f, 0.0f);
+        FmVector3 boxFaceCenter = FmVector3(0.0f, boxHalfWidths[1], 0.0f);
+        FmVector3 boxFaceNormal = FmVector3(0.0f, 1.0f, 0.0f);
+        FmVector3 boxEdgeDirA = FmVector3(1.0f, 0.0f, 0.0f);
         float boxHalfWidthA = boxHalfWidths[0];
-        FmVector3 boxEdgeDirB = FmInitVector3(0.0f, 0.0f, 1.0f);
+        FmVector3 boxEdgeDirB = FmVector3(0.0f, 0.0f, 1.0f);
         float boxHalfWidthB = boxHalfWidths[2];
 
         FmBoxFaceEdgeClosestPoints(distResult,
@@ -514,11 +514,11 @@ namespace AMD
         const float boxHalfWidths[3],
         const FmVector3& edgePos0BoxSpace, const FmVector3& edgePos1BoxSpace, uint j0, uint j1)
     {
-        FmVector3 boxFaceCenter = FmInitVector3(0.0f, -boxHalfWidths[1], 0.0f);
-        FmVector3 boxFaceNormal = FmInitVector3(0.0f, -1.0f, 0.0f);
-        FmVector3 boxEdgeDirA = FmInitVector3(1.0f, 0.0f, 0.0f);
+        FmVector3 boxFaceCenter = FmVector3(0.0f, -boxHalfWidths[1], 0.0f);
+        FmVector3 boxFaceNormal = FmVector3(0.0f, -1.0f, 0.0f);
+        FmVector3 boxEdgeDirA = FmVector3(1.0f, 0.0f, 0.0f);
         float boxHalfWidthA = boxHalfWidths[0];
-        FmVector3 boxEdgeDirB = FmInitVector3(0.0f, 0.0f, 1.0f);
+        FmVector3 boxEdgeDirB = FmVector3(0.0f, 0.0f, 1.0f);
         float boxHalfWidthB = boxHalfWidths[2];
 
         FmBoxFaceEdgeClosestPoints(distResult,
@@ -531,11 +531,11 @@ namespace AMD
         const float boxHalfWidths[3],
         const FmVector3& edgePos0BoxSpace, const FmVector3& edgePos1BoxSpace, uint j0, uint j1)
     {
-        FmVector3 boxFaceCenter = FmInitVector3(0.0f, 0.0f, boxHalfWidths[2]);
-        FmVector3 boxFaceNormal = FmInitVector3(0.0f, 0.0f, 1.0f);
-        FmVector3 boxEdgeDirA = FmInitVector3(1.0f, 0.0f, 0.0f);
+        FmVector3 boxFaceCenter = FmVector3(0.0f, 0.0f, boxHalfWidths[2]);
+        FmVector3 boxFaceNormal = FmVector3(0.0f, 0.0f, 1.0f);
+        FmVector3 boxEdgeDirA = FmVector3(1.0f, 0.0f, 0.0f);
         float boxHalfWidthA = boxHalfWidths[0];
-        FmVector3 boxEdgeDirB = FmInitVector3(0.0f, 1.0f, 0.0f);
+        FmVector3 boxEdgeDirB = FmVector3(0.0f, 1.0f, 0.0f);
         float boxHalfWidthB = boxHalfWidths[1];
 
         FmBoxFaceEdgeClosestPoints(distResult,
@@ -548,11 +548,11 @@ namespace AMD
         const float boxHalfWidths[3],
         const FmVector3& edgePos0BoxSpace, const FmVector3& edgePos1BoxSpace, uint j0, uint j1)
     {
-        FmVector3 boxFaceCenter = FmInitVector3(0.0f, 0.0f, -boxHalfWidths[2]);
-        FmVector3 boxFaceNormal = FmInitVector3(0.0f, 0.0f, -1.0f);
-        FmVector3 boxEdgeDirA = FmInitVector3(1.0f, 0.0f, 0.0f);
+        FmVector3 boxFaceCenter = FmVector3(0.0f, 0.0f, -boxHalfWidths[2]);
+        FmVector3 boxFaceNormal = FmVector3(0.0f, 0.0f, -1.0f);
+        FmVector3 boxEdgeDirA = FmVector3(1.0f, 0.0f, 0.0f);
         float boxHalfWidthA = boxHalfWidths[0];
-        FmVector3 boxEdgeDirB = FmInitVector3(0.0f, 1.0f, 0.0f);
+        FmVector3 boxEdgeDirB = FmVector3(0.0f, 1.0f, 0.0f);
         float boxHalfWidthB = boxHalfWidths[1];
 
         FmBoxFaceEdgeClosestPoints(distResult,
@@ -643,11 +643,11 @@ namespace AMD
         const float boxHalfWidths[3],
         const FmVector3& pointBoxSpace, uint j)
     {
-        FmVector3 boxFaceCenter = FmInitVector3(boxHalfWidths[0], 0.0f, 0.0f);
-        FmVector3 boxFaceNormal = FmInitVector3(1.0f, 0.0f, 0.0f);
-        FmVector3 boxPointDirA = FmInitVector3(0.0f, 1.0f, 0.0f);
+        FmVector3 boxFaceCenter = FmVector3(boxHalfWidths[0], 0.0f, 0.0f);
+        FmVector3 boxFaceNormal = FmVector3(1.0f, 0.0f, 0.0f);
+        FmVector3 boxPointDirA = FmVector3(0.0f, 1.0f, 0.0f);
         float boxHalfWidthA = boxHalfWidths[1];
-        FmVector3 boxPointDirB = FmInitVector3(0.0f, 0.0f, 1.0f);
+        FmVector3 boxPointDirB = FmVector3(0.0f, 0.0f, 1.0f);
         float boxHalfWidthB = boxHalfWidths[2];
 
         FmBoxFacePointClosestPoints(distResult,
@@ -660,11 +660,11 @@ namespace AMD
         const float boxHalfWidths[3],
         const FmVector3& pointBoxSpace, uint j)
     {
-        FmVector3 boxFaceCenter = FmInitVector3(-boxHalfWidths[0], 0.0f, 0.0f);
-        FmVector3 boxFaceNormal = FmInitVector3(-1.0f, 0.0f, 0.0f);
-        FmVector3 boxPointDirA = FmInitVector3(0.0f, 1.0f, 0.0f);
+        FmVector3 boxFaceCenter = FmVector3(-boxHalfWidths[0], 0.0f, 0.0f);
+        FmVector3 boxFaceNormal = FmVector3(-1.0f, 0.0f, 0.0f);
+        FmVector3 boxPointDirA = FmVector3(0.0f, 1.0f, 0.0f);
         float boxHalfWidthA = boxHalfWidths[1];
-        FmVector3 boxPointDirB = FmInitVector3(0.0f, 0.0f, 1.0f);
+        FmVector3 boxPointDirB = FmVector3(0.0f, 0.0f, 1.0f);
         float boxHalfWidthB = boxHalfWidths[2];
 
         FmBoxFacePointClosestPoints(distResult,
@@ -677,11 +677,11 @@ namespace AMD
         const float boxHalfWidths[3],
         const FmVector3& pointBoxSpace, uint j)
     {
-        FmVector3 boxFaceCenter = FmInitVector3(0.0f, boxHalfWidths[1], 0.0f);
-        FmVector3 boxFaceNormal = FmInitVector3(0.0f, 1.0f, 0.0f);
-        FmVector3 boxPointDirA = FmInitVector3(1.0f, 0.0f, 0.0f);
+        FmVector3 boxFaceCenter = FmVector3(0.0f, boxHalfWidths[1], 0.0f);
+        FmVector3 boxFaceNormal = FmVector3(0.0f, 1.0f, 0.0f);
+        FmVector3 boxPointDirA = FmVector3(1.0f, 0.0f, 0.0f);
         float boxHalfWidthA = boxHalfWidths[0];
-        FmVector3 boxPointDirB = FmInitVector3(0.0f, 0.0f, 1.0f);
+        FmVector3 boxPointDirB = FmVector3(0.0f, 0.0f, 1.0f);
         float boxHalfWidthB = boxHalfWidths[2];
 
         FmBoxFacePointClosestPoints(distResult,
@@ -694,11 +694,11 @@ namespace AMD
         const float boxHalfWidths[3],
         const FmVector3& pointBoxSpace, uint j)
     {
-        FmVector3 boxFaceCenter = FmInitVector3(0.0f, -boxHalfWidths[1], 0.0f);
-        FmVector3 boxFaceNormal = FmInitVector3(0.0f, -1.0f, 0.0f);
-        FmVector3 boxPointDirA = FmInitVector3(1.0f, 0.0f, 0.0f);
+        FmVector3 boxFaceCenter = FmVector3(0.0f, -boxHalfWidths[1], 0.0f);
+        FmVector3 boxFaceNormal = FmVector3(0.0f, -1.0f, 0.0f);
+        FmVector3 boxPointDirA = FmVector3(1.0f, 0.0f, 0.0f);
         float boxHalfWidthA = boxHalfWidths[0];
-        FmVector3 boxPointDirB = FmInitVector3(0.0f, 0.0f, 1.0f);
+        FmVector3 boxPointDirB = FmVector3(0.0f, 0.0f, 1.0f);
         float boxHalfWidthB = boxHalfWidths[2];
 
         FmBoxFacePointClosestPoints(distResult,
@@ -711,11 +711,11 @@ namespace AMD
         const float boxHalfWidths[3],
         const FmVector3& pointBoxSpace, uint j)
     {
-        FmVector3 boxFaceCenter = FmInitVector3(0.0f, 0.0f, boxHalfWidths[2]);
-        FmVector3 boxFaceNormal = FmInitVector3(0.0f, 0.0f, 1.0f);
-        FmVector3 boxPointDirA = FmInitVector3(1.0f, 0.0f, 0.0f);
+        FmVector3 boxFaceCenter = FmVector3(0.0f, 0.0f, boxHalfWidths[2]);
+        FmVector3 boxFaceNormal = FmVector3(0.0f, 0.0f, 1.0f);
+        FmVector3 boxPointDirA = FmVector3(1.0f, 0.0f, 0.0f);
         float boxHalfWidthA = boxHalfWidths[0];
-        FmVector3 boxPointDirB = FmInitVector3(0.0f, 1.0f, 0.0f);
+        FmVector3 boxPointDirB = FmVector3(0.0f, 1.0f, 0.0f);
         float boxHalfWidthB = boxHalfWidths[1];
 
         FmBoxFacePointClosestPoints(distResult,
@@ -728,11 +728,11 @@ namespace AMD
         const float boxHalfWidths[3],
         const FmVector3& pointBoxSpace, uint j)
     {
-        FmVector3 boxFaceCenter = FmInitVector3(0.0f, 0.0f, -boxHalfWidths[2]);
-        FmVector3 boxFaceNormal = FmInitVector3(0.0f, 0.0f, -1.0f);
-        FmVector3 boxPointDirA = FmInitVector3(1.0f, 0.0f, 0.0f);
+        FmVector3 boxFaceCenter = FmVector3(0.0f, 0.0f, -boxHalfWidths[2]);
+        FmVector3 boxFaceNormal = FmVector3(0.0f, 0.0f, -1.0f);
+        FmVector3 boxPointDirA = FmVector3(1.0f, 0.0f, 0.0f);
         float boxHalfWidthA = boxHalfWidths[0];
-        FmVector3 boxPointDirB = FmInitVector3(0.0f, 1.0f, 0.0f);
+        FmVector3 boxPointDirB = FmVector3(0.0f, 1.0f, 0.0f);
         float boxHalfWidthB = boxHalfWidths[1];
 
         FmBoxFacePointClosestPoints(distResult,
@@ -811,8 +811,8 @@ namespace AMD
         const FmVector3& edgeCenter, float edgeHalfWidth,
         const FmVector3 triPosBoxSpace[3])
     {
-        FmVector3 edgePos0 = edgeCenter + FmInitVector3(-edgeHalfWidth, 0.0f, 0.0f);
-        FmVector3 edgePos1 = edgeCenter + FmInitVector3(edgeHalfWidth, 0.0f, 0.0f);
+        FmVector3 edgePos0 = edgeCenter + FmVector3(-edgeHalfWidth, 0.0f, 0.0f);
+        FmVector3 edgePos1 = edgeCenter + FmVector3(edgeHalfWidth, 0.0f, 0.0f);
         FmEdgeTriClosestPoints(distResult, edgePos0, edgePos1, triPosBoxSpace);
     }
 
@@ -821,8 +821,8 @@ namespace AMD
         const FmVector3& edgeCenter, float edgeHalfWidth,
         const FmVector3 triPosBoxSpace[3])
     {
-        FmVector3 edgePos0 = edgeCenter + FmInitVector3(0.0f, -edgeHalfWidth, 0.0f);
-        FmVector3 edgePos1 = edgeCenter + FmInitVector3(0.0f, edgeHalfWidth, 0.0f);
+        FmVector3 edgePos0 = edgeCenter + FmVector3(0.0f, -edgeHalfWidth, 0.0f);
+        FmVector3 edgePos1 = edgeCenter + FmVector3(0.0f, edgeHalfWidth, 0.0f);
         FmEdgeTriClosestPoints(distResult, edgePos0, edgePos1, triPosBoxSpace);
     }
 
@@ -831,8 +831,8 @@ namespace AMD
         const FmVector3& edgeCenter, float edgeHalfWidth,
         const FmVector3 triPosBoxSpace[3])
     {
-        FmVector3 edgePos0 = edgeCenter + FmInitVector3(0.0f, 0.0f, -edgeHalfWidth);
-        FmVector3 edgePos1 = edgeCenter + FmInitVector3(0.0f, 0.0f, edgeHalfWidth);
+        FmVector3 edgePos0 = edgeCenter + FmVector3(0.0f, 0.0f, -edgeHalfWidth);
+        FmVector3 edgePos1 = edgeCenter + FmVector3(0.0f, 0.0f, edgeHalfWidth);
         FmEdgeTriClosestPoints(distResult, edgePos0, edgePos1, triPosBoxSpace);
     }
 
@@ -846,17 +846,17 @@ namespace AMD
         float boxSpaceZ = (boxFeature.signBits & 0x4) ? boxHalfWidths[2] : -boxHalfWidths[2];
         if ((boxFeature.axisMask & 0x1) == 0)
         {
-            FmVector3 edgeCenter = FmInitVector3(0.0f, boxSpaceY, boxSpaceZ);
+            FmVector3 edgeCenter = FmVector3(0.0f, boxSpaceY, boxSpaceZ);
             FmEdgeXTriClosestPointsBoxSpace(distResult, edgeCenter, boxHalfWidths[0], triPosBoxSpace);
         }
         else if ((boxFeature.axisMask & 0x2) == 0)
         {
-            FmVector3 edgeCenter = FmInitVector3(boxSpaceX, 0.0f, boxSpaceZ);
+            FmVector3 edgeCenter = FmVector3(boxSpaceX, 0.0f, boxSpaceZ);
             FmEdgeYTriClosestPointsBoxSpace(distResult, edgeCenter, boxHalfWidths[1], triPosBoxSpace);
         }
         else
         {
-            FmVector3 edgeCenter = FmInitVector3(boxSpaceX, boxSpaceY, 0.0f);
+            FmVector3 edgeCenter = FmVector3(boxSpaceX, boxSpaceY, 0.0f);
             FmEdgeZTriClosestPointsBoxSpace(distResult, edgeCenter, boxHalfWidths[2], triPosBoxSpace);
         }
     }
@@ -866,8 +866,8 @@ namespace AMD
         const FmVector3& edgeCenter, float edgeHalfWidth,
         const FmVector3& segmentPos0, const FmVector3& segmentPos1)
     {
-        FmVector3 edgePos0 = edgeCenter + FmInitVector3(-edgeHalfWidth, 0.0f, 0.0f);
-        FmVector3 edgePos1 = edgeCenter + FmInitVector3(edgeHalfWidth, 0.0f, 0.0f);
+        FmVector3 edgePos0 = edgeCenter + FmVector3(-edgeHalfWidth, 0.0f, 0.0f);
+        FmVector3 edgePos1 = edgeCenter + FmVector3(edgeHalfWidth, 0.0f, 0.0f);
         FmSegmentPairDistance(distResult, edgePos0, edgePos1, segmentPos0, segmentPos1, 0, 1, 0, 1);
     }
 
@@ -876,8 +876,8 @@ namespace AMD
         const FmVector3& edgeCenter, float edgeHalfWidth,
         const FmVector3& segmentPos0, const FmVector3& segmentPos1)
     {
-        FmVector3 edgePos0 = edgeCenter + FmInitVector3(0.0f, -edgeHalfWidth, 0.0f);
-        FmVector3 edgePos1 = edgeCenter + FmInitVector3(0.0f, edgeHalfWidth, 0.0f);
+        FmVector3 edgePos0 = edgeCenter + FmVector3(0.0f, -edgeHalfWidth, 0.0f);
+        FmVector3 edgePos1 = edgeCenter + FmVector3(0.0f, edgeHalfWidth, 0.0f);
         FmSegmentPairDistance(distResult, edgePos0, edgePos1, segmentPos0, segmentPos1, 0, 1, 0, 1);
     }
 
@@ -886,46 +886,21 @@ namespace AMD
         const FmVector3& edgeCenter, float edgeHalfWidth,
         const FmVector3& segmentPos0, const FmVector3& segmentPos1)
     {
-        FmVector3 edgePos0 = edgeCenter + FmInitVector3(0.0f, 0.0f, -edgeHalfWidth);
-        FmVector3 edgePos1 = edgeCenter + FmInitVector3(0.0f, 0.0f, edgeHalfWidth);
+        FmVector3 edgePos0 = edgeCenter + FmVector3(0.0f, 0.0f, -edgeHalfWidth);
+        FmVector3 edgePos1 = edgeCenter + FmVector3(0.0f, 0.0f, edgeHalfWidth);
         FmSegmentPairDistance(distResult, edgePos0, edgePos1, segmentPos0, segmentPos1, 0, 1, 0, 1);
-    }
-
-    static inline void FmBoxEdgeSegmentClosestPointsBoxSpace(
-        FmDistanceResult* distResult,
-        const FmBoxFeature& boxFeature, const float boxHalfWidths[3],
-        const FmVector3& segmentPos0BoxSpace, const FmVector3& segmentPos1BoxSpace)
-    {
-        float boxSpaceX = (boxFeature.signBits & 0x1) ? boxHalfWidths[0] : -boxHalfWidths[0];
-        float boxSpaceY = (boxFeature.signBits & 0x2) ? boxHalfWidths[1] : -boxHalfWidths[1];
-        float boxSpaceZ = (boxFeature.signBits & 0x4) ? boxHalfWidths[2] : -boxHalfWidths[2];
-        if ((boxFeature.axisMask & 0x1) == 0)
-        {
-            FmVector3 edgeCenter = FmInitVector3(0.0f, boxSpaceY, boxSpaceZ);
-            FmEdgeXSegmentClosestPointsBoxSpace(distResult, edgeCenter, boxHalfWidths[0], segmentPos0BoxSpace, segmentPos1BoxSpace);
-        }
-        else if ((boxFeature.axisMask & 0x2) == 0)
-        {
-            FmVector3 edgeCenter = FmInitVector3(boxSpaceX, 0.0f, boxSpaceZ);
-            FmEdgeYSegmentClosestPointsBoxSpace(distResult, edgeCenter, boxHalfWidths[1], segmentPos0BoxSpace, segmentPos1BoxSpace);
-        }
-        else
-        {
-            FmVector3 edgeCenter = FmInitVector3(boxSpaceX, boxSpaceY, 0.0f);
-            FmEdgeZSegmentClosestPointsBoxSpace(distResult, edgeCenter, boxHalfWidths[2], segmentPos0BoxSpace, segmentPos1BoxSpace);
-        }
     }
 
     bool FmBoxAndTriIntersect(const FmBox& box, const FmVector3 triPos[3])
     {
         FmVector3 boxPos = box.state.pos;
-        FmMatrix3 invBoxRot = FmInitMatrix3(conj(box.state.quat));
+        FmMatrix3 invBoxRot = FmMatrix3(conj(box.state.quat));
 
         // Transform triangle corners into space of box to simplify math
         FmVector3 triPosBoxSpace[3];
-        triPosBoxSpace[0] = mul(invBoxRot, triPos[0] - boxPos);
-        triPosBoxSpace[1] = mul(invBoxRot, triPos[1] - boxPos);
-        triPosBoxSpace[2] = mul(invBoxRot, triPos[2] - boxPos);
+        triPosBoxSpace[0] = invBoxRot * (triPos[0] - boxPos);
+        triPosBoxSpace[1] = invBoxRot * (triPos[1] - boxPos);
+        triPosBoxSpace[2] = invBoxRot * (triPos[2] - boxPos);
 
         // Find normal of triangle
         FmVector3 vecEdge0 = triPosBoxSpace[1] - triPosBoxSpace[0];
@@ -945,17 +920,17 @@ namespace AMD
         bool posDirToTri;
 
         // Box face axes
-        separatingAxisBoxSpace = FmInitVector3(1.0f, 0.0f, 0.0f);
+        separatingAxisBoxSpace = FmVector3(1.0f, 0.0f, 0.0f);
         maxSeparation = FmBoxFaceTriSeparationBoxSpace(posDirToTri, 0, box.halfWidths[0], triPosBoxSpace);
 
-        separatingAxisBoxSpace = FmInitVector3(0.0f, 1.0f, 0.0f);
+        separatingAxisBoxSpace = FmVector3(0.0f, 1.0f, 0.0f);
         separation = FmBoxFaceTriSeparationBoxSpace(posDirToTri, 1, box.halfWidths[1], triPosBoxSpace);
         if (separation > maxSeparation)
         {
             maxSeparation = separation;
         }
 
-        separatingAxisBoxSpace = FmInitVector3(0.0f, 0.0f, 1.0f);
+        separatingAxisBoxSpace = FmVector3(0.0f, 0.0f, 1.0f);
         separation = FmBoxFaceTriSeparationBoxSpace(posDirToTri, 2, box.halfWidths[2], triPosBoxSpace);
         if (separation > maxSeparation)
         {
@@ -1044,14 +1019,14 @@ namespace AMD
     void FmBoxTriClosestPoints(FmDistanceResult* contact, const FmBox& box, const FmVector3 triPos[3])
     {
         FmVector3 boxPos = box.state.pos;
-        FmMatrix3 boxRot = FmInitMatrix3(box.state.quat);
+        FmMatrix3 boxRot = FmMatrix3(box.state.quat);
 
         // Transform triangle corners into space of box to simplify math
         FmMatrix3 invBoxRot = transpose(boxRot);
         FmVector3 triPosBoxSpace[3];
-        triPosBoxSpace[0] = mul(invBoxRot, triPos[0] - boxPos);
-        triPosBoxSpace[1] = mul(invBoxRot, triPos[1] - boxPos);
-        triPosBoxSpace[2] = mul(invBoxRot, triPos[2] - boxPos);
+        triPosBoxSpace[0] = invBoxRot * (triPos[0] - boxPos);
+        triPosBoxSpace[1] = invBoxRot * (triPos[1] - boxPos);
+        triPosBoxSpace[2] = invBoxRot * (triPos[2] - boxPos);
 
         // Find normal of triangle
         FmVector3 vecEdge0 = triPosBoxSpace[1] - triPosBoxSpace[0];
@@ -1071,11 +1046,11 @@ namespace AMD
         bool posDirToTri;
 
         // Box face axes
-        separatingAxisBoxSpace = FmInitVector3(1.0f, 0.0f, 0.0f);
+        separatingAxisBoxSpace = FmVector3(1.0f, 0.0f, 0.0f);
         maxSeparation = FmBoxFaceTriSeparationBoxSpace(posDirToTri, 0, box.halfWidths[0], triPosBoxSpace);
         maxSeparatingAxisBoxSpace = posDirToTri ? separatingAxisBoxSpace : -separatingAxisBoxSpace;
 
-        separatingAxisBoxSpace = FmInitVector3(0.0f, 1.0f, 0.0f);
+        separatingAxisBoxSpace = FmVector3(0.0f, 1.0f, 0.0f);
         separation = FmBoxFaceTriSeparationBoxSpace(posDirToTri, 1, box.halfWidths[1], triPosBoxSpace);
         if (separation > maxSeparation)
         {
@@ -1083,7 +1058,7 @@ namespace AMD
             maxSeparatingAxisBoxSpace = posDirToTri ? separatingAxisBoxSpace : -separatingAxisBoxSpace;
         }
 
-        separatingAxisBoxSpace = FmInitVector3(0.0f, 0.0f, 1.0f);
+        separatingAxisBoxSpace = FmVector3(0.0f, 0.0f, 1.0f);
         separation = FmBoxFaceTriSeparationBoxSpace(posDirToTri, 2, box.halfWidths[2], triPosBoxSpace);
         if (separation > maxSeparation)
         {
@@ -1185,7 +1160,7 @@ namespace AMD
         FmFindExtremalTriFeature(triFeature, triPosBoxSpace, -maxSeparatingAxisBoxSpace);
 
         // If triangle intersecting box, translate to nonintersecting position to compute closest points
-        FmVector3 separationOffsetBoxSpace = FmInitVector3(0.0f);
+        FmVector3 separationOffsetBoxSpace = FmVector3(0.0f);
         if (maxSeparation <= 0.0f)
         {
             float boxRad = sqrtf(
@@ -1199,7 +1174,7 @@ namespace AMD
             triPosBoxSpace[2] += separationOffsetBoxSpace;
         }
 
-        FmVector3 maxSeparatingAxis = mul(boxRot, maxSeparatingAxisBoxSpace);
+        FmVector3 maxSeparatingAxis = boxRot * maxSeparatingAxisBoxSpace;
 
         float boxSpaceX = (boxFeature.signBits & 0x1) ? box.halfWidths[0] : -box.halfWidths[0];
         float boxSpaceY = (boxFeature.signBits & 0x2) ? box.halfWidths[1] : -box.halfWidths[1];
@@ -1207,8 +1182,8 @@ namespace AMD
 
         if (boxFeature.IsPoint()) // box point
         {
-            FmVector3 boxSpacePoint = FmInitVector3(boxSpaceX, boxSpaceY, boxSpaceZ);
-            FmVector3 boxPoint = boxPos + mul(boxRot, boxSpacePoint);
+            FmVector3 boxSpacePoint = FmVector3(boxSpaceX, boxSpaceY, boxSpaceZ);
+            FmVector3 boxPoint = boxPos + boxRot * boxSpacePoint;
 
             if (triFeature.type == 0 || triFeature.type == 1) // tri point or edge
             {
@@ -1217,8 +1192,8 @@ namespace AMD
 
             FmPointTriangleDistance(contact, boxSpacePoint, triPosBoxSpace[0], triPosBoxSpace[1], triPosBoxSpace[2], 0, 0, 1, 2);
 
-            FmVector3 direction = mul(boxRot, contact->direction);
-            FmVector3 triPoint = boxPos + mul(boxRot, contact->posj - separationOffsetBoxSpace);
+            FmVector3 direction = boxRot * contact->direction;
+            FmVector3 triPoint = boxPos + boxRot * (contact->posj - separationOffsetBoxSpace);
 
             contact->direction = (maxSeparation <= 0.0f) ? maxSeparatingAxis : direction;
             contact->distance = (maxSeparation <= 0.0f) ? maxSeparation : contact->distance;
@@ -1230,18 +1205,18 @@ namespace AMD
             FmVector3 boxSpacePos0, boxSpacePos1;
             if ((boxFeature.axisMask & 0x1) == 0)
             {
-                boxSpacePos0 = FmInitVector3(-boxSpaceX, boxSpaceY, boxSpaceZ);
-                boxSpacePos1 = FmInitVector3(boxSpaceX, boxSpaceY, boxSpaceZ);
+                boxSpacePos0 = FmVector3(-boxSpaceX, boxSpaceY, boxSpaceZ);
+                boxSpacePos1 = FmVector3(boxSpaceX, boxSpaceY, boxSpaceZ);
             }
             else if ((boxFeature.axisMask & 0x2) == 0)
             {
-                boxSpacePos0 = FmInitVector3(boxSpaceX, -boxSpaceY, boxSpaceZ);
-                boxSpacePos1 = FmInitVector3(boxSpaceX, boxSpaceY, boxSpaceZ);
+                boxSpacePos0 = FmVector3(boxSpaceX, -boxSpaceY, boxSpaceZ);
+                boxSpacePos1 = FmVector3(boxSpaceX, boxSpaceY, boxSpaceZ);
             }
             else
             {
-                boxSpacePos0 = FmInitVector3(boxSpaceX, boxSpaceY, -boxSpaceZ);
-                boxSpacePos1 = FmInitVector3(boxSpaceX, boxSpaceY, boxSpaceZ);
+                boxSpacePos0 = FmVector3(boxSpaceX, boxSpaceY, -boxSpaceZ);
+                boxSpacePos1 = FmVector3(boxSpaceX, boxSpaceY, boxSpaceZ);
             }
 
             if (triFeature.type == 0) // tri point
@@ -1250,9 +1225,9 @@ namespace AMD
 
                 FmPointSegmentDistance(contact, triPointBoxSpace, boxSpacePos0, boxSpacePos1, triFeature.id, 0, 1);
 
-                FmVector3 direction = mul(boxRot, -contact->direction);
-                FmVector3 boxPoint = boxPos + mul(boxRot, contact->posj);
-                FmVector3 triPoint = boxPos + mul(boxRot, contact->posi - separationOffsetBoxSpace);
+                FmVector3 direction = boxRot * -contact->direction;
+                FmVector3 boxPoint = boxPos + boxRot * contact->posj;
+                FmVector3 triPoint = boxPos + boxRot * (contact->posi - separationOffsetBoxSpace);
 
                 contact->direction = (maxSeparation <= 0.0f) ? maxSeparatingAxis : direction;
                 contact->distance = (maxSeparation <= 0.0f) ? maxSeparation : contact->distance;
@@ -1268,9 +1243,9 @@ namespace AMD
 
                 FmSegmentPairDistance(contact, boxSpacePos0, boxSpacePos1, triPointBoxSpace0, triPointBoxSpace1, 0, 1, id0, id1);
 
-                FmVector3 direction = mul(boxRot, contact->direction);
-                FmVector3 boxPoint = boxPos + mul(boxRot, contact->posi);
-                FmVector3 triPoint = boxPos + mul(boxRot, contact->posj - separationOffsetBoxSpace);
+                FmVector3 direction = boxRot * contact->direction;
+                FmVector3 boxPoint = boxPos + boxRot * contact->posi;
+                FmVector3 triPoint = boxPos + boxRot * (contact->posj - separationOffsetBoxSpace);
 
                 contact->direction = (maxSeparation <= 0.0f) ? maxSeparatingAxis : direction;
                 contact->distance = (maxSeparation <= 0.0f) ? maxSeparation : contact->distance;
@@ -1281,9 +1256,9 @@ namespace AMD
             {
                 FmBoxEdgeTriClosestPointsBoxSpace(contact, boxFeature, box.halfWidths, triPosBoxSpace);
 
-                FmVector3 direction = mul(boxRot, contact->direction);
-                FmVector3 boxPoint = boxPos + mul(boxRot, contact->posi);
-                FmVector3 triPoint = boxPos + mul(boxRot, contact->posj - separationOffsetBoxSpace);
+                FmVector3 direction = boxRot * contact->direction;
+                FmVector3 boxPoint = boxPos + boxRot * contact->posi;
+                FmVector3 triPoint = boxPos + boxRot * (contact->posj - separationOffsetBoxSpace);
 
                 contact->direction = (maxSeparation <= 0.0f) ? maxSeparatingAxis : direction;
                 contact->distance = (maxSeparation <= 0.0f) ? maxSeparation : contact->distance;
@@ -1320,9 +1295,9 @@ namespace AMD
                 FmBoxFaceTriClosestPointsBoxSpace(contact, box.halfWidths, boxFaceDim, boxFaceSign, triPosBoxSpace);
             }
 
-            FmVector3 direction = mul(boxRot, contact->direction);
-            FmVector3 boxPoint = boxPos + mul(boxRot, contact->posi);
-            FmVector3 triPoint = boxPos + mul(boxRot, contact->posj - separationOffsetBoxSpace);
+            FmVector3 direction = boxRot * contact->direction;
+            FmVector3 boxPoint = boxPos + boxRot * contact->posi;
+            FmVector3 triPoint = boxPos + boxRot * (contact->posj - separationOffsetBoxSpace);
 
             contact->direction = (maxSeparation <= 0.0f) ? maxSeparatingAxis : direction;
             contact->distance = (maxSeparation <= 0.0f) ? maxSeparation : contact->distance;
@@ -1486,7 +1461,7 @@ namespace AMD
         // Compute distance of box face to point
         FmDistanceResult distResult;
 
-        FmMatrix3 boxRot = FmInitMatrix3(box.state.quat);
+        FmMatrix3 boxRot = FmMatrix3(box.state.quat);
         FmVector3 boxFaceNormal = boxRot.getCol((int)boxFaceDim);
         FmVector3 boxEdgeDir1 = boxRot.getCol((int)boxEdgeDim1);
         FmVector3 boxEdgeDir2 = boxRot.getCol((int)boxEdgeDim2);
@@ -1556,7 +1531,7 @@ namespace AMD
             FmVector3 pointPosAdv = pointPos + pointVel * t;
             FmVector3 pointVelAdv = pointVel;
 
-            FmMatrix3 boxRotAdv = FmInitMatrix3(boxStateAdv.quat);
+            FmMatrix3 boxRotAdv = FmMatrix3(boxStateAdv.quat);
             FmVector3 boxFaceNormalAdv = boxRotAdv.getCol((int)boxFaceDim);
             FmVector3 boxEdgeDir1Adv = boxRotAdv.getCol((int)boxEdgeDim1);
             FmVector3 boxEdgeDir2Adv = boxRotAdv.getCol((int)boxEdgeDim2);
@@ -1628,9 +1603,9 @@ namespace AMD
         // Compute distance of box edge to segment
         FmDistanceResult distResult;
 
-        FmMatrix3 boxRot = FmInitMatrix3(box.state.quat);
-        FmVector3 boxEdgePos0 = box.state.pos + mul(boxRot, boxEdgePos0BoxSpace);
-        FmVector3 boxEdgePos1 = box.state.pos + mul(boxRot, boxEdgePos1BoxSpace);
+        FmMatrix3 boxRot = FmMatrix3(box.state.quat);
+        FmVector3 boxEdgePos0 = box.state.pos + boxRot * boxEdgePos0BoxSpace;
+        FmVector3 boxEdgePos1 = box.state.pos + boxRot * boxEdgePos1BoxSpace;
 
         FmSegmentPairDistance(&distResult, boxEdgePos0, boxEdgePos1, segmentPos0, segmentPos1, 0, 1, j0, j1);
 
@@ -1695,9 +1670,9 @@ namespace AMD
             FmVector3 segmentPos1Adv = segmentPos1 + segmentVel1 * t;
             FmVector3 segmentVel1Adv = segmentVel1;
 
-            FmMatrix3 boxRotAdv = FmInitMatrix3(boxStateAdv.quat);
-            FmVector3 boxEdgePos0Adv = boxStateAdv.pos + mul(boxRotAdv, boxEdgePos0BoxSpace);
-            FmVector3 boxEdgePos1Adv = boxStateAdv.pos + mul(boxRotAdv, boxEdgePos1BoxSpace);
+            FmMatrix3 boxRotAdv = FmMatrix3(boxStateAdv.quat);
+            FmVector3 boxEdgePos0Adv = boxStateAdv.pos + boxRotAdv * boxEdgePos0BoxSpace;
+            FmVector3 boxEdgePos1Adv = boxStateAdv.pos + boxRotAdv * boxEdgePos1BoxSpace;
 
             FmSegmentPairDistance(&distResult, boxEdgePos0Adv, boxEdgePos1Adv, segmentPos0Adv, segmentPos1Adv, 0, 1, j0, j1);
 
@@ -1752,8 +1727,8 @@ namespace AMD
 
         FmDistanceResult distResult;
 
-        FmMatrix3 boxRot = FmInitMatrix3(box.state.quat);
-        FmVector3 boxPoint = box.state.pos + mul(boxRot, boxVertexPosBoxSpace);
+        FmMatrix3 boxRot = FmMatrix3(box.state.quat);
+        FmVector3 boxPoint = box.state.pos + boxRot * boxVertexPosBoxSpace;
 
         FmPointTriangleDistance(&distResult, boxPoint, tri.pos0, tri.pos1, tri.pos2, boxVertexId, 0, 1, 2);
 
@@ -1816,8 +1791,8 @@ namespace AMD
             triAdv.vel1 = tri.vel1;
             triAdv.vel2 = tri.vel2;
 
-            FmMatrix3 boxRotAdv = FmInitMatrix3(boxStateAdv.quat);
-            FmVector3 boxPointAdv = boxStateAdv.pos + mul(boxRotAdv, boxVertexPosBoxSpace);
+            FmMatrix3 boxRotAdv = FmMatrix3(boxStateAdv.quat);
+            FmVector3 boxPointAdv = boxStateAdv.pos + boxRotAdv * boxVertexPosBoxSpace;
 
             FmPointTriangleDistance(&distResult, boxPointAdv, triAdv.pos0, triAdv.pos1, triAdv.pos2, boxVertexId, 0, 1, 2);
 
@@ -1878,7 +1853,7 @@ namespace AMD
         // Compute distance of box face to point
         FmDistanceResult distResult;
 
-        FmMatrix3 boxARot = FmInitMatrix3(boxA.state.quat);
+        FmMatrix3 boxARot = FmMatrix3(boxA.state.quat);
         FmVector3 boxAFaceNormal = boxARot.getCol((int)boxAFaceDim);
         FmVector3 boxAEdgeDir1 = boxARot.getCol((int)boxAEdgeDim1);
         FmVector3 boxAEdgeDir2 = boxARot.getCol((int)boxAEdgeDim2);
@@ -1957,7 +1932,7 @@ namespace AMD
             boxBStateAdv.vel = boxB.state.vel;
             boxBStateAdv.angVel = boxB.state.angVel;
 
-            FmMatrix3 boxARotAdv = FmInitMatrix3(boxAStateAdv.quat);
+            FmMatrix3 boxARotAdv = FmMatrix3(boxAStateAdv.quat);
             FmVector3 boxAFaceNormalAdv = boxARotAdv.getCol((int)boxAFaceDim);
             FmVector3 boxAEdgeDir1Adv = boxARotAdv.getCol((int)boxAEdgeDim1);
             FmVector3 boxAEdgeDir2Adv = boxARotAdv.getCol((int)boxAEdgeDim2);
@@ -2051,13 +2026,13 @@ namespace AMD
         // Compute distance of box edge to segment
         FmDistanceResult distResult;
 
-        FmMatrix3 boxARot = FmInitMatrix3(boxA.state.quat);
-        FmVector3 boxAEdgePos0 = boxA.state.pos + mul(boxARot, boxAEdgePos0BoxSpace);
-        FmVector3 boxAEdgePos1 = boxA.state.pos + mul(boxARot, boxAEdgePos1BoxSpace);
+        FmMatrix3 boxARot = FmMatrix3(boxA.state.quat);
+        FmVector3 boxAEdgePos0 = boxA.state.pos + boxARot * boxAEdgePos0BoxSpace;
+        FmVector3 boxAEdgePos1 = boxA.state.pos + boxARot * boxAEdgePos1BoxSpace;
 
-        FmMatrix3 boxBRot = FmInitMatrix3(boxB.state.quat);
-        FmVector3 boxBEdgePos0 = boxB.state.pos + mul(boxBRot, boxBEdgePos0BoxSpace);
-        FmVector3 boxBEdgePos1 = boxB.state.pos + mul(boxBRot, boxBEdgePos1BoxSpace);
+        FmMatrix3 boxBRot = FmMatrix3(boxB.state.quat);
+        FmVector3 boxBEdgePos0 = boxB.state.pos + boxBRot * boxBEdgePos0BoxSpace;
+        FmVector3 boxBEdgePos1 = boxB.state.pos + boxBRot * boxBEdgePos1BoxSpace;
 
         FmSegmentPairDistance(&distResult, boxAEdgePos0, boxAEdgePos1, boxBEdgePos0, boxBEdgePos1, 0, 1, 0, 1);
 
@@ -2131,13 +2106,13 @@ namespace AMD
             boxBStateAdv.vel = boxB.state.vel;
             boxBStateAdv.angVel = boxB.state.angVel;
 
-            FmMatrix3 boxARotAdv = FmInitMatrix3(boxAStateAdv.quat);
-            FmVector3 boxAEdgePos0Adv = boxAStateAdv.pos + mul(boxARotAdv, boxAEdgePos0BoxSpace);
-            FmVector3 boxAEdgePos1Adv = boxAStateAdv.pos + mul(boxARotAdv, boxAEdgePos1BoxSpace);
+            FmMatrix3 boxARotAdv = FmMatrix3(boxAStateAdv.quat);
+            FmVector3 boxAEdgePos0Adv = boxAStateAdv.pos + boxARotAdv * boxAEdgePos0BoxSpace;
+            FmVector3 boxAEdgePos1Adv = boxAStateAdv.pos + boxARotAdv * boxAEdgePos1BoxSpace;
 
-            FmMatrix3 boxBRotAdv = FmInitMatrix3(boxBStateAdv.quat);
-            FmVector3 boxBEdgePos0Adv = boxBStateAdv.pos + mul(boxBRotAdv, boxBEdgePos0BoxSpace);
-            FmVector3 boxBEdgePos1Adv = boxBStateAdv.pos + mul(boxBRotAdv, boxBEdgePos1BoxSpace);
+            FmMatrix3 boxBRotAdv = FmMatrix3(boxBStateAdv.quat);
+            FmVector3 boxBEdgePos0Adv = boxBStateAdv.pos + boxBRotAdv * boxBEdgePos0BoxSpace;
+            FmVector3 boxBEdgePos1Adv = boxBStateAdv.pos + boxBRotAdv * boxBEdgePos1BoxSpace;
 
             FmSegmentPairDistance(&distResult, boxAEdgePos0Adv, boxAEdgePos1Adv, boxBEdgePos0Adv, boxBEdgePos1Adv, 0, 1, 0, 1);
 
@@ -2204,7 +2179,7 @@ namespace AMD
             box.halfWidths[1] * box.halfWidths[1] +
             box.halfWidths[2] * box.halfWidths[2]) + padding;
 
-        FmVector3 vradius = FmInitVector3(radius);
+        FmVector3 vradius = FmVector3(radius);
 
         FmAabb aabb;
         aabb.pmin = box.state.pos - vradius;
@@ -2281,17 +2256,17 @@ namespace AMD
     {
         FmVector3 boxAPos = boxA.state.pos;
         FmVector3 boxBPos = boxB.state.pos;
-        FmMatrix3 boxARot = FmInitMatrix3(boxA.state.quat);
-        FmMatrix3 boxBRot = FmInitMatrix3(boxB.state.quat);
+        FmMatrix3 boxARot = FmMatrix3(boxA.state.quat);
+        FmMatrix3 boxBRot = FmMatrix3(boxB.state.quat);
         FmMatrix3 invBoxARot = transpose(boxARot);
         FmMatrix3 invBoxBRot = transpose(boxBRot);
 
         // Get box poses in space of other box
-        FmVector3 boxBPosInA = mul(invBoxARot, boxBPos - boxAPos);
-        FmMatrix3 boxBRotInA = mul(invBoxARot, boxBRot);
+        FmVector3 boxBPosInA = invBoxARot * (boxBPos - boxAPos);
+        FmMatrix3 boxBRotInA = invBoxARot * boxBRot;
 
-        FmVector3 boxAPosInB = mul(invBoxBRot, boxAPos - boxBPos);
-        FmMatrix3 boxARotInB = mul(invBoxBRot, boxARot);
+        FmVector3 boxAPosInB = invBoxBRot * (boxAPos - boxBPos);
+        FmMatrix3 boxARotInB = invBoxBRot * boxARot;
 
         // Check all separating axes and pick one with largest separation distance.
         FmVector3 separatingAxisBoxSpace;
@@ -2299,17 +2274,17 @@ namespace AMD
         bool posDirToBoxB, posDirToBoxA;
 
         // Box A face axes
-        separatingAxisBoxSpace = FmInitVector3(1.0f, 0.0f, 0.0f);
+        separatingAxisBoxSpace = FmVector3(1.0f, 0.0f, 0.0f);
         maxSeparation = FmBoxFaceBoxSeparationBoxSpace(posDirToBoxB, 0, boxA.halfWidths[0], boxBPosInA, boxBRotInA.col0, boxB.halfWidths[0], boxBRotInA.col1, boxB.halfWidths[1], boxBRotInA.col2, boxB.halfWidths[2]);
 
-        separatingAxisBoxSpace = FmInitVector3(0.0f, 1.0f, 0.0f);
+        separatingAxisBoxSpace = FmVector3(0.0f, 1.0f, 0.0f);
         separation = FmBoxFaceBoxSeparationBoxSpace(posDirToBoxB, 1, boxA.halfWidths[1], boxBPosInA, boxBRotInA.col0, boxB.halfWidths[0], boxBRotInA.col1, boxB.halfWidths[1], boxBRotInA.col2, boxB.halfWidths[2]);
         if (separation > maxSeparation)
         {
             maxSeparation = separation;
         }
 
-        separatingAxisBoxSpace = FmInitVector3(0.0f, 0.0f, 1.0f);
+        separatingAxisBoxSpace = FmVector3(0.0f, 0.0f, 1.0f);
         separation = FmBoxFaceBoxSeparationBoxSpace(posDirToBoxB, 2, boxA.halfWidths[2], boxBPosInA, boxBRotInA.col0, boxB.halfWidths[0], boxBRotInA.col1, boxB.halfWidths[1], boxBRotInA.col2, boxB.halfWidths[2]);
         if (separation > maxSeparation)
         {
@@ -2317,21 +2292,21 @@ namespace AMD
         }
 
         // Box B face axes
-        separatingAxisBoxSpace = FmInitVector3(1.0f, 0.0f, 0.0f);
+        separatingAxisBoxSpace = FmVector3(1.0f, 0.0f, 0.0f);
         separation = FmBoxFaceBoxSeparationBoxSpace(posDirToBoxA, 0, boxB.halfWidths[0], boxAPosInB, boxARotInB.col0, boxA.halfWidths[0], boxARotInB.col1, boxA.halfWidths[1], boxARotInB.col2, boxA.halfWidths[2]);
         if (separation > maxSeparation)
         {
             maxSeparation = separation;
         }
 
-        separatingAxisBoxSpace = FmInitVector3(0.0f, 1.0f, 0.0f);
+        separatingAxisBoxSpace = FmVector3(0.0f, 1.0f, 0.0f);
         separation = FmBoxFaceBoxSeparationBoxSpace(posDirToBoxA, 1, boxB.halfWidths[1], boxAPosInB, boxARotInB.col0, boxA.halfWidths[0], boxARotInB.col1, boxA.halfWidths[1], boxARotInB.col2, boxA.halfWidths[2]);
         if (separation > maxSeparation)
         {
             maxSeparation = separation;
         }
 
-        separatingAxisBoxSpace = FmInitVector3(0.0f, 0.0f, 1.0f);
+        separatingAxisBoxSpace = FmVector3(0.0f, 0.0f, 1.0f);
         separation = FmBoxFaceBoxSeparationBoxSpace(posDirToBoxA, 2, boxB.halfWidths[2], boxAPosInB, boxARotInB.col0, boxA.halfWidths[0], boxARotInB.col1, boxA.halfWidths[1], boxARotInB.col2, boxA.halfWidths[2]);
         if (separation > maxSeparation)
         {

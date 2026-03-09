@@ -32,27 +32,23 @@ THE SOFTWARE.
 #include "TLTaskQueue.h"
 
 #define TL_WAIT_COUNTER    1  // Enable condition variable waiting (otherwise only uses spin-waits/yields)
-#define TL_THREAD_SETS     1  // Group threads into sets which can have different backoff constants
-#define TL_THREAD_SET_SIZE 4  // Size of initial set of threads
 
 namespace AMD
 {
     // Thread-local state initialized when worker thread runs
-    extern TL_THREAD_LOCAL_STORAGE int32_t gTLWorkerThreadIndex;
+    extern TL_THREAD_LOCAL_STORAGE int32_t gTLThreadIndex;
+
+    extern TL_THREAD_LOCAL_STORAGE TLTask gTLNextTask;
 
     // Worker thread loop
+#if defined(_MSC_VER)
     uint32_t TLWorkerThread(void *inData);
+#else
+    void* TLWorkerThread(void* inData);
+#endif
 
     // For detecting core count
     extern int32_t TLGetProcessorInfo(int32_t* pNumPhysicalCores, int32_t* pNumLogicalCores);
-
-    // Per-thread information used during scheduling
-    struct TLWorkerInfo
-    {
-        int32_t setIndex;
-
-        TLWorkerInfo() : setIndex(0) {}
-    };
 
     // Task system that creates a pool of worker threads that each own a task queue, but may also take tasks from other queues.
     // NOTE: The implementation assumes that only one other thread outside the thread pool submits tasks.
@@ -67,30 +63,23 @@ namespace AMD
         TLAtomicInt quitSignal;        // Atomic flag workers check to quit
         TLAtomicInt numTasks;          // Total number of tasks in all queues, checked before waiting on condition var
 
-        // Counter/condition var is created for each set of threads to allow sleeping when there are insufficient tasks.
+        // Counter/condition var is created to allow sleeping when there are insufficient tasks.
         // A value <= 0 indicates tasks available, and >0 unavailable.
         // These only need to be modified when task counts reach certain thresholds, reducing number of critical section locks.
         // Note increment/decrement operations may occur out of order and so be out of sync with the availability of tasks.
         // However as threads complete counter values will settle.
             
 #if TL_WAIT_COUNTER
-#if TL_THREAD_SETS
-        TLCounter* waitCounters;   // Condition var to put set of threads to sleep
-#else
-        TLCounter waitCounter;   // Condition var to put set of threads to sleep
-#endif
+        TLCounter waitCounter;   // Condition var to put threads to sleep
 #endif
 
-        int32_t numWorkerThreads;
-        int32_t numThreadSets;
+        int32_t numWorkerThreads = 1;
 
-        int32_t numPhysicalCores;
-        int32_t numLogicalCores;
+        int32_t numPhysicalCores = 1;
+        int32_t numLogicalCores = 1;
 
-        TLWorkerInfo* workerInfo;
-
-        TLThread* workerThreads;
-        TLTaskQueueList* taskQueues;   // Each worker and main thread has a task queue (a list of them to support overflow); workers can steal from other queues
+        TLThread* workerThreads = nullptr;
+        TLTaskQueueList* taskQueues = nullptr;   // Each worker and main thread has a task queue (a list of them to support overflow); workers can steal from other queues
 
         static TLTaskSystem* pInstance;   // For singleton
 
@@ -98,47 +87,17 @@ namespace AMD
         {
             pInstance = this;
 
-            TLAtomicWrite(&numWorkersStarted.val, 0);
-            TLAtomicWrite(&quitSignal.val, 0);
-            TLAtomicWrite(&numTasks.val, 0);
+            numWorkersStarted.val = 0;
+            quitSignal.val = 0;
+            numTasks.val = 0;
 
             numPhysicalCores = inNumPhysicalCores;
             numLogicalCores = inNumLogicalCores;
 
             CheckSetupParams(&numWorkerThreads, inNumWorkerThreads, inNumLogicalCores);
 
-            workerInfo = new TLWorkerInfo[numWorkerThreads + 1]; // Add one for main thread
-
-            for (int32_t threadIdx = 0; threadIdx < numWorkerThreads; threadIdx++)
-            {
-#if TL_THREAD_SETS
-                // Two sets, one which spins longer
-                int32_t threadSetIndex = (threadIdx < TL_THREAD_SET_SIZE) ? 0 : 1;
-#else
-                int32_t threadSetIndex = 0;
-#endif
-
-                workerInfo[threadIdx].setIndex = threadSetIndex;
-            }
-
-#if TL_THREAD_SETS
-            numThreadSets = 2;
-#else
-            numThreadSets = 1;
-#endif
-
 #if TL_WAIT_COUNTER
-#if TL_THREAD_SETS
-            waitCounters = new TLCounter[numThreadSets];
-
-            // Will make workers sleep-wait until tasks added
-            for (int32_t i = 0; i < numThreadSets; i++)
-            {
-                waitCounters[i].Increment();
-            }
-#else
             waitCounter.Increment();
-#endif
 #endif
             workerThreads = new TLThread[numWorkerThreads];
             taskQueues = new TLTaskQueueList[numWorkerThreads + 1];
@@ -147,20 +106,13 @@ namespace AMD
             {
                 TLCreateJoinableThread(&workerThreads[i], TLWorkerThread, this, 0, "TLTaskSystem Worker Thread");
             }
-        };
+        }
 
         ~TLTaskSystem()
         {
 #if TL_WAIT_COUNTER
             // Wake workers and prevent additional waiting
-#if TL_THREAD_SETS
-            for (int32_t i = 0; i < numThreadSets; i++)
-            {
-                waitCounters[i].Decrement();
-            }
-#else
             waitCounter.Decrement();
-#endif
 #endif
 
             // Set value threads are checking to quit
@@ -171,19 +123,13 @@ namespace AMD
                 TLJoinThread(workerThreads[i]);
             }
 
-            delete[] workerInfo;
-
             delete[] workerThreads;
 
             delete[] taskQueues;
+        }
 
-#if TL_WAIT_COUNTER && TL_THREAD_SETS
-            delete [] waitCounters;
-#endif
-        };
-
-        TLTaskSystem(TLTaskSystem const&) {};
-        TLTaskSystem& operator=(TLTaskSystem const&) {};
+        TLTaskSystem(const TLTaskSystem &) = delete;
+        TLTaskSystem& operator=(const TLTaskSystem &) = delete;
 
         TL_FORCE_INLINE int32_t GetNumTasks()
         {
@@ -196,22 +142,11 @@ namespace AMD
             int32_t newNumTasks = TLAtomicDecrement(&numTasks.val);
 
 #if TL_WAIT_COUNTER
-            // If removing last task for set of threads, set wait condition for set
-#if TL_THREAD_SETS
-            if (newNumTasks == 0)
-            {
-                waitCounters[0].Increment();
-            }
-            else if (newNumTasks == TL_THREAD_SET_SIZE)
-            {
-                waitCounters[1].Increment();
-            }
-#else
+            // If removing last task, set wait condition
             if (newNumTasks == 0)
             {
                 waitCounter.Increment();
             }
-#endif
 #else
             (void)newNumTasks;
 #endif
@@ -223,22 +158,11 @@ namespace AMD
             int32_t newNumTasks = TLAtomicIncrement(&numTasks.val);
 
 #if TL_WAIT_COUNTER
-            // If adding first task for set, wake set
-#if TL_THREAD_SETS
-            if (newNumTasks == 1)
-            {
-                waitCounters[0].Decrement();
-            }
-            else if (newNumTasks == TL_THREAD_SET_SIZE + 1)
-            {
-                waitCounters[1].Decrement();
-            }
-#else
+            // If adding first task, wake threads
             if (newNumTasks == 1)
             {
                 waitCounter.Decrement();
             }
-#endif
 #else
             (void)newNumTasks;
 #endif
@@ -251,6 +175,25 @@ namespace AMD
             return taskQueues[queueIndex].TrySubmitTaskAtEnd(task);
         }
 
+        // Try to find task to run on worker thread's queue
+        TL_FORCE_INLINE bool TryClaimThreadQueueTask(TLTask* task)
+        {
+            if (GetNumTasks() == 0)
+            {
+                return false;
+            }
+
+            int32_t workerIndex = gTLThreadIndex;
+
+            if (taskQueues[workerIndex].TryClaimTaskFromEnd(task))
+            {
+                DecrementNumTasks();
+                return true;
+            }
+
+            return false;
+        }
+
         // Try to find task to run.
         // Multiple threads can call this concurrently
         TL_FORCE_INLINE bool TryClaimTask(TLTask* task)
@@ -261,26 +204,31 @@ namespace AMD
             }
 
             // Check own queue first.  Claim from end to improve locality.
-            int32_t workerIndex = gTLWorkerThreadIndex;
+            int32_t workerIndex = gTLThreadIndex;
+
             if (taskQueues[workerIndex].TryClaimTaskFromEnd(task))
             {
                 DecrementNumTasks();
                 return true;
             }
 
-            // Steal from other queues.
-            int32_t qIdxBase = workerIndex;
+            // Check main thread queue first
+            if (taskQueues[numWorkerThreads].TryClaimTaskFromBeginning(task))
+            {
+                DecrementNumTasks();
+                return true;
+            }
 
-            int32_t numQueues = numWorkerThreads + 1;
-            for (int32_t offset = 1; offset < numQueues; offset++)
+            // Steal from other worker queues.
+            for (int32_t offset = 1; offset < numWorkerThreads; offset++)
             {
                 if (GetNumTasks() == 0)
                 {
                     return false;
                 }
 
-                int32_t qIdx = qIdxBase + offset;
-                qIdx = (qIdx >= numQueues)? qIdx - numQueues : qIdx;
+                int32_t qIdx = workerIndex + offset;
+                qIdx = (qIdx >= numWorkerThreads) ? qIdx - numWorkerThreads: qIdx;
 
                 if (taskQueues[qIdx].TryClaimTaskFromBeginning(task))
                 {
@@ -307,7 +255,7 @@ namespace AMD
         TL_CLASS_NEW_DELETE(TLTaskSystem)
 
         // Create task system and worker threads.
-        // If inNumWorkerThreads is 0, sets number of workers to GetDefaultNumWorkerThreads().
+        // If inNumWorkerThreads is 0, sets number of workers to GetDefaultNumThreads().
         static void Create(int32_t inNumWorkerThreads)
         {
             // Get processor info
@@ -318,7 +266,7 @@ namespace AMD
             int32_t numWorkers;
             CheckSetupParams(&numWorkers, inNumWorkerThreads, numLogical);
 
-            if (pInstance == NULL 
+            if (pInstance == nullptr 
                 || pInstance->numWorkerThreads != numWorkers)
             {
                 delete pInstance;
@@ -330,7 +278,7 @@ namespace AMD
         static void Destroy()
         {
             delete pInstance;
-            pInstance = NULL;
+            pInstance = nullptr;
         }
 
         // Get singleton
@@ -354,12 +302,7 @@ namespace AMD
             return numLogicalCores;
         }
 
-        TL_FORCE_INLINE TLWorkerInfo GetWorkerInfo(int32_t workerIndex)
-        {
-            return workerInfo[workerIndex];
-        }
-
-        static TL_FORCE_INLINE int32_t GetDefaultNumWorkerThreads()
+        static TL_FORCE_INLINE int32_t GetDefaultNumThreads()
         {
             int32_t numPhysicalCores, numLogicalCores;
             TLGetProcessorInfo(&numPhysicalCores, &numLogicalCores);
@@ -374,24 +317,24 @@ namespace AMD
 
         TL_FORCE_INLINE void WaitForAllWorkersToStart()
         {
-            while (TLAtomicRead(&numWorkersStarted.val) < numWorkerThreads);
+            while (TLAtomicRead(&numWorkersStarted.val) < numWorkerThreads)
             {
                 TLPause();
             }
         }
 
-        // Return current worker index.
-        // -1 for thread on which task system initialized 
+        // Return current thread index.
+        // -1 for thread on which task system initialized
         // >= 0 and < numWorkerThreads for worker threads
-        TL_FORCE_INLINE int32_t GetWorkerIndex()
+        TL_FORCE_INLINE int32_t GetThreadIndex()
         {
-            return gTLWorkerThreadIndex;
+            return gTLThreadIndex;
         }
 
         // Only worker threads will process tasks
         TL_FORCE_INLINE bool IsWorkerThread()
         {
-            return (gTLWorkerThreadIndex >= 0);
+            return (gTLThreadIndex >= 0);
         }
 
         // Called by worker thread to check for signal to quit
@@ -404,26 +347,36 @@ namespace AMD
         // After wake-up will return whether task can be claimed or not.
         // Returns if task was processed.
         // NOTE: Should only be called by worker thread.
-        bool TryProcessTaskOrWait(bool* didSleep, int32_t threadSetIndex)
+        bool TryProcessTaskOrWait(bool* didSleep)
         {
-            (void)threadSetIndex;
             *didSleep = false;
 
 #if TL_WAIT_COUNTER
             if (GetNumTasks() == 0)
             {
-                TL_ASSERT(threadSetIndex >= 0 && threadSetIndex < numThreadSets);
-
                 // Sleep on condition var, but if woken, return to poll for new tasks, in case more about to be added.
-#if TL_THREAD_SETS
-                *didSleep = waitCounters[threadSetIndex].WaitOneWakeup();
-#else
                 *didSleep = waitCounter.WaitOneWakeup();
-#endif
             }
 #endif
 
             return TryProcessTask();
+        }
+
+        // Process submitted task on thread's queue if available.
+        // Return if task was processed.
+        // NOTE: Should only be called by worker thread.
+        TL_FORCE_INLINE bool TryProcessThreadQueueTask()
+        {
+            TLTask task;
+            if (TryClaimThreadQueueTask(&task))
+            {
+                // Run claimed task
+                task.func(task.data, task.beginIndex, task.endIndex);
+
+                return true;
+            }
+
+            return false;
         }
 
         // Process a submitted task if available.
@@ -437,6 +390,8 @@ namespace AMD
                 // Run claimed task
                 task.func(task.data, task.beginIndex, task.endIndex);
 
+                TL_ASSERT(gTLNextTask.func == nullptr);
+
                 return true;
             }
 
@@ -447,7 +402,7 @@ namespace AMD
         // May be called by one thread outside of task system (such as main thread).
         void SubmitTask(const TLTask& task)
         {
-            int32_t queueIndex = gTLWorkerThreadIndex;
+            int32_t queueIndex = gTLThreadIndex;
             if (queueIndex == -1)
             {
                 queueIndex = numWorkerThreads;

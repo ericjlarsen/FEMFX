@@ -42,19 +42,19 @@ __RCSID("$NetBSD: qsort.c,v 1.20 2009/06/01 06:37:40 yamt Exp $");
 #include <errno.h>
 #include <stdlib.h>
 
-//static inline char    *med3 __P((char *, char *, char *,
+//static inline char    *med3 QS__P((char *, char *, char *,
 //    int (*)(const void *, const void *)));
-//static inline void     swapfunc __P((char *, char *, size_t, int));
+//static inline void     swapfunc QS__P((char *, char *, size_t, int));
 
-#define min(a, b)    (a) < (b) ? a : b
+#define QS_MIN(a, b)    (a) < (b) ? a : b
 
-#define __P(x) x
-#define _DIAGASSERT assert
+#define QS__P(x) x
+#define QS_DIAGASSERT assert
 
 /*
  * Qsort routine from Bentley & McIlroy's "Engineering a Sort Function".
  */
-#define swapcode(TYPE, parmi, parmj, n) {         \
+#define QS_SWAPCODE(TYPE, parmi, parmj, n) {         \
     size_t i = (n) / sizeof (TYPE);         \
     TYPE *pi = (TYPE *)(void *)(parmi);         \
     TYPE *pj = (TYPE *)(void *)(parmj);         \
@@ -65,7 +65,7 @@ __RCSID("$NetBSD: qsort.c,v 1.20 2009/06/01 06:37:40 yamt Exp $");
         } while (--i > 0);                \
 }
 
-#define SWAPINIT(a, es) swaptype = ((char *)a - (char *)0) % sizeof(long) || \
+#define QS_SWAPINIT(a, es) swaptype = ((char *)a - (char *)0) % sizeof(long) || \
     es % sizeof(long) ? 2 : es == sizeof(long)? 0 : 1;
 
 static inline void
@@ -73,9 +73,9 @@ swapfunc(char *a, char *b, size_t n, int swaptype)
 {
 
     if (swaptype <= 1) 
-        swapcode(long, a, b, n)
+        QS_SWAPCODE(long, a, b, n)
     else
-        swapcode(char, a, b, n)
+        QS_SWAPCODE(char, a, b, n)
 }
 
 static inline void
@@ -91,7 +91,7 @@ swapfunc_int(int *a, int *b, size_t n)
         } while (--i > 0);
 }
 
-#define swap(a, b)                        \
+#define QS_SWAP(a, b)                        \
     if (swaptype == 0) {                    \
         long t = *(long *)(void *)(a);            \
         *(long *)(void *)(a) = *(long *)(void *)(b);    \
@@ -99,18 +99,18 @@ swapfunc_int(int *a, int *b, size_t n)
     } else                            \
         swapfunc(a, b, es, swaptype)
 
-#define swap_int(a, b)                        \
+#define QS_SWAP_INT(a, b)                        \
      {  int t = *(int *)(void *)(a);            \
         *(int *)(void *)(a) = *(int *)(void *)(b);    \
         *(int *)(void *)(b) = t; }       
 
-#define vecswap(a, b, n) if ((n) > 0) swapfunc((a), (b), (size_t)(n), swaptype)
-//#define vecswap_int(a, b, n) if ((n) > 0) swapfunc((char*)(a), (char*)(b), (size_t)(n)*sizeof(int), 0)
-#define vecswap_int(a, b, n) if ((n) > 0) swapfunc_int(a, b, (size_t)(n))
+#define QS_VECSWAP(a, b, n) if ((n) > 0) swapfunc((a), (b), (size_t)(n), swaptype)
+//#define QS_VECSWAP_INT(a, b, n) if ((n) > 0) swapfunc((char*)(a), (char*)(b), (size_t)(n)*sizeof(int), 0)
+#define QS_VECSWAP_INT(a, b, n) if ((n) > 0) swapfunc_int(a, b, (size_t)(n))
 
 static inline char *
 med3(char *a, char *b, char *c,
-    int (*cmp) __P((const void *, const void *)))
+    int (*cmp) QS__P((const void *, const void *)))
 {
 
     return cmp(a, b) < 0 ?
@@ -120,7 +120,7 @@ med3(char *a, char *b, char *c,
 
 void
 qsort_permutation(void *a, int* permutation, size_t n, size_t es,
-    int (*cmp) __P((const void *, const void *)))
+    int (*cmp) QS__P((const void *, const void *)))
 {
     char *pa, *pb, *pc, *pd, *pl, *pm, *pn;
     int *ppa, *ppb, *ppc, *ppd, *ppl, *ppm, *ppn;
@@ -128,16 +128,16 @@ qsort_permutation(void *a, int* permutation, size_t n, size_t es,
     size_t rperm;
     int swaptype, cmp_result;
 
-    _DIAGASSERT(a != NULL);
-    _DIAGASSERT(cmp != NULL);
+    QS_DIAGASSERT(a != nullptr);
+    QS_DIAGASSERT(cmp != nullptr);
 
-loop:    SWAPINIT(a, es);
+loop:    QS_SWAPINIT(a, es);
     if (n < 7) {
         for (pm = (char *) a + es, ppm = permutation + 1; pm < (char *) a + n * es; pm += es, ppm++)
             for (pl = pm, ppl = ppm; pl > (char *) a && cmp(pl - es, pl) > 0; pl -= es, ppl--)
             {
-                swap(pl, pl - es);
-                swap_int(ppl, ppl - 1);
+                QS_SWAP(pl, pl - es);
+                QS_SWAP_INT(ppl, ppl - 1);
             }
         return;
     }
@@ -155,8 +155,8 @@ loop:    SWAPINIT(a, es);
         pm = med3(pl, pm, pn, cmp);
         ppm = permutation + (size_t)(pm - (char *) a) / es;
     }
-    swap((char*)a, pm);
-    swap_int(permutation, ppm);
+    QS_SWAP((char*)a, pm);
+    QS_SWAP_INT(permutation, ppm);
     pa = pb = (char *) a + es;
     ppa = ppb = permutation + 1;
 
@@ -165,8 +165,8 @@ loop:    SWAPINIT(a, es);
     for (;;) {
         while (pb <= pc && (cmp_result = cmp(pb, a)) <= 0) {
             if (cmp_result == 0) {
-                swap(pa, pb);
-                swap_int(ppa, ppb);
+                QS_SWAP(pa, pb);
+                QS_SWAP_INT(ppa, ppb);
                 pa += es;
                 ppa++;
             }
@@ -175,8 +175,8 @@ loop:    SWAPINIT(a, es);
         }
         while (pb <= pc && (cmp_result = cmp(pc, a)) >= 0) {
             if (cmp_result == 0) {
-                swap(pc, pd);
-                swap_int(ppc, ppd);
+                QS_SWAP(pc, pd);
+                QS_SWAP_INT(ppc, ppd);
                 pd -= es;
                 ppd--;
             }
@@ -185,8 +185,8 @@ loop:    SWAPINIT(a, es);
         }
         if (pb > pc)
             break;
-        swap(pb, pc);
-        swap_int(ppb, ppc);
+        QS_SWAP(pb, pc);
+        QS_SWAP_INT(ppb, ppc);
         pb += es;
         ppb++;
         pc -= es;
@@ -195,14 +195,14 @@ loop:    SWAPINIT(a, es);
 
     pn = (char *) a + n * es;
     ppn = permutation + n;
-    r = min(pa - (char *) a, pb - pa);
-    rperm = min(ppa - permutation, ppb - ppa);
-    vecswap((char*)a, pb - r, r);
-    vecswap_int(permutation, ppb - rperm, rperm);
-    r = min((size_t)(pd - pc), pn - pd - es);
-    rperm = min((ppd - ppc), ppn - ppd - 1);
-    vecswap(pb, pn - r, r);
-    vecswap_int(ppb, ppn - rperm, rperm);
+    r = QS_MIN(pa - (char *) a, pb - pa);
+    rperm = QS_MIN(ppa - permutation, ppb - ppa);
+    QS_VECSWAP((char*)a, pb - r, r);
+    QS_VECSWAP_INT(permutation, ppb - rperm, rperm);
+    r = QS_MIN((size_t)(pd - pc), pn - pd - es);
+    rperm = QS_MIN((ppd - ppc), ppn - ppd - 1);
+    QS_VECSWAP(pb, pn - r, r);
+    QS_VECSWAP_INT(ppb, ppn - rperm, rperm);
     rperm = ppb - ppa;
     if ((r = pb - pa) > es)
         qsort_permutation(a, permutation, r / es, es, cmp);

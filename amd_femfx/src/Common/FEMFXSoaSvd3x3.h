@@ -53,14 +53,14 @@ namespace AMD
 
     // Compute eigenvectors and values for symmetric matrix, using Jacobi iteration with fixed cycle of (row, col) pairs
     template<class T>
-    void FmEigenSymm3x3CyclicJacobi(typename T::SoaVector3* eigenvals, typename T::SoaMatrix3* eigenvectors, const typename T::SoaMatrix3& symmMat)
+    void FmEigenSym3x3(typename T::SoaVector3* eigenvals, typename T::SoaMatrix3* eigenvectors, const typename T::SoaMatrix3& symMat)
     {
-        typename T::SoaFloat s00 = symmMat.col0.x;
-        typename T::SoaFloat s01 = symmMat.col1.x;
-        typename T::SoaFloat s02 = symmMat.col2.x;
-        typename T::SoaFloat s11 = symmMat.col1.y;
-        typename T::SoaFloat s12 = symmMat.col2.y;
-        typename T::SoaFloat s22 = symmMat.col2.z;
+        typename T::SoaFloat s00 = symMat.col0.x;
+        typename T::SoaFloat s01 = symMat.col1.x;
+        typename T::SoaFloat s02 = symMat.col2.x;
+        typename T::SoaFloat s11 = symMat.col1.y;
+        typename T::SoaFloat s12 = symMat.col2.y;
+        typename T::SoaFloat s22 = symMat.col2.z;
 
         const int numIterations = 4;
 
@@ -71,8 +71,8 @@ namespace AMD
             // (p, q) = (0, 1)
             typename T::SoaFloat s, c;
             FmApproxGivens<T>(&s, &c, s00, s01, s11);
-            typename T::SoaMatrix3 GivensMat = FmInitMatrix3<T>(FmInitVector3<T>(c, s, 0.0f), FmInitVector3<T>(-s, c, 0.0f), FmInitVector3<T>(0.0f, 0.0f, 1.0f));
-            V = mul(V, GivensMat);
+            typename T::SoaMatrix3 GivensMat = typename T::SoaMatrix3(typename T::SoaVector3(c, s, 0.0f), typename T::SoaVector3(-s, c, 0.0f), typename T::SoaVector3(0.0f, 0.0f, 1.0f));
+            V = V * GivensMat;
 
             typename T::SoaFloat s00_next = s*s*s11 + s*c*s01 + c*s*s01 + c*c*s00;
             typename T::SoaFloat s01_next = s*c*s11 - s*s*s01 + c*c*s01 - c*s*s00;
@@ -90,8 +90,8 @@ namespace AMD
 
             // (p, q) = (0, 2)
             FmApproxGivens<T>(&s, &c, s00, s02, s22);
-            GivensMat = FmInitMatrix3<T>(FmInitVector3<T>(c, 0.0f, s), FmInitVector3<T>(0.0f, 1.0f, 0.0f), FmInitVector3<T>(-s, 0.0f, c));
-            V = mul(V, GivensMat);
+            GivensMat = typename T::SoaMatrix3(typename T::SoaVector3(c, 0.0f, s), typename T::SoaVector3(0.0f, 1.0f, 0.0f), typename T::SoaVector3(-s, 0.0f, c));
+            V = V * GivensMat;
 
             s00_next = s*s*s22 + s*c*s02 + c*s*s02 + c*c*s00;
             s01_next = s*s12 + c*s01;
@@ -109,8 +109,8 @@ namespace AMD
 
             // (p, q) = (1, 2)
             FmApproxGivens<T>(&s, &c, s11, s12, s22);
-            GivensMat = FmInitMatrix3<T>(FmInitVector3<T>(1.0f, 0.0f, 0.0f), FmInitVector3<T>(0.0f, c, s), FmInitVector3<T>(0.0f, -s, c));
-            V = mul(V, GivensMat);
+            GivensMat = typename T::SoaMatrix3(typename T::SoaVector3(1.0f, 0.0f, 0.0f), typename T::SoaVector3(0.0f, c, s), typename T::SoaVector3(0.0f, -s, c));
+            V = V * GivensMat;
 
             //s00_next = s00;
             s01_next = s*s02 + c*s01;
@@ -127,15 +127,41 @@ namespace AMD
             s22 = s22_next;
         }
 
+        *eigenvectors = V;
+        *eigenvals = typename T::SoaVector3(s00, s11, s22);
+    }
+
+    // Givens rotation used in QR decomposition
+    template<class T>
+    void FmQRGivens(typename T::SoaFloat& s, typename T::SoaFloat& c, typename T::SoaFloat apq, typename T::SoaFloat aqq, typename T::SoaFloat tolerance)
+    {
+        typename T::SoaFloat sum = apq*apq + aqq*aqq;
+        typename T::SoaFloat denomInv = 1.0f / sqrtf(sum);
+        s = select(apq * denomInv, 0.0f, (sum < tolerance));
+        c = select(aqq * denomInv, 1.0f, (sum < tolerance));
+    }
+
+    // SVD(mat) = U * Sigma * V^T
+    // Reference: McAdams et al., "Computing the Singular Value Decomposition of 3 x 3 matrices with minimal branching and elementary floating point operations"
+    template<class T>
+    void FmSvd3x3(typename T::SoaMatrix3* U, typename T::SoaVector3* sigma, typename T::SoaMatrix3* V, const typename T::SoaMatrix3& mat, typename T::SoaFloat givensTolerance = typename T::SoaFloat(FLT_EPSILON))
+    {
+        // Compute V^T * Sigma^2 * V as Eigendecomposition of Mat^T * Mat
+        typename T::SoaMatrix3 symMat = transpose(mat) * mat;
+
+        typename T::SoaVector3 eigenvals;
+        typename T::SoaMatrix3 eigenvecs;
+        FmEigenSym3x3<T>(&eigenvals, &eigenvecs, symMat);
+
         // Sort eigenvalues in order of decreasing magnitude, and swap eigenvectors to match.
         // Signs flipped during swaps to preserve rotation.
-        typename T::SoaVector3 eigenvec0 = V.col0;
-        typename T::SoaVector3 eigenvec1 = V.col1;
-        typename T::SoaVector3 eigenvec2 = V.col2;
+        typename T::SoaVector3 eigenvec0 = eigenvecs.col0;
+        typename T::SoaVector3 eigenvec1 = eigenvecs.col1;
+        typename T::SoaVector3 eigenvec2 = eigenvecs.col2;
         typename T::SoaVector3 eigenvectemp;
-        typename T::SoaFloat eigenval0 = s00;
-        typename T::SoaFloat eigenval1 = s11;
-        typename T::SoaFloat eigenval2 = s22;
+        typename T::SoaFloat eigenval0 = eigenvals.x;
+        typename T::SoaFloat eigenval1 = eigenvals.y;
+        typename T::SoaFloat eigenval2 = eigenvals.z;
         typename T::SoaFloat eigenvaltemp;
         typename T::SoaFloat abseigenval0 = fabsf(eigenval0);
         typename T::SoaFloat abseigenval1 = fabsf(eigenval1);
@@ -175,34 +201,11 @@ namespace AMD
         //abseigenval1 = select(abseigenval1, abseigenval2, swap);
         //abseigenval2 = select(abseigenval2, abseigenvaltemp, swap);
 
-        *eigenvectors = FmInitMatrix3<T>(eigenvec0, eigenvec1, eigenvec2);
-        *eigenvals = FmInitVector3<T>(eigenval0, eigenval1, eigenval2);
-    }
-
-    // Givens rotation used in QR decomposition
-    template<class T>
-    void FmQRGivens(typename T::SoaFloat& s, typename T::SoaFloat& c, typename T::SoaFloat apq, typename T::SoaFloat aqq, typename T::SoaFloat tolerance)
-    {
-        typename T::SoaFloat sum = apq*apq + aqq*aqq;
-        typename T::SoaFloat denomInv = 1.0f / sqrtf(sum);
-        s = select(apq * denomInv, 0.0f, (sum < tolerance));
-        c = select(aqq * denomInv, 1.0f, (sum < tolerance));
-    }
-
-    // SVD(mat) = U * Sigma * V^T
-    // Reference: McAdams et al., "Computing the Singular Value Decomposition of 3 x 3 matrices with minimal branching and elementary floating point operations"
-    template<class T>
-    void FmSvd3x3(typename T::SoaMatrix3* U, typename T::SoaVector3* sigma, typename T::SoaMatrix3* V, const typename T::SoaMatrix3& mat, typename T::SoaFloat givensTolerance = typename T::SoaFloat(FLT_EPSILON))
-    {
-        // Compute V^T * Sigma^2 * V as Eigendecomposition of Mat^T * Mat
-        typename T::SoaMatrix3 symmMat = mul(transpose(mat), mat);
-
-        typename T::SoaVector3 eigenvals;
-        typename T::SoaMatrix3 eigenvecs;
-        FmEigenSymm3x3CyclicJacobi<T>(&eigenvals, &eigenvecs, symmMat);
+        eigenvecs = typename T::SoaMatrix3(eigenvec0, eigenvec1, eigenvec2);
+        eigenvals = typename T::SoaVector3(eigenval0, eigenval1, eigenval2);
 
         // B = U * Sigma = Mat * V
-        typename T::SoaMatrix3 B = mul(mat, eigenvecs);
+        typename T::SoaMatrix3 B = mat * eigenvecs;
 
         // Decompose into U and Sigma with Givens rotations
         typename T::SoaMatrix3 Q, GivensMat;
@@ -213,26 +216,26 @@ namespace AMD
         B_10 = B.getElem(0, 1);
         B_00 = B.getElem(0, 0);
         FmQRGivens<T>(s, c, B_10, B_00, givensTolerance);
-        GivensMat = FmInitMatrix3<T>(FmInitVector3<T>(c, s, 0.0f), FmInitVector3<T>(-s, c, 0.0f), FmInitVector3<T>(0.0f, 0.0f, 1.0f));
+        GivensMat = typename T::SoaMatrix3(typename T::SoaVector3(c, s, 0.0f), typename T::SoaVector3(-s, c, 0.0f), typename T::SoaVector3(0.0f, 0.0f, 1.0f));
 
         Q = GivensMat;
-        B = mul(transpose(GivensMat), B);
+        B = transpose(GivensMat) * B;
 
         B_20 = B.getElem(0, 2);
         B_00 = B.getElem(0, 0);
         FmQRGivens<T>(s, c, B_20, B_00, givensTolerance);
-        GivensMat = FmInitMatrix3<T>(FmInitVector3<T>(c, 0.0f, s), FmInitVector3<T>(0.0f, 1.0f, 0.0f), FmInitVector3<T>(-s, 0.0f, c));
+        GivensMat = typename T::SoaMatrix3(typename T::SoaVector3(c, 0.0f, s), typename T::SoaVector3(0.0f, 1.0f, 0.0f), typename T::SoaVector3(-s, 0.0f, c));
 
-        Q = mul(Q, GivensMat);
-        B = mul(transpose(GivensMat), B);
+        Q = Q * GivensMat;
+        B = transpose(GivensMat) * B;
 
         B_21 = B.getElem(1, 2);
         B_11 = B.getElem(1, 1);
         FmQRGivens<T>(s, c, B_21, B_11, givensTolerance);
-        GivensMat = FmInitMatrix3<T>(FmInitVector3<T>(1.0f, 0.0f, 0.0f), FmInitVector3<T>(0.0f, c, s), FmInitVector3<T>(0.0f, -s, c));
+        GivensMat = typename T::SoaMatrix3(typename T::SoaVector3(1.0f, 0.0f, 0.0f), typename T::SoaVector3(0.0f, c, s), typename T::SoaVector3(0.0f, -s, c));
 
-        Q = mul(Q, GivensMat);
-        B = mul(transpose(GivensMat), B);
+        Q = Q * GivensMat;
+        B = transpose(GivensMat) * B;
 
         B_00 = B.getElem(0, 0);
         B_11 = B.getElem(1, 1);
@@ -260,6 +263,6 @@ namespace AMD
         sigma.y = select(0.0f, 1.0f / sigma.y, absSigma.y > tol);
         sigma.z = select(0.0f, 1.0f / sigma.z, absSigma.z > tol);
 
-        return mul(V, mul(typename T::SoaMatrix3::scale(sigma), transpose(U)));
+        return V * typename T::SoaMatrix3::scale(sigma) * transpose(U);
     }
 }

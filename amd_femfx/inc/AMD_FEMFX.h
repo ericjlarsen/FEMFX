@@ -31,7 +31,6 @@ THE SOFTWARE.
 #include "FEMFXCommon.h"
 #include "FEMFXTypes.h"
 #include "FEMFXArray.h"
-#include "FEMFXTaskSystemInterface.h"
 #include "FEMFXTetMaterialParams.h"
 #include "FEMFXTetMeshConnectivity.h"
 #include "FEMFXRigidBodyState.h"
@@ -279,87 +278,72 @@ namespace AMD
     struct FmUserConstraints;
     struct FmBvh;
 
+    // Prototype for a FEMFX task function
+    typedef void(*TLTaskFuncCallback)(void* taskData, int32_t taskBeginIndex, int32_t taskEndIndex);
+
     // Parameters needed to allocate memory for tet mesh
     struct FmTetMeshBufferBounds
     {
-        uint numVerts;                // Initial total number of verts, may grow with fracture
-        uint numTets;                 // Total number of tets, unchanged by fracture
-        uint numVertIncidentTets;     // Total incident tets of all verts; bounds the memory needed for topology
-        uint maxVertAdjacentVerts;    // Total adjacent verts of all verts; bounds the memory needed for topology
-        uint maxVerts;                // Limit on number of verts including original mesh verts and those created by fracture
-        uint maxExteriorFaces;        // Limit on number of exterior faces
-        uint maxTetMeshes;            // Limit on number of meshes including original and pieces created by fracture
+        uint numVerts = 0;                // Initial total number of verts, may grow with fracture
+        uint numTets = 0;                 // Total number of tets, unchanged by fracture
+        uint numVertIncidentTets = 0;     // Total incident tets of all verts; bounds the memory needed for topology
+        uint maxVertAdjacentVerts = 0;    // Total adjacent verts of all verts; bounds the memory needed for topology
+        uint maxVerts = 0;                // Limit on number of verts including original mesh verts and those created by fracture
+        uint maxExteriorFaces = 0;        // Limit on number of exterior faces
+        uint maxTetMeshes = 0;            // Limit on number of meshes including original and pieces created by fracture
     };
 
     struct FmTetMeshBufferSetupParams
     {
-        uint numVerts;                // Initial total number of verts, may grow with fracture
-        uint numTets;                 // Total number of tets, unchanged by fracture
-        uint numVertIncidentTets;     // Total incident tets of all verts; bounds the memory needed for topology
-        uint maxVertAdjacentVerts;    // Total adjacent verts of all verts; bounds the memory needed for topology
-        uint maxVerts;                // Limit on number of verts including original mesh verts and those created by fracture
-        uint maxExteriorFaces;        // Limit on number of exterior faces
-        uint maxTetMeshes;            // Limit on number of meshes including original and pieces created by fracture
-        uint collisionGroup;          // Initial collision group for all meshes created from this (must be < 32)
-        bool enablePlasticity;        // Whether mesh has plasticity
-        bool enableFracture;          // Whether mesh can be fractured
-        bool isKinematic;             // Whether mesh is only kinematic
-
-        inline FmTetMeshBufferSetupParams() : numVerts(0), numTets(0), numVertIncidentTets(0), maxVertAdjacentVerts(0), maxVerts(0), 
-            maxExteriorFaces(0), maxTetMeshes(0), collisionGroup(0), enablePlasticity(false), enableFracture(false), isKinematic(false) {}
+        uint numVerts = 0;                // Initial total number of verts, may grow with fracture
+        uint numTets = 0;                 // Total number of tets, unchanged by fracture
+        uint numVertIncidentTets = 0;     // Total incident tets of all verts; bounds the memory needed for topology
+        uint maxVertAdjacentVerts = 0;    // Total adjacent verts of all verts; bounds the memory needed for topology
+        uint maxVerts = 0;                // Limit on number of verts including original mesh verts and those created by fracture
+        uint maxExteriorFaces = 0;        // Limit on number of exterior faces
+        uint maxTetMeshes = 0;            // Limit on number of meshes including original and pieces created by fracture
+        uint collisionGroup = 0;          // Initial collision group for all meshes created from this (must be < 32)
+        bool enablePlasticity = false;    // Whether mesh has plasticity
+        bool enableFracture = false;      // Whether mesh can be fractured
+        bool isKinematic = false;         // Whether mesh is only kinematic
     };
 
     // Collision-enabled status for all pairs of collision groups
     struct FmCollisionGroupPairFlags
     {
-        uint flags[32];    // flags[i] non-zero bits give collision-enabled status between group i and other groups.
+        uint flags[32] = { 0 };    // flags[i] non-zero bits give collision-enabled status between group i and other groups.
     };
 
     struct FmCollisionReportDistanceContact
     {
-        uint      objectIdA;            // Tet mesh id, or rigid body id if FM_RB_FLAG set
-        uint      objectIdB;            // Tet mesh id, or rigid body id if FM_RB_FLAG set, or fixed point if FM_INVALID_ID
+        uint      objectIdA = FM_INVALID_ID;  // Tet mesh id, or rigid body id if FM_RB_FLAG set
+        uint      objectIdB = FM_INVALID_ID;  // Tet mesh id, or rigid body id if FM_RB_FLAG set, or fixed point if FM_INVALID_ID
 
-        uint      tetIdA;               // Tet id, if object is a tet mesh
-        uint      tetIdB;               // Tet id, if object is a tet mesh
+        uint      tetIdA = FM_INVALID_ID;     // Tet id, if object is a tet mesh
+        uint      tetIdB = FM_INVALID_ID;     // Tet id, if object is a tet mesh
 
         union
         {
-            float posBaryA[4];          // Barycentric coordinate of contact point on tet mesh A
-            float comToPosA[4];         // Vector from center of mass to contact point on rigid body A
+            float posBaryA[4] = { 0.0f, 0.0f, 0.0f, 0.0f };  // Barycentric coordinate of contact point on tet mesh A
+            float comToPosA[4];                              // Vector from center of mass to contact point on rigid body A
         };        
         union     
         {         
-            float posBaryB[4];          // Barycentric coordinate of contact point on tet mesh B
-            float comToPosB[4];         // Vector from center of mass to contact point on rigid body B
+            float posBaryB[4] = { 0.0f, 0.0f, 0.0f, 0.0f };  // Barycentric coordinate of contact point on tet mesh B
+            float comToPosB[4];                              // Vector from center of mass to contact point on rigid body B
         };
 
         FmVector3 normal;               // Normal of contact plane pointing out from body B
-
-        FmCollisionReportDistanceContact() : objectIdA(FM_INVALID_ID), objectIdB(FM_INVALID_ID), tetIdA(FM_INVALID_ID), tetIdB(FM_INVALID_ID),
-            normal(FmInitVector3(0.0f))
-        {
-            posBaryA[0] = 0.0f;
-            posBaryA[1] = 0.0f;
-            posBaryA[2] = 0.0f;
-            posBaryA[3] = 0.0f;
-            posBaryB[0] = 0.0f;
-            posBaryB[1] = 0.0f;
-            posBaryB[2] = 0.0f;
-            posBaryB[3] = 0.0f;
-        }
     };
 
     struct FmCollisionReportVolumeContact
     {
-        uint      objectIdA;            // Tet mesh id, or rigid body id if FM_RB_FLAG set
-        uint      objectIdB;            // Tet mesh id, or rigid body id if FM_RB_FLAG set
+        uint      objectIdA = FM_INVALID_ID;  // Tet mesh id, or rigid body id if FM_RB_FLAG set
+        uint      objectIdB = FM_INVALID_ID;  // Tet mesh id, or rigid body id if FM_RB_FLAG set
                   
-        float     volume;               // Overlap volume
+        float     volume = 0.0f;              // Overlap volume
 
-        FmVector3 normal;               // Normal of contact plane pointing out from body B
-
-        FmCollisionReportVolumeContact() : objectIdA(FM_INVALID_ID), objectIdB(FM_INVALID_ID), volume(0.0f), normal(FmInitVector3(0.0f)) {}
+        FmVector3 normal;                     // Normal of contact plane pointing out from body B
     };
 
     // For reporting contacts to the application.
@@ -369,28 +353,22 @@ namespace AMD
         FmAtomicUint numDistanceContacts;
         FmAtomicUint numVolumeContacts;
 
-        uint  maxDistanceContactsPerObjectPair;
-        uint  maxVolumeContactsPerObjectPair;         // Currently there is at most one volume contact per object pair
-        float minContactRelVel;                       // Minimum relative speed of approach at contact (along normal) 
+        uint  maxDistanceContactsPerObjectPair = 0;
+        uint  maxVolumeContactsPerObjectPair = 0;         // Currently there is at most one volume contact per object pair
+        float minContactRelVel = FLT_MAX;                 // Minimum relative speed of approach at contact (along normal)
 
-        FmCollisionReportDistanceContact* distanceContactBuffer;  // Set to an application array with space for maxDistanceContacts
-        FmCollisionReportVolumeContact*   volumeContactBuffer;    // Set to an application array with space for maxVolumeContacts
+        FmCollisionReportDistanceContact* distanceContactBuffer = nullptr;  // Set to an application array with space for maxDistanceContacts
+        FmCollisionReportVolumeContact*   volumeContactBuffer = nullptr;    // Set to an application array with space for maxVolumeContacts
 
-        uint maxDistanceContacts;
-        uint maxVolumeContacts;
-
-        FmCollisionReport() :
-            numDistanceContacts(0), numVolumeContacts(0), maxDistanceContactsPerObjectPair(0), maxVolumeContactsPerObjectPair(0),
-            minContactRelVel(FLT_MAX), distanceContactBuffer(NULL), volumeContactBuffer(NULL), maxDistanceContacts(0), maxVolumeContacts(0) {}
+        uint maxDistanceContacts = 0;
+        uint maxVolumeContacts = 0;
     };
 
     struct FmTetMeshFractureReport
     {
-        uint objectId;
-        uint numFractureFaces;
-        uint numTotalFaces;
-
-        FmTetMeshFractureReport() : objectId(FM_INVALID_ID), numFractureFaces(0), numTotalFaces(0) {}
+        uint objectId = FM_INVALID_ID;
+        uint numFractureFaces = 0;
+        uint numTotalFaces = 0;
     };
 
     // For reporting fracture to the application.
@@ -399,40 +377,28 @@ namespace AMD
     {
         FmAtomicUint numTetMeshReports;
 
-        uint                     maxTetMeshReports;
-        FmTetMeshFractureReport* tetMeshReportsBuffer;     // Set to an application array with space for maxTetMeshReports
-
-        FmFractureReport()
-        {
-            maxTetMeshReports = 0;
-            tetMeshReportsBuffer = NULL;
-            numTetMeshReports = 0;
-        }
+        uint                     maxTetMeshReports = 0;
+        FmTetMeshFractureReport* tetMeshReportsBuffer = nullptr;     // Set to an application array with space for maxTetMeshReports
     };
 
     // Warnings recorded from within scene update
     struct FmWarningsReport
     {
-        FmAtomicUint tetMeshId;    // Saves id of one tet mesh with a warning; bufferId will indicate the tet mesh buffer
-        FmAtomicUint flags;        // OR of FM_WARNING_* flags; cleared by user
-
-        FmWarningsReport() : tetMeshId(FM_INVALID_ID), flags(0) {}
+        FmAtomicUint tetMeshId = FM_INVALID_ID;    // Saves id of one tet mesh with a warning; bufferId will indicate the tet mesh buffer
+        FmAtomicUint flags = 0;                    // OR of FM_WARNING_* flags; cleared by user
     };
 
     // Parameters used to initialize a rigid body
     struct FmRigidBodySetupParams
     {
         FmRigidBodyState state;
-        FmMatrix3        bodyInertiaTensor;
-        float            mass;
-        float            halfDimX;
-        float            halfDimY;
-        float            halfDimZ;
-        bool             isKinematic;
-        uint8_t          collisionGroup;
-
-        inline FmRigidBodySetupParams() : bodyInertiaTensor(FmMatrix3::identity()), mass(1.0f),
-            halfDimX(0.5f), halfDimY(0.5f), halfDimZ(0.5f), isKinematic(false), collisionGroup(0) {}
+        FmMatrix3        bodyInertiaTensor = FmMatrix3::identity();
+        float            mass = 1.0f;
+        float            halfDimX = 0.5f;
+        float            halfDimY = 0.5f;
+        float            halfDimZ = 0.5f;
+        bool             isKinematic = false;
+        uint8_t          collisionGroup = 0;
     };
 
     // Allocate and initialize rigid body
@@ -444,12 +410,12 @@ namespace AMD
     // Positions of axis-aligned planes forming box around the scene
     struct FmSceneCollisionPlanes
     {
-        float minX;
-        float maxX;
-        float minY;
-        float maxY;
-        float minZ;
-        float maxZ;
+        float minX = -FLT_MAX;
+        float maxX = FLT_MAX;
+        float minY = 0.0f;
+        float maxY = FLT_MAX;
+        float minZ = -FLT_MAX;
+        float maxZ = FLT_MAX;
     };
 
     // Solver pass indices
@@ -459,51 +425,45 @@ namespace AMD
     struct FmConstraintSolverControlParams
     {
         // Fraction of correction to apply to contacts in constraint (velocity) solve or stabilization
-        float kDistanceCorrection;          // Applies to any interpenetration contacts (positive error); for pre-emptive CCD contacts full correction used
-        float kVolumeCorrection;
+        float kDistanceCorrection = 0.0f;          // Applies to any interpenetration contacts (positive error); for pre-emptive CCD contacts full correction used
+        float kVolumeCorrection = 0.0f;
 
         // Parameters for one of the two passes
         struct PassParams
         {
-            uint  maxOuterIterations;              // Max iterations of process alternating impulses and response
-            uint  maxInnerIterations;              // Max iterations of PGS solving constraint impulses
-            uint  currentMaxInnerIterations;       // Inner iterations that may be reduced as solve progresses
-            bool  useInnerIterationsFalloff;       // Reduce max inner iterations as outer iterations progress; faster but less stable
-            bool  useOuterAlternatingDirections;   // Alternate row direction each iteration (GS pass only).
-            bool  useInnerAlternatingDirections;   // Alternate row direction each iteration of PGS.
+            uint  maxOuterIterations = 8;                  // Max iterations of process alternating impulses and response
+            uint  maxInnerIterations = 1;                  // Max iterations of PGS solving constraint impulses
+            uint  currentMaxInnerIterations = 0;           // Inner iterations that may be reduced as solve progresses
+            bool  useInnerIterationsFalloff = false;       // Reduce max inner iterations as outer iterations progress; faster but less stable
+            bool  useOuterAlternatingDirections = false;   // Alternate row direction each iteration (GS pass only).
+            bool  useInnerAlternatingDirections = false;   // Alternate row direction each iteration of PGS.
 
             // Constant between 0 and 2; 1 for Gauss-Seidel, < 1 for under-relaxation, > 1 for over-relaxation.
             // Default is 0.8 which resolves instability or jitter in a few examples, especially with useInnerIterationsFalloff true.
-            float kPgsRelaxationOmega;
+            float kPgsRelaxationOmega = 0.8f;
 
             // Termination thresholds (not currently supported)
-            float outerRelErrorEpsilon;
-            float innerRelErrorEpsilon;
-
-            PassParams() : maxOuterIterations(0), maxInnerIterations(0), currentMaxInnerIterations(0),
-                useInnerIterationsFalloff(false), useOuterAlternatingDirections(false), useInnerAlternatingDirections(false),
-                kPgsRelaxationOmega(0.0f), outerRelErrorEpsilon(0.0f), innerRelErrorEpsilon(0.0f) {}
+            float outerRelErrorEpsilon = 0.001f;
+            float innerRelErrorEpsilon = 0.001f;
         };
 
         PassParams passParams[2];          // Different parameters for CG or GS based passes
 
-        uint  maxCgIterationsCgPass;       // Max iterations using CG to compute FEM response to constraint impulses
-        float epsilonCgPass;               // Tolerance for CG; residual mag should be < eps * right-hand-side mag
-
-        FmConstraintSolverControlParams() : kDistanceCorrection(0.0f), kVolumeCorrection(0.0f), maxCgIterationsCgPass(0), epsilonCgPass(FLT_EPSILON) {}
+        uint  maxCgIterationsCgPass = 15;      // Max iterations using CG to compute FEM response to constraint impulses
+        float epsilonCgPass = FLT_EPSILON;     // Tolerance for CG; residual mag should be < eps * right-hand-side mag
     };
 
     // Set of parameters that control all collision detection and solving done in the scene.
     struct FmSceneControlParams
     {
-        FmVector3 gravityVector;  // Gravity acceleration applied as external force to all objects in scene.
+        FmVector3 gravityVector = FmVector3(0.0f, -9.88f, 0.0f);  // Gravity acceleration applied as external force to all objects in scene.
 
         FmSceneCollisionPlanes collisionPlanes;  // Positions of axis-aligned planes forming box around the scene
 
-        uint numThreads; // Number of worker threads processing step update, set at start of frame.
+        uint numThreads = 1;  // Number of worker threads processing step update, set at start of frame.
 
-        float timestep; // Timestep used in integration
-        float simTime;  // Elapsed time of simulation
+        float timestep = (1.0f / 60.0f); // Timestep used in integration
+        float simTime = 0.0f;            // Elapsed time of simulation
 
         // Bias is the distance or volume value that is the goal for the contact constraint.
         // For CCD, will find time of impact at this distance.
@@ -514,52 +474,29 @@ namespace AMD
         // Also in CCD, if features start out closer than the contact threshold, the
         // contact is returned without further iteration.
         // volContactBias and volContactThreshold should be <= 0.0; 0.0 is recommended.
-        float distContactBias;
-        float distContactThreshold;
-        float volContactBias;
-        float volContactThreshold;
+        float distContactBias = 0.002f;
+        float distContactThreshold = 0.003f;
+        float volContactBias = 0.0f;
+        float volContactThreshold = 0.0f;
 
         // Rayleigh damping terms applied to FEM dynamics integration solve:
         // Damping matrix C = kRayleighMassDamping * M + kRayleighStiffnessDamping * K' 
-        float kRayleighMassDamping;
-        float kRayleighStiffnessDamping;
+        float kRayleighMassDamping = 0.15f;
+        float kRayleighStiffnessDamping = 0.004f;
 
         // Options for rigid body interfacing
-        bool rigidBodiesExternal;                   // If rigid bodies external, collision detection and integration for rigid bodies are skipped (only box rigid bodies supported internally)
-        bool includeRigidBodiesInBroadPhase;        // Whether to add rigid bodies to broad phase and produce broad phase pairs; if included and rigidBodiesExternal true, will output to rigidBodyBroadPhasePairs.
-        bool createZeroConstraintRigidBodyIslands;  // Applies when rigidBodiesExternal true: whether to create islands for groups of rigid bodies without any (FEM-lib-visible) constraints.
+        bool rigidBodiesExternal = false;                  // If rigid bodies external, collision detection and integration for rigid bodies are skipped (only box rigid bodies supported internally)
+        bool includeRigidBodiesInBroadPhase = true;        // Whether to add rigid bodies to broad phase and produce broad phase pairs; if included and rigidBodiesExternal true, will output to rigidBodyBroadPhasePairs.
+        bool createZeroConstraintRigidBodyIslands = true;  // Applies when rigidBodiesExternal true: whether to create islands for groups of rigid bodies without any (FEM-lib-visible) constraints.
         
-        float epsilonCg;              // Tolerance for CG; residual mag should be < eps * right-hand-side mag
-        uint defaultMaxCgIterations;  // Initial setting for use in FEM dynamics integration solve which can be overridden by material settings
+        float epsilonCg = FLT_EPSILON;                               // Tolerance for CG; residual mag should be < eps * right-hand-side mag
+        uint defaultMaxCgIterations = FM_DEFAULT_MAX_CG_ITERATIONS;  // Initial setting for use in FEM dynamics integration solve which can be overridden by material settings
 
         FmConstraintSolverControlParams constraintSolveParams;         // Parameters for constraint solve (velocity-based)
         FmConstraintSolverControlParams constraintStabilizationParams; // Parameters for constraint stabilization (position-based)
 
         FmSceneControlParams()
         {
-            // Defaults for scene control parameters
-            gravityVector = FmInitVector3(0.0f, -9.88f, 0.0f);
-            collisionPlanes.minX = -FLT_MAX;
-            collisionPlanes.maxX = FLT_MAX;
-            collisionPlanes.minY = 0.0f;
-            collisionPlanes.maxY = FLT_MAX;
-            collisionPlanes.minZ = -FLT_MAX;
-            collisionPlanes.maxZ = FLT_MAX;
-            numThreads = 1;
-            timestep = (1.0f / 60.0f);
-            simTime = 0.0f;
-            distContactBias = 0.002f;
-            distContactThreshold = 0.003f;
-            volContactBias = 0.0f;
-            volContactThreshold = 0.0f;
-            kRayleighMassDamping = 0.15f;
-            kRayleighStiffnessDamping = 0.004f;
-            rigidBodiesExternal = false;
-            includeRigidBodiesInBroadPhase = true;
-            createZeroConstraintRigidBodyIslands = true;
-            epsilonCg = FLT_EPSILON;
-            defaultMaxCgIterations = FM_DEFAULT_MAX_CG_ITERATIONS;
-
 #if FM_CONSTRAINT_STABILIZATION_SOLVE
             constraintSolveParams.kDistanceCorrection = 0.0f;     // corrections occur during stabilization
             constraintSolveParams.kVolumeCorrection = 0.0f;       // corrections occur during stabilization
@@ -617,28 +554,23 @@ namespace AMD
     // Parameters needed to allocate scene
     struct FmSceneSetupParams
     {
-        uint maxTetMeshBuffers;             // Limit on buffers created for tet meshes and their fractured tet mesh pieces.
-        uint maxTetMeshes;                  // Limit on total tet meshes
-        uint maxRigidBodies;                // Limit on total rigid bodies
-        uint maxDistanceContacts;
-        uint maxVolumeContacts;
-        uint maxVolumeContactVerts;
-        uint maxDeformationConstraints;
-        uint maxGlueConstraints;
-        uint maxPlaneConstraints;
-        uint maxRigidBodyAngleConstraints;
-        uint maxBroadPhasePairs;
-        uint maxRigidBodyBroadPhasePairs;
-        uint maxSceneVerts;                 // Limit on total verts of all tet meshes
-        uint maxTetMeshBufferFeatures;      // Limit on verts, tets, or exterior faces per tet mesh buffer, to size temp memory
-        size_t maxConstraintSolverDataSize; // Limit on preallocated size of constraint solver data (more dynamically allocated if needed)
-        uint numWorkerThreads;
-        bool rigidBodiesExternal;           // Set whether rigid bodies are owned by external system; NOTE: cannot be changed after scene creation
-
-        inline FmSceneSetupParams() : maxTetMeshBuffers(0), maxTetMeshes(0), maxRigidBodies(0), maxDistanceContacts(0), maxVolumeContacts(0),
-            maxVolumeContactVerts(0), maxDeformationConstraints(0), maxGlueConstraints(0), maxPlaneConstraints(0), maxRigidBodyAngleConstraints(0),
-            maxBroadPhasePairs(0), maxRigidBodyBroadPhasePairs(0), maxSceneVerts(0), maxTetMeshBufferFeatures(0), maxConstraintSolverDataSize(0),
-            numWorkerThreads(1), rigidBodiesExternal(false) {}
+        uint maxTetMeshBuffers = 0;             // Limit on buffers created for tet meshes and their fractured tet mesh pieces.
+        uint maxTetMeshes = 0;                  // Limit on total tet meshes
+        uint maxRigidBodies = 0;                // Limit on total rigid bodies
+        uint maxDistanceContacts = 0;
+        uint maxVolumeContacts = 0;
+        uint maxVolumeContactVerts = 0;
+        uint maxDeformationConstraints = 0;
+        uint maxGlueConstraints = 0;
+        uint maxPlaneConstraints = 0;
+        uint maxRigidBodyAngleConstraints = 0;
+        uint maxBroadPhasePairs = 0;
+        uint maxRigidBodyBroadPhasePairs = 0;
+        uint maxSceneVerts = 0;                 // Limit on total verts of all tet meshes
+        uint maxTetMeshBufferFeatures = 0;      // Limit on verts, tets, or exterior faces per tet mesh buffer, to size temp memory
+        size_t maxConstraintSolverDataSize = 0; // Limit on preallocated size of constraint solver data (more dynamically allocated if needed)
+        uint numWorkerThreads = 1;
+        bool rigidBodiesExternal = false;       // Set whether rigid bodies are owned by external system; NOTE: cannot be changed after scene creation
     };
 
     // Callback typedefs
@@ -663,111 +595,77 @@ namespace AMD
     // Constraint used to glue object points together.
     struct FmGlueConstraintSetupParams
     {
-        uint            bufferIdA;            // Tet mesh buffer id, or rigid body if FM_RB_FLAG set
-        uint            bufferIdB;            // Tet mesh buffer id, or rigid body if FM_RB_FLAG set, or world position if FM_INVALID_ID
-        uint            bufferTetIdA;         // If object A is tet mesh, contains id of tet in mesh buffer
-        uint            bufferTetIdB;         // If object B is tet mesh, contains id of tet in mesh buffer
+        uint            bufferIdA = FM_INVALID_ID;            // Tet mesh buffer id, or rigid body if FM_RB_FLAG set
+        uint            bufferIdB = FM_INVALID_ID;            // Tet mesh buffer id, or rigid body if FM_RB_FLAG set, or world position if FM_INVALID_ID
+        uint            bufferTetIdA = FM_INVALID_ID;         // If object A is tet mesh, contains id of tet in mesh buffer
+        uint            bufferTetIdB = FM_INVALID_ID;         // If object B is tet mesh, contains id of tet in mesh buffer
 
         union
         {
-            float       posBaryA[4];          // Barycentric coordinate of contact point on tet mesh A
-            float       posBodySpaceA[4];     // Vector from center of mass to contact point on rigid body A, in body space
+            float       posBaryA[4] = { 0.0f, 0.0f, 0.0f, 0.0f, };  // Barycentric coordinate of contact point on tet mesh A
+            float       posBodySpaceA[4];                           // Vector from center of mass to contact point on rigid body A, in body space
         };
         union
         {
-            float       posBaryB[4];          // Barycentric coordinate of contact point on tet mesh B
-            float       posBodySpaceB[4];     // Vector from center of mass to contact point on rigid body B, in body space
-            float       posWorldB[4];         // Position in world, for 
+            float       posBaryB[4] = { 0.0f, 0.0f, 0.0f, 0.0f, };  // Barycentric coordinate of contact point on tet mesh B
+            float       posBodySpaceB[4];                           // Vector from center of mass to contact point on rigid body B, in body space
+            float       posWorldB[4];                               // Position in world
         };
-        float           breakThreshold;       // If nonzero, is threshold in magnitude of impulse at which glue is automatically broken (disabled)
-        float           kVelCorrection;       // Fraction to correct in constraint solve (velocity solve)
-        float           kPosCorrection;       // Fraction to correct in stabilization (position solve)
-        uint8_t         minGlueConstraints;   // Minimum number of glue constraints required between the glued objects.  This constraint will be broken/disabled if < this value.
-        bool            enabled;              // Whether constraint is enabled initially
-
-        inline FmGlueConstraintSetupParams() : bufferIdA(FM_INVALID_ID), bufferIdB(FM_INVALID_ID), bufferTetIdA(FM_INVALID_ID), bufferTetIdB(FM_INVALID_ID),
-            breakThreshold(0.0f), kVelCorrection(0.1f), kPosCorrection(1.0f),
-            minGlueConstraints(1), // Default allows this glue constraint to be the only one attaching two objects
-            enabled(true)
-        {
-            posBaryA[0] = 0.0f;
-            posBaryA[1] = 0.0f;
-            posBaryA[2] = 0.0f;
-            posBaryA[3] = 0.0f;
-            posBaryB[0] = 0.0f;
-            posBaryB[1] = 0.0f;
-            posBaryB[2] = 0.0f;
-            posBaryB[3] = 0.0f;
-        }
+        float           breakThreshold = 0.0f;    // If nonzero, is threshold in magnitude of impulse at which glue is automatically broken (disabled)
+        float           kVelCorrection = 0.1f;    // Fraction to correct in constraint solve (velocity solve)
+        float           kPosCorrection = 1.0f;    // Fraction to correct in stabilization (position solve)
+        uint8_t         minGlueConstraints = 1;   // Minimum number of glue constraints required between the glued objects.  This constraint will be broken/disabled if < this value.
+        bool            enabled = true;           // Whether constraint is enabled initially
     };
 
     // Constrains points on or above 1 to 3 planes.
     // Can use to create a line, pin, or distance constraint (update normal with UpdatePlaneConstraint()).
     struct FmPlaneConstraintSetupParams
     {
-        uint        bufferIdA;            // Tet mesh buffer id, or rigid body if FM_RB_FLAG set
-        uint        bufferIdB;            // Tet mesh buffer id, or rigid body if FM_RB_FLAG set, or world position if FM_INVALID_ID
-        uint        bufferTetIdA;         // If object A is tet mesh, contains id of tet in mesh buffer
-        uint        bufferTetIdB;         // If object B is tet mesh, contains id of tet in mesh buffer
+        uint        bufferIdA = FM_INVALID_ID;            // Tet mesh buffer id, or rigid body if FM_RB_FLAG set
+        uint        bufferIdB = FM_INVALID_ID;            // Tet mesh buffer id, or rigid body if FM_RB_FLAG set, or world position if FM_INVALID_ID
+        uint        bufferTetIdA = FM_INVALID_ID;         // If object A is tet mesh, contains id of tet in mesh buffer
+        uint        bufferTetIdB = FM_INVALID_ID;         // If object B is tet mesh, contains id of tet in mesh buffer
 
         union
         {
-            float   posBaryA[4];          // Barycentric coordinate of contact point on tet mesh A
-            float   posBodySpaceA[4];     // Vector from center of mass to contact point on rigid body A, in body space
+            float   posBaryA[4] = { 0.0f, 0.0f, 0.0f, 0.0f, };  // Barycentric coordinate of contact point on tet mesh A
+            float   posBodySpaceA[4];                           // Vector from center of mass to contact point on rigid body A, in body space
         };
         union
         {
-            float   posBaryB[4];          // Barycentric coordinate of contact point on tet mesh B
-            float   posBodySpaceB[4];     // Vector from center of mass to contact point on rigid body B, in body space
+            float   posBaryB[4] = { 0.0f, 0.0f, 0.0f, 0.0f, };  // Barycentric coordinate of contact point on tet mesh B
+            float   posBodySpaceB[4];                           // Vector from center of mass to contact point on rigid body B, in body space
             float   posWorldB[4];
         };
-        FmVector3   planeNormal0;         // Initial plane 0 normal in world space
-        FmVector3   planeNormal1;         // Initial plane 1 normal in world space
-        FmVector3   planeNormal2;         // Initial plane 2 normal in world space
-        float       bias0;                // Initial distance bias to plane 0
-        float       bias1;                // Initial distance bias to plane 1
-        float       bias2;                // Initial distance bias to plane 2
-        float       kVelCorrection;       // Fraction to correct in constraint solve (velocity solve)
-        float       kPosCorrection;       // Fraction to correct in stabilization (position solve)
+        FmVector3   planeNormal0 = FmVector3(1.0f, 0.0f, 0.0f);  // Initial plane 0 normal in world space
+        FmVector3   planeNormal1 = FmVector3(0.0f, 1.0f, 0.0f);  // Initial plane 1 normal in world space
+        FmVector3   planeNormal2 = FmVector3(0.0f, 0.0f, 1.0f);  // Initial plane 2 normal in world space
+        float       bias0 = 0.0f;                // Initial distance bias to plane 0
+        float       bias1 = 0.0f;                // Initial distance bias to plane 1
+        float       bias2 = 0.0f;                // Initial distance bias to plane 2
+        float       kVelCorrection = 0.1f;       // Fraction to correct in constraint solve (velocity solve)
+        float       kPosCorrection = 1.0f;       // Fraction to correct in stabilization (position solve)
 
-        uint        numDimensions;        // 1-3 planes supported
-        bool        nonNeg0;              // If constraint on plane 0 is limited to non-negative (repulsive) forces
-        bool        nonNeg1;              // If constraint on plane 1 is limited to non-negative (repulsive) forces
-        bool        nonNeg2;              // If constraint on plane 2 is limited to non-negative (repulsive) forces
-        bool        enabled;              // Whether constraint is enabled initially
-
-        inline FmPlaneConstraintSetupParams() : bufferIdA(FM_INVALID_ID), bufferIdB(FM_INVALID_ID), bufferTetIdA(FM_INVALID_ID), bufferTetIdB(FM_INVALID_ID),
-            planeNormal0(FmInitVector3(1.0f, 0.0f, 0.0f)), planeNormal1(FmInitVector3(0.0f, 1.0f, 0.0f)), planeNormal2(FmInitVector3(0.0f, 0.0f, 1.0f)),
-            bias0(0.0f), bias1(0.0f), bias2(0.0f), kVelCorrection(0.1f), kPosCorrection(1.0f), numDimensions(3), nonNeg0(false), nonNeg1(false), nonNeg2(false),
-            enabled(true)
-        {
-            posBaryA[0] = 0.0f;
-            posBaryA[1] = 0.0f;
-            posBaryA[2] = 0.0f;
-            posBaryA[3] = 0.0f;
-            posBaryB[0] = 0.0f;
-            posBaryB[1] = 0.0f;
-            posBaryB[2] = 0.0f;
-            posBaryB[3] = 0.0f;
-        }
+        uint        numDimensions = 3;           // 1-3 planes supported
+        bool        nonNeg0 = false;             // If constraint on plane 0 is limited to non-negative (repulsive) forces
+        bool        nonNeg1 = false;             // If constraint on plane 1 is limited to non-negative (repulsive) forces
+        bool        nonNeg2 = false;             // If constraint on plane 2 is limited to non-negative (repulsive) forces
+        bool        enabled = true;              // Whether constraint is enabled initially
     };
 
     // Angular constraint on rigid bodies which can be used to implement joints.
     struct FmRigidBodyAngleConstraintSetupParams
     {
-        uint         objectIdA;            // Rigid body id with FM_RB_FLAG set
-        uint         objectIdB;            // Rigid body id with FM_RB_FLAG set, or world position if FM_INVALID_ID
-        FmVector3    axisBodySpaceA;       // Body-relative axis defining angle constraint
-        FmVector3    axisBodySpaceB;       // Body-relative axis defining angle constraint
-        float        frictionCoeff;        // Friction on joint
-        float        kVelCorrection;       // Fraction to correct in constraint solve (velocity solve)
-        float        kPosCorrection;       // Fraction to correct in stabilization (position solve)
-        uint8_t      type;                 // One of FmRigidBodyAngleConstraintTypes (NOTE: currently only hinge supported)
-        bool         enabled;              // Whether constraint is enabled initially
-
-        inline FmRigidBodyAngleConstraintSetupParams() : objectIdA(FM_INVALID_ID), objectIdB(FM_INVALID_ID),
-            axisBodySpaceA(FmInitVector3(0.0f)), axisBodySpaceB(FmInitVector3(0.0f)), frictionCoeff(FM_DEFAULT_FRICTION_COEFF),
-            kVelCorrection(0.1f), kPosCorrection(1.0f), type(FM_RB_JOINT_TYPE_HINGE), enabled(true) {}
+        uint         objectIdA = FM_INVALID_ID;                  // Rigid body id with FM_RB_FLAG set
+        uint         objectIdB = FM_INVALID_ID;                  // Rigid body id with FM_RB_FLAG set, or world position if FM_INVALID_ID
+        FmVector3    axisBodySpaceA;                             // Body-relative axis defining angle constraint
+        FmVector3    axisBodySpaceB;                             // Body-relative axis defining angle constraint
+        float        frictionCoeff = FM_DEFAULT_FRICTION_COEFF;  // Friction on joint
+        float        kVelCorrection = 0.1f;                      // Fraction to correct in constraint solve (velocity solve)
+        float        kPosCorrection = 1.0f;                      // Fraction to correct in stabilization (position solve)
+        uint8_t      type = FM_RB_JOINT_TYPE_HINGE;              // One of FmRigidBodyAngleConstraintTypes (NOTE: currently only hinge supported)
+        bool         enabled = true;                             // Whether constraint is enabled initially
     };
 
     // Return the current world position inside a tet that corresponds to the input barycentric values
@@ -821,12 +719,9 @@ namespace AMD
     // Set scene control params
     void FmSetSceneControlParams(FmScene* scene, const FmSceneControlParams& sceneControlParams);
 
-    // Set task system callbacks
-    void FmSetSceneTaskSystemCallbacks(FmScene* scene, const FmTaskSystemCallbacks& callbacks);
-
     // Set function called after scene update.
     // NOTE: If using FmUpdateScene() function, this is set to a default function used for synchronization.
-    void FmSetPostSceneUpdateCallback(FmScene* scene, FmTaskFuncCallback postSceneUpdateCallback, void* postSceneUpdateData);
+    void FmSetPostSceneUpdateCallback(FmScene* scene, TLTaskFuncCallback postSceneUpdateCallback, void* postSceneUpdateData);
 
     // Set callback used to collide FEM object vertices with a user-defined surface
     void FmSetSurfaceCollisionCallback(FmScene* scene, FmCallbackSurfaceCollision surfaceCollisionCallback);
@@ -860,7 +755,7 @@ namespace AMD
     // If enableFracture:
     //   - tetFlags expected to be an OR of FM_TET_FLAG_* values.
     //   - outFractureGroupCounts and outTetFractureGroupIds should be sized to the number of tets.
-    // otherwise outFractureGroupCounts, outTetFractureGroupIds, tetFlags may be NULL.
+    // otherwise outFractureGroupCounts, outTetFractureGroupIds, tetFlags may be nullptr.
     // NOTE: Any tetFlags set here must also be applied to tet mesh tets and not changed after initialization.
     void FmComputeTetMeshBufferBounds(
         FmTetMeshBufferBounds* outBounds,
@@ -900,10 +795,10 @@ namespace AMD
     // Puts all currently active scene objects into sleeping state and in same island.
     bool FmSetAllSceneObjectsSleeping(FmScene* scene);
 
-    // Get a FmTetMeshBuffer* by buffer id; returns NULL if not found.
+    // Get a FmTetMeshBuffer* by buffer id; returns nullptr if not found.
     FmTetMeshBuffer* FmGetTetMeshBuffer(const FmScene& scene, uint tetMeshBufferId);
 
-    // Get a FmTetMesh* by object id; returns NULL if not found.
+    // Get a FmTetMesh* by object id; returns nullptr if not found.
     FmTetMesh* FmGetTetMesh(const FmScene& scene, uint objectId);
 
     // Get id of tet mesh buffer
@@ -922,7 +817,7 @@ namespace AMD
     // Get maximum number of tet meshes contained in tet mesh buffer after all fracture
     uint FmGetMaxTetMeshes(const FmTetMeshBuffer& tetMeshBuffer);
 
-    // Get a FmTetMesh* by index within a FmTetMeshBuffer; returns NULL if not found.
+    // Get a FmTetMesh* by index within a FmTetMeshBuffer; returns nullptr if not found.
     // Use FmGetNumTetMeshes(const FmTetMeshBuffer& tetMeshBuffer) to get number.
     FmTetMesh* FmGetTetMesh(const FmTetMeshBuffer& tetMeshBuffer, uint meshIdx);
 
@@ -951,7 +846,7 @@ namespace AMD
     FmRigidBodyState FmGetState(const FmRigidBody& rigidBody);
 
     // Set state of rigid body
-    // If non-NULL scene provided, will wake rigid body if asleep.
+    // If non-null scene provided, will wake rigid body if asleep.
     void FmSetPosition(FmScene* scene, FmRigidBody* rigidBody, const FmVector3& position);
     void FmSetVelocity(FmScene* scene, FmRigidBody* rigidBody, const FmVector3& velocity);
     void FmSetRotation(FmScene* scene, FmRigidBody* rigidBody, const FmQuat& rotation);
@@ -971,7 +866,7 @@ namespace AMD
     // Notify of rigid bodies solved outside FEM system being put to sleep.
     bool FmNotifyRigidBodiesSleeping(FmScene* scene, uint* rigidBodyIds, uint numRigidBodies);
 
-    // Get a rigid body by id; returns NULL if not found.
+    // Get a rigid body by id; returns nullptr if not found.
     FmRigidBody* FmGetRigidBody(const FmScene& scene, uint rigidBodyId);
 
     // Get total number of tet meshes, awake or asleep, which are enabled for simulation
@@ -1166,7 +1061,7 @@ namespace AMD
     float FmCheckMaxTetMeshCondition(FmTetMeshBuffer* tetMeshBuffer, const FmSceneControlParams& sceneControlParams);
 
     // Set positions to be a rigid transformation of the rest positions, and undo plastic deformation.
-    // If non-NULL scene provided, will wake tet mesh if asleep.
+    // If non-null scene provided, will wake tet mesh if asleep.
     void FmResetFromRestPositions(FmScene* scene, FmTetMesh* tetMesh, const FmMatrix3& rotation, const FmVector3& translation, const FmVector3& velocity = FmVector3(0.0f));
 
     // Set vertex mass
@@ -1218,21 +1113,21 @@ namespace AMD
     FmQuat FmGetVertTetQuatSum(const FmTetMesh& tetMesh, uint vertId);
 
     // Set position or velocity of vertex.
-    // If non-NULL scene provided, will wake tet mesh if asleep.
+    // If non-null scene provided, will wake tet mesh if asleep.
     void FmSetVertPosition(FmScene* scene, FmTetMesh* tetMesh, uint vertId, const FmVector3& position);
     void FmSetVertVelocity(FmScene* scene, FmTetMesh* tetMesh, uint vertId, const FmVector3& velocity);
 
     // Add external force to vertex.
     // NOTE: external forces are reset to 0 at end of simulation step
-    // If non-NULL scene provided, will wake tet mesh if asleep.
+    // If non-null scene provided, will wake tet mesh if asleep.
     void FmAddForceToVert(FmScene* scene, FmTetMesh* tetMesh, uint vertId, const FmVector3& force);
 
     // Update material of tet; use if modifying the tet material dynamically during simulation, to properly update internal data.
-    // If non-NULL scene provided, will wake tet mesh if asleep.
+    // If non-null scene provided, will wake tet mesh if asleep.
     void FmUpdateTetMaterialParams(FmScene* scene, FmTetMesh* tetMesh, uint meshTetId, const FmTetMaterialParams& newMaterialParams, float plasticDeformationAttenuation = 1.0f, bool volumePreservingPlasticity = false);
 
     // Update material for entire tet mesh or buffer; use if modifying the tet material dynamically during simulation, to properly update internal data.
-    // If non-NULL scene provided, will wake tet mesh if asleep.
+    // If non-null scene provided, will wake tet mesh if asleep.
     void FmUpdateAllTetMaterialParams(FmScene* scene, FmTetMesh* tetMesh, const FmTetMaterialParams& newMaterialParams, float plasticDeformationAttenuation = 1.0f, bool volumePreservingPlasticity = false);
 
     // Update scene without rigid bodies.
@@ -1245,19 +1140,19 @@ namespace AMD
     // Scene update broken down for use with external rigid bodies.
 
     // Rebuild meshes after fracture, solve end velocity without regard for constraints, and rebuild hierarchies.
-    // If FM_ASYNC_THREADING and followTaskFunc non-NULL, this call will execute asynchronously, and may return before tasks are complete. 
+    // If FM_ASYNC_THREADING and followTaskFunc non-null, this call will execute asynchronously, and may return before tasks are complete. 
     // These tasks will execute followTaskFunc with followTaskData (and index 0) when complete.
-    void FmUpdateUnconstrained(FmScene* scene, float timestep, FmTaskFuncCallback followTaskFunc, void* followTaskData);
+    void FmUpdateUnconstrained(FmScene* scene, float timestep, TLTaskFuncCallback followTaskFunc, void* followTaskData);
 
     // Find contacts from intersections at start of step and CCD.
-    // If FM_ASYNC_THREADING and followTaskFunc non-NULL, this call will execute asynchronously, and may return before tasks are complete. 
+    // If FM_ASYNC_THREADING and followTaskFunc non-null, this call will execute asynchronously, and may return before tasks are complete. 
     // These tasks will execute followTaskFunc with followTaskData (and index 0) when complete.
-    void FmFindContacts(FmScene* scene, FmTaskFuncCallback followTaskFunc, void* followTaskData);
+    void FmFindContacts(FmScene* scene, TLTaskFuncCallback followTaskFunc, void* followTaskData);
 
     // Wake islands flagged due contacts found in FmFindContacts, and find new contacts between awakened objects
-    // If FM_ASYNC_THREADING and followTaskFunc non-NULL, this call will execute asynchronously, and may return before tasks are complete. 
+    // If FM_ASYNC_THREADING and followTaskFunc non-null, this call will execute asynchronously, and may return before tasks are complete. 
     // These tasks will execute followTaskFunc with followTaskData (and index 0) when complete.
-    void FmWakeCollidedIslandsAndFindContacts(FmScene* scene, FmTaskFuncCallback followTaskFunc, void* followTaskData);
+    void FmWakeCollidedIslandsAndFindContacts(FmScene* scene, TLTaskFuncCallback followTaskFunc, void* followTaskData);
 
     // Query scene if two collision groups have collision enabled.
     bool FmGroupsCanCollide(const FmScene& scene, uint i, uint j);
@@ -1289,25 +1184,12 @@ namespace AMD
     // Results of FmFindClosestTet
     struct FmClosestTetResult
     {
-        FmVector3 position; // Closest position on closest tet
-        float posBary[4];      // Barycentric coordinates of closest position
-        float distance;        // Distance to closest tet
-        uint tetId;            // Closest tet id
-        uint faceId;           // Closest face if query point outside tet
-        bool insideTet;        // According to Smith and Dodgson robust intersection
-
-        FmClosestTetResult()
-        {
-            position = FmInitVector3(0.0f);
-            posBary[0] = 0.0f;
-            posBary[1] = 0.0f;
-            posBary[2] = 0.0f;
-            posBary[3] = 0.0f;
-            distance = 0.0f;
-            tetId = FM_INVALID_ID;
-            faceId = FM_INVALID_ID;
-            insideTet = false;
-        }
+        FmVector3 position;                             // Closest position on closest tet
+        float posBary[4] = { 0.0f, 0.0f, 0.0f, 0.0f };  // Barycentric coordinates of closest position
+        float distance = 0.0f;                          // Distance to closest tet
+        uint tetId = FM_INVALID_ID;                     // Closest tet id
+        uint faceId = FM_INVALID_ID;                    // Closest face if query point outside tet
+        bool insideTet = false;                         // According to Smith and Dodgson robust intersection
     };
 
     // Queries a tet mesh at its rest positions to find the closest tet and barycentric values corresponding to the input position.
@@ -1343,14 +1225,14 @@ namespace AMD
     // Optional argument allows user to provide constraints from external system.  See FmUserConstraints in FEMFXInternal.h 
     void FmFindConstraintIslands(
         FmScene* scene,
-        const FmUserConstraints* userConstraints = NULL);
+        const FmUserConstraints* userConstraints = nullptr);
 
     // Do a full solve and stabilization of scene's constraints.
     // Step positions, recompute tet rotations and center of mass.
     // If applicable update plasticity state or fracture meshes.
-    // If FM_ASYNC_THREADING and followTaskFunc non-NULL, this call will execute asynchronously, and may return before tasks are complete. 
+    // If FM_ASYNC_THREADING and followTaskFunc non-null, this call will execute asynchronously, and may return before tasks are complete. 
     // These tasks will execute followTaskFunc with followTaskData (and index 0) when complete.
-    void FmSceneConstraintSolve(FmScene* scene, FmTaskFuncCallback followTaskFunc, void* followTaskData);
+    void FmSceneConstraintSolve(FmScene* scene, TLTaskFuncCallback followTaskFunc, void* followTaskData);
 
 #if FM_ASYNC_THREADING
     // To manually control synchronization of scene update, must register a postUpdateSceneCallback and postUpdateSceneData, 

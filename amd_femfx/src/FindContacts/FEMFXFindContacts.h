@@ -27,7 +27,7 @@ THE SOFTWARE.
 #include "FEMFXCommonInternal.h"
 #include "FEMFXCollisionPairData.h"
 #include "FEMFXTetMesh.h"
-#include "FEMFXAsyncThreading.h"
+#include "FEMFXThreading.h"
 
 namespace AMD
 {
@@ -39,7 +39,7 @@ namespace AMD
     struct FmScene;
     struct FmContactReductionInputs;
 
-    class FmTaskDataFindContacts : public FmAsyncTaskData
+    class FmTaskDataFindContacts : public TLTaskDataBase
     {
     public:
         FM_CLASS_NEW_DELETE(FmTaskDataFindContacts)
@@ -59,6 +59,8 @@ namespace AMD
         bool collideRigidBodiesWithPlanes;
         bool testWithSleepingObjects;
 
+        TLTask postFindContactsTask;
+
         FmTaskDataFindContacts(
             uint inNumBroadPhasePairs,
             FmScene* inScene,
@@ -76,6 +78,8 @@ namespace AMD
             rigidBodyIds = inRigidBodyIds;
             numTetMeshes = inNumTetMeshes;
             numRigidBodies = inNumRigidBodies;
+            numObjects = 0;
+            numTasks = 0;
 
             includeRigidBodiesInBroadPhase = inIncludeRigidBodiesInBroadPhase;
             collideRigidBodiesWithPlanes = inCollideRigidBodiesWithPlanes;

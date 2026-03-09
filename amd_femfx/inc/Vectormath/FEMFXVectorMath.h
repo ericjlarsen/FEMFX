@@ -33,28 +33,68 @@ THE SOFTWARE.
 #include <float.h>
 
 // API derived from Sony Vectormath released with Bullet.
-// Adds public element access and mul() instead of operator* for more similarity with HLSL.
 // SSE version includes unions for element access.
 #define _VECTORMATH_DEBUG
 #include "vectormath_aos.h"        // scalar math implementation
+
+#if defined(_MSC_VER)
+#define FM_SIMD_ENABLED 1
+#else
+// TODO
+#define FM_SIMD_ENABLED 0
+#endif
+
+#if FM_SIMD_ENABLED
 #include "simd_vectormath_aos.h"   // SIMD implementation of AoS vectors
 #include "soa_vectormath.h"        // SoA vector and matrix types; can template by SoA fundamental type
 #include "soa_float.h"             // SoA fundamental types
 #include "soa_int.h"
 #include "soa_uint.h"
 #include "soa_bool.h"
+#endif
 
 #define FM_NORMALIZE_MAG_SQR_TOL 1.0e-30f
 
-#ifndef FM_FORCE_INLINE 
+#ifndef FM_FORCE_INLINE
+#if defined(_MSC_VER)
 #define FM_FORCE_INLINE __forceinline
+#else
+#define FM_FORCE_INLINE inline
+#endif
+#endif
+
+#if FM_SIMD_ENABLED
+namespace FmVectormath
+{
+    SIMD_VECTORMATH_FORCE_INLINE SimdVector3::SimdVector3(const Vector3& vec)
+    {
+        mVec128 = simd_load3_unaligned_ps(&vec.x);
+    }
+
+    SIMD_VECTORMATH_FORCE_INLINE SimdMatrix3::SimdMatrix3(const Matrix3& mat)
+    {
+        col0 = SimdVector3(mat.col0);
+        col1 = SimdVector3(mat.col1);
+        col2 = SimdVector3(mat.col2);
+    }
+
+    SIMD_VECTORMATH_FORCE_INLINE Vector3::Vector3(const SimdVector3& vec)
+    {
+        simd_store3_unaligned_ps(&x, vec.get128());
+    }
+
+    SIMD_VECTORMATH_FORCE_INLINE Matrix3::Matrix3(const SimdMatrix3& mat)
+    {
+        col0 = Vector3(mat.col0);
+        col1 = Vector3(mat.col1);
+        col2 = Vector3(mat.col2);
+    }
+}
 #endif
 
 namespace AMD
 {
-// Sets default vector math types to the scalar implementation, which currently performs better.
-// However SIMD vector types are still used explicitly in parts of the code.
-#define FM_USE_SCALAR_VECTORMATH 1
+#define FM_USE_SCALAR_VECTORMATH 0 || !FM_SIMD_ENABLED
 
 #if FM_USE_SCALAR_VECTORMATH
     typedef FmVectormath::Vector3        FmVector3;
@@ -74,6 +114,7 @@ namespace AMD
     typedef FmVectormath::SimdTransform3     FmTransform3;
 #endif
 
+#if FM_SIMD_ENABLED
     typedef FmVectormath::SimdVector3    FmSimdVector3;
     typedef FmVectormath::SimdVector4    FmSimdVector4;
     typedef FmVectormath::SimdPoint3     FmSimdPoint3;
@@ -394,73 +435,7 @@ namespace AMD
     }
 #endif
 #endif
-
-    // Init functions added for portability
-    static FM_FORCE_INLINE const FmVector3 FmInitVector3(float val)
-    {
-        FmVector3 result;
-        result.x = val;
-        result.y = val;
-        result.z = val;
-        return result;
-    }
-
-    static FM_FORCE_INLINE const FmVector3 FmInitVector3(float x, float y, float z)
-    {
-        FmVector3 result;
-        result.x = x;
-        result.y = y;
-        result.z = z;
-        return result;
-    }
-
-    static FM_FORCE_INLINE const FmVector4 FmInitVector4(float val)
-    {
-        FmVector4 result;
-        result.x = val;
-        result.y = val;
-        result.z = val;
-        result.w = val;
-        return result;
-    }
-
-    static FM_FORCE_INLINE const FmMatrix3 FmInitMatrix3(float val)
-    {
-        FmMatrix3 result;
-        result.col0 = FmInitVector3(val);
-        result.col1 = FmInitVector3(val);
-        result.col2 = FmInitVector3(val);
-        return result;
-    }
-
-    static FM_FORCE_INLINE const FmMatrix3 FmInitMatrix3(const FmVector3 & col0, const FmVector3 & col1, const FmVector3 & col2)
-    {
-        FmMatrix3 result;
-        result.col0 = col0;
-        result.col1 = col1;
-        result.col2 = col2;
-        return result;
-    }
-
-    static FM_FORCE_INLINE const FmMatrix3 FmInitMatrix3(const FmQuat &quat)
-    {
-        return FmMatrix3(quat);
-    }
-
-    static FM_FORCE_INLINE const FmQuat FmInitQuat(float x, float y, float z, float w)
-    {
-        FmQuat result;
-        result.x = x;
-        result.y = y;
-        result.z = z;
-        result.w = w;
-        return result;
-    }
-
-    static FM_FORCE_INLINE const FmQuat FmInitQuat(const FmMatrix3& rotMat)
-    {
-        return FmQuat(rotMat);
-    }
+#endif // FM_SIMD_ENABLED
 
     static FM_FORCE_INLINE FmVector3 FmNormalize(float* lenSqr, const FmVector3& a)
     {
@@ -480,37 +455,37 @@ namespace AMD
     static FM_FORCE_INLINE FmVector3 FmOrthogonalVector(const FmVector3& v)
     {
         FmVector3 absVec = abs(v);
-        return (absVec.x > absVec.y && absVec.x > absVec.z) ? FmInitVector3(-v.z, 0.0f, v.x) : FmInitVector3(0.0f, v.z, -v.y);
+        return (absVec.x > absVec.y && absVec.x > absVec.z) ? FmVector3(-v.z, 0.0f, v.x) : FmVector3(0.0f, v.z, -v.y);
     }
 
     static FM_FORCE_INLINE FmVector3 FmCrossX(const FmVector3& v)
     {
-        return FmInitVector3(0.0f, -v.z, v.y);
+        return FmVector3(0.0f, -v.z, v.y);
     }
 
     static FM_FORCE_INLINE FmVector3 FmSafeNormalizeCrossX(const FmVector3& v)
     {
-        return FmSafeNormalize(FmCrossX(v), FmInitVector3(0.0f, 1.0f, 0.0f));
+        return FmSafeNormalize(FmCrossX(v), FmVector3(0.0f, 1.0f, 0.0f));
     }
 
     static FM_FORCE_INLINE FmVector3 FmCrossY(const FmVector3& v)
     {
-        return FmInitVector3(v.z, 0.0f, -v.x);
+        return FmVector3(v.z, 0.0f, -v.x);
     }
 
     static FM_FORCE_INLINE FmVector3 FmSafeNormalizeCrossY(const FmVector3& v)
     {
-        return FmSafeNormalize(FmCrossY(v), FmInitVector3(0.0f, 0.0f, 1.0f));
+        return FmSafeNormalize(FmCrossY(v), FmVector3(0.0f, 0.0f, 1.0f));
     }
 
     static FM_FORCE_INLINE FmVector3 FmCrossZ(const FmVector3& v)
     {
-        return FmInitVector3(-v.y, v.x, 0.0f);
+        return FmVector3(-v.y, v.x, 0.0f);
     }
 
     static FM_FORCE_INLINE FmVector3 FmSafeNormalizeCrossZ(const FmVector3& v)
     {
-        return FmSafeNormalize(FmCrossZ(v), FmInitVector3(1.0f, 0.0f, 0.0f));
+        return FmSafeNormalize(FmCrossZ(v), FmVector3(1.0f, 0.0f, 0.0f));
     }
 
     static FM_FORCE_INLINE bool FmIsCloseToParallel(const FmVector3& dir1, const FmVector3& dir2, const float sinAngleThreshold = 0.01f)
@@ -533,35 +508,7 @@ namespace AMD
         return (vec0.x == vec1.x && vec0.y == vec1.y && vec0.z == vec1.z);
     }
 
-    static FM_FORCE_INLINE const FmSimdVector3 FmInitSimdVector3(float val)
-    {
-        return FmSimdVector3(val);
-    }
-
-    static FM_FORCE_INLINE const FmSimdVector3 FmInitSimdVector3(float x, float y, float z)
-    {
-        return FmSimdVector3(x, y, z);
-    }
-
-    static FM_FORCE_INLINE const FmSimdMatrix3 FmInitSimdMatrix3(float val)
-    {
-        FmSimdVector3 vec = FmInitSimdVector3(val);
-        FmSimdMatrix3 result;
-        result.col0 = vec;
-        result.col1 = vec;
-        result.col2 = vec;
-        return result;
-    }
-
-    static FM_FORCE_INLINE const FmSimdMatrix3 FmInitSimdMatrix3(const FmSimdVector3 & col0, const FmSimdVector3 & col1, const FmSimdVector3 & col2)
-    {
-        FmSimdMatrix3 result;
-        result.col0 = col0;
-        result.col1 = col1;
-        result.col2 = col2;
-        return result;
-    }
-
+#if FM_SIMD_ENABLED
 #if FM_USE_SCALAR_VECTORMATH
     static FM_FORCE_INLINE FmSimdVector3 FmNormalize(float* lenSqr, const FmSimdVector3& a)
     {
@@ -581,37 +528,37 @@ namespace AMD
     static FM_FORCE_INLINE FmSimdVector3 FmOrthogonalVector(const FmSimdVector3& v)
     {
         FmSimdVector3 absVec = abs(v);
-        return (absVec.x > absVec.y && absVec.x > absVec.z) ? FmInitSimdVector3(-v.z, 0.0f, v.x) : FmInitSimdVector3(0.0f, v.z, -v.y);
+        return (absVec.x > absVec.y && absVec.x > absVec.z) ? FmSimdVector3(-v.z, 0.0f, v.x) : FmSimdVector3(0.0f, v.z, -v.y);
     }
 
     static FM_FORCE_INLINE FmSimdVector3 FmCrossX(const FmSimdVector3& v)
     {
-        return FmInitSimdVector3(0.0f, -v.z, v.y);
+        return FmSimdVector3(0.0f, -v.z, v.y);
     }
 
     static FM_FORCE_INLINE FmSimdVector3 FmSafeNormalizeCrossX(const FmSimdVector3& v)
     {
-        return FmSafeNormalize(FmCrossX(v), FmInitSimdVector3(0.0f, 1.0f, 0.0f));
+        return FmSafeNormalize(FmCrossX(v), FmSimdVector3(0.0f, 1.0f, 0.0f));
     }
 
     static FM_FORCE_INLINE FmSimdVector3 FmCrossY(const FmSimdVector3& v)
     {
-        return FmInitSimdVector3(v.z, 0.0f, -v.x);
+        return FmSimdVector3(v.z, 0.0f, -v.x);
     }
 
     static FM_FORCE_INLINE FmSimdVector3 FmSafeNormalizeCrossY(const FmSimdVector3& v)
     {
-        return FmSafeNormalize(FmCrossY(v), FmInitSimdVector3(0.0f, 0.0f, 1.0f));
+        return FmSafeNormalize(FmCrossY(v), FmSimdVector3(0.0f, 0.0f, 1.0f));
     }
 
     static FM_FORCE_INLINE FmSimdVector3 FmCrossZ(const FmSimdVector3& v)
     {
-        return FmInitSimdVector3(-v.y, v.x, 0.0f);
+        return FmSimdVector3(-v.y, v.x, 0.0f);
     }
 
     static FM_FORCE_INLINE FmSimdVector3 FmSafeNormalizeCrossZ(const FmSimdVector3& v)
     {
-        return FmSafeNormalize(FmCrossZ(v), FmInitSimdVector3(1.0f, 0.0f, 0.0f));
+        return FmSafeNormalize(FmCrossZ(v), FmSimdVector3(1.0f, 0.0f, 0.0f));
     }
 
     static FM_FORCE_INLINE bool FmIsCloseToParallel(const FmSimdVector3& dir1, const FmSimdVector3& dir2, const float sinAngleThreshold = 0.01f)
@@ -629,70 +576,17 @@ namespace AMD
         return FmSimdVector3(simd_3dot3_ps(mat.col0.get128(), mat.col1.get128(), mat.col2.get128(), vec.get128()));
     }
 #endif
-
-    static FM_FORCE_INLINE FmSimdVector3 FmInitSimdVector3(const FmVector3& vec)
-    {
-        __m128 m = simd_load3_unaligned_ps(&vec.x);
-        return FmSimdVector3(m);
-        //return FmSimdVector3(vec.x, vec.y, vec.z);
-    }
-
-    static FM_FORCE_INLINE FmSimdMatrix3 FmInitSimdMatrix3(const FmMatrix3& mat)
-    {
-        return FmSimdMatrix3(
-            FmInitSimdVector3(mat.col0),
-            FmInitSimdVector3(mat.col1),
-            FmInitSimdVector3(mat.col2));
-    }
-
-    static FM_FORCE_INLINE FmVector3 FmInitVector3(const FmSimdVector3& vec)
-    {
-        FmVector3 result;
-        simd_store3_unaligned_ps(&result.x, vec.mVec128);
-        return result;
-        //return FmInitVector3(vec.x, vec.y, vec.z);
-    }
-
-    static FM_FORCE_INLINE FmMatrix3 FmInitMatrix3(const FmSimdMatrix3& mat)
-    {
-        return FmMatrix3(FmInitVector3(mat.getCol0()), FmInitVector3(mat.getCol1()), FmInitVector3(mat.getCol2()));
-    }
-
-    template<class SoaTypes>
-    static FM_FORCE_INLINE const typename SoaTypes::SoaVector3 FmInitVector3(typename SoaTypes::SoaFloat x, typename SoaTypes::SoaFloat y, typename SoaTypes::SoaFloat z)
-    {
-        typename SoaTypes::SoaVector3 result;
-        result.x = x;
-        result.y = y;
-        result.z = z;
-        return result;
-    }
-
-    template<class SoaTypes>
-    static FM_FORCE_INLINE const typename SoaTypes::SoaMatrix3 FmInitMatrix3(const typename SoaTypes::SoaVector3 & col0, const typename SoaTypes::SoaVector3 & col1, const typename SoaTypes::SoaVector3 & col2)
-    {
-        typename SoaTypes::SoaMatrix3 result;
-        result.col0 = col0;
-        result.col1 = col1;
-        result.col2 = col2;
-        return result;
-    }
-
-    template<class SoaTypes>
-    static FM_FORCE_INLINE const typename SoaTypes::SoaQuat FmInitQuat(const typename SoaTypes::SoaMatrix3 & rotMat)
-    {
-        return SoaTypes::SoaQuat(rotMat);
-    }
+#endif // FM_SIMD_ENABLED
 
     static FM_FORCE_INLINE FmVector3 FmTransposeMul(const FmMatrix3& mat, const FmVector3& vec)
     {
-        return mul(transpose(mat), vec);
+        return transpose(mat) * vec;
     }
 
     static FM_FORCE_INLINE FmQuat FmIntegrateQuat(const FmQuat& quat, const FmVector3& angVel, float dt)
     {
         FmQuat omega = FmQuat(angVel.x, angVel.y, angVel.z, 0.0f);
-        FmQuat quatDot = 0.5f * mul(omega, quat);
+        FmQuat quatDot = 0.5f * omega * quat;
         return normalize(quat + quatDot * dt);
     }
 

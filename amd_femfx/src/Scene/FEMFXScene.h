@@ -38,7 +38,6 @@ namespace AMD
 {
     struct FmConstraintSolverBuffer;
     struct FmThreadTempMemoryBuffer;
-    class FmAsyncTasksProgress;
     struct FmMpcgSolverData;
     struct FmConstraintIsland;
     struct FmSleepingConstraintIsland;
@@ -46,55 +45,54 @@ namespace AMD
     // Structure defining all data for simulation scene
     struct FmScene
     {
-        size_t                     bufferNumBytes;
+        size_t                     bufferNumBytes = 0;
 
         // 64-byte alignment required
-        FmConstraintsBuffer*       constraintsBuffer;          // Pointer to buffer of contacts/constraints and connected component data for scene
-        FmConstraintSolverBuffer*  constraintSolverBuffer;     // Pointer to constraint solver buffers for scene
-        FmThreadTempMemoryBuffer*  threadTempMemoryBuffer;     // Pointer to temporary memory used in finding contacts
+        FmConstraintsBuffer*       constraintsBuffer = nullptr;          // Pointer to buffer of contacts/constraints and connected component data for scene
+        FmConstraintSolverBuffer*  constraintSolverBuffer = nullptr;     // Pointer to constraint solver buffers for scene
+        FmThreadTempMemoryBuffer*  threadTempMemoryBuffer = nullptr;     // Pointer to temporary memory used in finding contacts
 
-        FmTetMeshBuffer**          tetMeshBuffers;             // Array of pointers to FmTetMesh buffers
+        FmTetMeshBuffer**          tetMeshBuffers = nullptr;             // Array of pointers to FmTetMesh buffers
 
-        uint*                      awakeTetMeshIds;            // Ids of awake tet meshes in current simulation step (that are not SIMULATION_DISABLED)
-        uint*                      awakeRigidBodyIds;          // Ids of awake rigid bodies in current simulation step (that are not SIMULATION_DISABLED)
+        uint*                      awakeTetMeshIds = nullptr;            // Ids of awake tet meshes in current simulation step (that are not SIMULATION_DISABLED)
+        uint*                      awakeRigidBodyIds = nullptr;          // Ids of awake rigid bodies in current simulation step (that are not SIMULATION_DISABLED)
 
-        uint*                      sleepingTetMeshIds;         // Ids of sleeping tet meshes in current simulation step (that are not SIMULATION_DISABLED); points into awakeTetMeshIds array
-        uint*                      sleepingRigidBodyIds;       // Ids of sleeping rigid bodies in current simulation step (that are not SIMULATION_DISABLED); points into awakeRigidBodyIds array
+        uint*                      sleepingTetMeshIds = nullptr;         // Ids of sleeping tet meshes in current simulation step (that are not SIMULATION_DISABLED); points into awakeTetMeshIds array
+        uint*                      sleepingRigidBodyIds = nullptr;       // Ids of sleeping rigid bodies in current simulation step (that are not SIMULATION_DISABLED); points into awakeRigidBodyIds array
 
-        FmTetMesh**                tetMeshPtrFromId;           // Map from FmTetMesh::objectId to tet mesh pointer
-        uint*                      tetMeshIdxFromId;           // Map from FmTetMesh::objectId to index in awake ids list
-        uint*                      rigidBodyIdxFromId;         // Map from FmRigidBody::objectId to index in awake ids list
+        FmTetMesh**                tetMeshPtrFromId = nullptr;           // Map from FmTetMesh::objectId to tet mesh pointer
+        uint*                      tetMeshIdxFromId = nullptr;           // Map from FmTetMesh::objectId to index in awake ids list
+        uint*                      rigidBodyIdxFromId = nullptr;         // Map from FmRigidBody::objectId to index in awake ids list
 
-        FmFreeIds                  freeTetMeshIds;             // Array of free mesh ids
-        FmFreeIds                  freeRigidBodyIds;           // Array of free rigid body ids
+        FmFreeIds                  freeTetMeshIds;                       // Array of free mesh ids
+        FmFreeIds                  freeRigidBodyIds;                     // Array of free rigid body ids
 
-        FmRigidBody**              rigidBodies;                // Array of pointers to rigid bodies
+        FmRigidBody**              rigidBodies = nullptr;                // Array of pointers to rigid bodies
 
-        uint                       numRigidBodySlots;          // Number of rigid body slots used, some of which may be marked deleted
-        uint                       numAwakeRigidBodies;        // Number of awake rigid bodies simulated in current step
-        uint                       numAwakenedRigidBodies;     // Number of rigid bodies added to ids list on waking
-        uint                       maxRigidBodies;
+        uint                       numRigidBodySlots = 0;                // Number of rigid body slots used, some of which may be marked deleted
+        uint                       numAwakeRigidBodies = 0;              // Number of awake rigid bodies simulated in current step
+        uint                       numAwakenedRigidBodies = 0;           // Number of rigid bodies added to ids list on waking
+        uint                       maxRigidBodies = 0;
 
-        uint                       numTetMeshBufferSlots;      // Number of entries in tetMeshBuffers array (some of which may be NULL if removed)
-        uint                       numAwakeTetMeshes;          // Number of awake tet meshes simulated in current step
-        uint                       numAwakenedTetMeshes;       // Number of tet meshes added to ids list on waking
-        uint                       numTetMeshesTotal;          // Number of tet meshes created in all tet mesh buffers, must not exceed maxTetMeshes
-        uint                       maxTetMeshBuffers;
-        uint                       maxTetMeshes;
-        uint                       maxSceneVerts;
-        uint                       maxTetMeshBufferFeatures;
+        uint                       numTetMeshBufferSlots = 0;            // Number of entries in tetMeshBuffers array (some of which may be nullptr if removed)
+        uint                       numAwakeTetMeshes = 0;                // Number of awake tet meshes simulated in current step
+        uint                       numAwakenedTetMeshes = 0;             // Number of tet meshes added to ids list on waking
+        uint                       numTetMeshesTotal = 0;                // Number of tet meshes created in all tet mesh buffers, must not exceed maxTetMeshes
+        uint                       maxTetMeshBuffers = 0;
+        uint                       maxTetMeshes = 0;
+        uint                       maxSceneVerts = 0;
+        uint                       maxTetMeshBufferFeatures = 0;
 
-        uint                       numSleepingTetMeshes;       // Number of sleeping tet meshes, placed at end awakeTetMeshIds array
-        uint                       numSleepingRigidBodies;     // Number of sleeping rigid bodies, placed at end awakeRigidBodyIds array
+        uint                       numSleepingTetMeshes = 0;             // Number of sleeping tet meshes, placed at end awakeTetMeshIds array
+        uint                       numSleepingRigidBodies = 0;           // Number of sleeping rigid bodies, placed at end awakeRigidBodyIds array
 
         // Scene callbacks
-        FmTaskSystemCallbacks           taskSystemCallbacks;
-        FmTaskFuncCallback              postUpdateSceneCallback;
-        void*                           postUpdateSceneData;
-        FmCallbackSurfaceCollision      surfaceCollisionCallback;   // If non-NULL, is called to add contacts between tet mesh vertcies and collision surface
-        FmCallbackNotifyIslandWaking    islandWakingCallback;
-        FmCallbackNotifyIslandSleeping  islandSleepingCallback;
-        void*                           rigidBodiesUserData;
+        TLTaskFuncCallback              postUpdateSceneCallback = nullptr;
+        void*                           postUpdateSceneData = nullptr;
+        FmCallbackSurfaceCollision      surfaceCollisionCallback = nullptr;   // If non-null, is called to add contacts between tet mesh vertcies and collision surface
+        FmCallbackNotifyIslandWaking    islandWakingCallback = nullptr;
+        FmCallbackNotifyIslandSleeping  islandSleepingCallback = nullptr;
+        void*                           rigidBodiesUserData = nullptr;
 
         FmSceneControlParams       params;
         FmCollisionReport          collisionReport;            // Set buffers and parameters here to enable reporting of contacts
@@ -106,18 +104,18 @@ namespace AMD
     static inline void FmInitScene(FmScene* scene)
     {
         scene->bufferNumBytes = 0;
-        scene->tetMeshBuffers = NULL;
-        scene->awakeTetMeshIds = NULL;
-        scene->awakeRigidBodyIds = NULL;
-        scene->tetMeshPtrFromId = NULL;
-        scene->tetMeshIdxFromId = NULL;
-        scene->rigidBodyIdxFromId = NULL;
+        scene->tetMeshBuffers = nullptr;
+        scene->awakeTetMeshIds = nullptr;
+        scene->awakeRigidBodyIds = nullptr;
+        scene->tetMeshPtrFromId = nullptr;
+        scene->tetMeshIdxFromId = nullptr;
+        scene->rigidBodyIdxFromId = nullptr;
         FmInitFreeIds(&scene->freeTetMeshIds);
         FmInitFreeIds(&scene->freeRigidBodyIds);
-        scene->constraintsBuffer = NULL;
-        scene->constraintSolverBuffer = NULL;
-        scene->threadTempMemoryBuffer = NULL;
-        scene->rigidBodies = NULL;
+        scene->constraintsBuffer = nullptr;
+        scene->constraintSolverBuffer = nullptr;
+        scene->threadTempMemoryBuffer = nullptr;
+        scene->rigidBodies = nullptr;
         scene->numRigidBodySlots = 0;
         scene->numAwakeRigidBodies = 0;
         scene->numAwakenedRigidBodies = 0;
@@ -130,17 +128,16 @@ namespace AMD
         scene->maxTetMeshes = 0;
         scene->maxSceneVerts = 0;
         scene->maxTetMeshBufferFeatures = 0;
-        scene->sleepingTetMeshIds = NULL;
-        scene->sleepingRigidBodyIds = NULL;
+        scene->sleepingTetMeshIds = nullptr;
+        scene->sleepingRigidBodyIds = nullptr;
         scene->numSleepingTetMeshes = 0;
         scene->numSleepingRigidBodies = 0;
-        scene->taskSystemCallbacks = FmTaskSystemCallbacks();
-        scene->postUpdateSceneCallback = NULL;
-        scene->postUpdateSceneData = NULL;
-        scene->surfaceCollisionCallback = NULL;
-        scene->islandWakingCallback = NULL;
-        scene->islandSleepingCallback = NULL;
-        scene->rigidBodiesUserData = NULL;
+        scene->postUpdateSceneCallback = nullptr;
+        scene->postUpdateSceneData = nullptr;
+        scene->surfaceCollisionCallback = nullptr;
+        scene->islandWakingCallback = nullptr;
+        scene->islandSleepingCallback = nullptr;
+        scene->rigidBodiesUserData = nullptr;
         scene->params = FmSceneControlParams();
         scene->collisionReport = FmCollisionReport();
         scene->fractureReport = FmFractureReport();
@@ -191,19 +188,19 @@ namespace AMD
 
     static FM_FORCE_INLINE FmRigidBody* FmGetRigidBodyPtrById(const FmScene& scene, uint objectId)
     {
-        FM_ASSERT(scene.rigidBodies != NULL && (objectId & ~FM_RB_FLAG) < scene.maxRigidBodies);
+        FM_ASSERT(scene.rigidBodies != nullptr && (objectId & ~FM_RB_FLAG) < scene.maxRigidBodies);
         return scene.rigidBodies[objectId & ~FM_RB_FLAG];
     }
 
     static FM_FORCE_INLINE uint FmGetRigidBodyIdxById(const FmScene& scene, uint objectId)
     {
-        FM_ASSERT(scene.rigidBodies != NULL && (objectId & ~FM_RB_FLAG) < scene.maxRigidBodies);
+        FM_ASSERT(scene.rigidBodies != nullptr && (objectId & ~FM_RB_FLAG) < scene.maxRigidBodies);
         return scene.rigidBodyIdxFromId[objectId & ~FM_RB_FLAG];
     }
 
     static FM_FORCE_INLINE void FmSetRigidBodyIdxById(FmScene* scene, uint objectId, uint idx)
     {
-        FM_ASSERT(scene->rigidBodies != NULL && (objectId & ~FM_RB_FLAG) < scene->maxRigidBodies);
+        FM_ASSERT(scene->rigidBodies != nullptr && (objectId & ~FM_RB_FLAG) < scene->maxRigidBodies);
         scene->rigidBodyIdxFromId[objectId & ~FM_RB_FLAG] = idx;
     }
 
@@ -259,13 +256,13 @@ namespace AMD
     // Add a constraint to the scene; Returns an id, or if maximum constraints created, FM_INVALID_ID
     uint FmAddRigidBodyAngleConstraintToScene(FmScene* scene, const FmRigidBodyAngleConstraint& rigidBodyAngleConstraint);
 
-    // Get glue constraint, or NULL if invalid id
+    // Get glue constraint, or nullptr if invalid id
     FmGlueConstraint* FmGetGlueConstraint(const FmScene& scene, uint glueConstraintId);
 
-    // Get plane constraint, or NULL if invalid id
+    // Get plane constraint, or nullptr if invalid id
     FmPlaneConstraint* FmGetPlaneConstraint(const FmScene& scene, uint planeConstraintId);
 
-    // Get rigid body angle constraint, or NULL if invalid id
+    // Get rigid body angle constraint, or nullptr if invalid id
     FmRigidBodyAngleConstraint* FmGetRigidBodyAngleConstraint(const FmScene& scene, uint rigidBodyAngleConstraintId);
 
     // Compute the relative angular velocity of rigid bodies around the hinge axis.

@@ -29,7 +29,7 @@ THE SOFTWARE.
 #include "FEMFXConstraintSolver.h"
 #include "FEMFXConstraintIslands.h"
 #include "FEMFXGsSolver.h"
-#include "FEMFXParallelFor.h"
+#include "FEMFXThreading.h"
 #include "FEMFXPartitioning.h"
 #include "FEMFXConstraintSolveTaskGraph.h"
 #include "FEMFXScene.h"
@@ -259,14 +259,14 @@ namespace AMD
 
             if (kinematic)
             {
-                result[vertOffset + row3] = FmInitSVector3(0.0f);
+                result[vertOffset + row3] = FmSVector3(0.0f);
             }
             else
             {
                 uint rowStart = A.rowStarts[row3];
                 uint rowEnd = A.rowStarts[row3 + 1];
 
-                FmSVector3 rowResult = FmInitSVector3(0.0f);
+                FmSVector3 rowResult = FmSVector3(0.0f);
 
                 FmSMatrix3 diag_row = diag[row3];
 
@@ -280,14 +280,15 @@ namespace AMD
                     uint idx = A.indices[i];
                     FmSVector3 v_idx = v[vertOffset + idx];
 
-                    rowResult -= mul(submat, v_idx);
+                    rowResult -= submat * v_idx;
                 }
 
-                result[vertOffset + row3] = mul(diag_row, rowResult);
+                result[vertOffset + row3] = diag_row * rowResult;
             }
         }
     }
 
+#if !FM_ASYNC_THREADING
     // result = diag * -OffDiag(M) * v
     static inline void FmDiagxNegOffDiagMxV(FmSVector3* result, FmScene* scene, const FmConstraintIsland& constraintIsland, const FmSVector3* v)
     {
@@ -308,14 +309,14 @@ namespace AMD
 
                 if (kinematic)
                 {
-                    result[vertOffset + row3] = FmInitSVector3(0.0f);
+                    result[vertOffset + row3] = FmSVector3(0.0f);
                 }
                 else
                 {
                     uint rowStart = A.rowStarts[row3];
                     uint rowEnd = A.rowStarts[row3 + 1];
 
-                    FmSVector3 rowResult = FmInitSVector3(0.0f);
+                    FmSVector3 rowResult = FmSVector3(0.0f);
 
                     FmSMatrix3 diag_row = diag[row3];
 
@@ -329,14 +330,15 @@ namespace AMD
                         uint idx = A.indices[i];
                         FmSVector3 v_idx = v[vertOffset + idx];
 
-                        rowResult -= mul(submat, v_idx);
+                        rowResult -= submat * v_idx;
                     }
 
-                    result[vertOffset + row3] = mul(diag_row, rowResult);
+                    result[vertOffset + row3] = diag_row * rowResult;
                 }
             }
         }
     }
+#endif
 
     // Solve one constraint (block) row in Projected Gauss-Seidel iteration.
     // Update error norm used in convergence test: inf norm of solution change.
@@ -347,7 +349,6 @@ namespace AMD
         const FmConstraintJacobian& FM_RESTRICT J,
         const FmSVector3* FM_RESTRICT pgsRhs,
         const FmSMatrix3* FM_RESTRICT DAinv,
-        const FmSVector3* FM_RESTRICT totalLambda3,
         float omega,
         uint passIdx,
         uint rowIdx)
@@ -362,9 +363,6 @@ namespace AMD
         FmSVector3 rowResult = pgsRhs[rowIdx];
         FmSVector3 lambda3Orig = lambda3[rowIdx];
 
-        // Get current total lambda from previous outer iterations, and add with current lambda before projection
-        FmSVector3 totLambda3 = (totalLambda3 == NULL) ? FmInitSVector3(0.0f) : totalLambda3[rowIdx];
-
         FmSMatrix3* jacobianSubmats = (FmSMatrix3*)((uint8_t*)J.submats + constraintParams.jacobianSubmatsOffset);
         uint* jacobianIndices = (uint*)((uint8_t*)J.indices + constraintParams.jacobianIndicesOffset);
         uint rowSize = constraintParams.jacobiansNumStates;
@@ -376,7 +374,7 @@ namespace AMD
             FmSMatrix3 DAinv_idx = DAinv[idx];
             FmSVector3 JTlambda_idx = JTlambda[idx];
 
-            rowResult -= mul(submat, mul(DAinv_idx, JTlambda_idx));
+            rowResult -= submat * (DAinv_idx * JTlambda_idx);
         }
 
         // rowResult is now c - B_lambda3 * lambda
@@ -385,8 +383,6 @@ namespace AMD
 
         // Under-relaxation for stability benefit
         rowResult = (1.0f - omega) * lambda3Orig + omega * rowResult;
-
-        rowResult += totLambda3;
 
         float lambda = rowResult.x;
         float gamma1 = rowResult.y;
@@ -438,7 +434,7 @@ namespace AMD
             }
         }
 
-        FmSVector3 lambda3Update = FmInitSVector3(lambda, gamma1, gamma2) - totLambda3;
+        FmSVector3 lambda3Update = FmSVector3(lambda, gamma1, gamma2);
 
         // Update J^T * lambda given change in lambda values
         FmSVector3 deltaLambda = lambda3Update - lambda3Orig;
@@ -461,7 +457,7 @@ namespace AMD
 #else
                 FmSMatrix3 JTSubmat = transpose(rowSubmat);
 
-                JTlambda[outputRowIdx] += mul(JTSubmat, deltaLambda);
+                JTlambda[outputRowIdx] += JTSubmat * deltaLambda;
 #endif
             }
 
@@ -472,7 +468,7 @@ namespace AMD
 
     // Execute one iteration of Projected Gauss-Seidel.
     // Return error norm used in convergence test: inf norm of solution change.
-    static inline void FmPgsIteration3(FmSolverIterationNorms* resultNorms, FmConstraintSolverData* constraintSolverData, uint passIdx, uint outerIteration)
+    static inline void FmPgsIteration3(FmSolverIterationNorms* resultNorms, FmConstraintSolverData* constraintSolverData, uint* indices, uint numRows, uint passIdx)
     {
         FmSVector3* lambda3 = constraintSolverData->lambda3;
         FmSVector3* JTlambda = constraintSolverData->JTlambda;
@@ -480,31 +476,6 @@ namespace AMD
         const FmSVector3* pgsRhs = constraintSolverData->pgsRhs;
         const FmConstraintSolverControlParams& controlParams = *constraintSolverData->currentControlParams;
         const FmSMatrix3* DAinv = constraintSolverData->GetBlockDiagInv(passIdx);
-        const FmSVector3* totalLambda = (passIdx == 0 && outerIteration > 0) ? constraintSolverData->lambda3Temp : NULL; // not initialized until first iteration
-        float omega = controlParams.passParams[passIdx].kPgsRelaxationOmega;
-
-        uint numRows = constraintSolverData->numConstraints;
-
-        FmSolverIterationNorms norms;
-        norms.Zero();
-
-        for (uint rowIdx = 0; rowIdx < numRows; rowIdx++)
-        {
-            FmPgsIteration3Row(&norms, lambda3, JTlambda, J, pgsRhs, DAinv, totalLambda, omega, passIdx, rowIdx);
-        }
-
-        *resultNorms = norms;
-    }
-
-    static inline void FmPgsIteration3(FmSolverIterationNorms* resultNorms, FmConstraintSolverData* constraintSolverData, uint* indices, uint numRows, uint passIdx, uint outerIteration)
-    {
-        FmSVector3* lambda3 = constraintSolverData->lambda3;
-        FmSVector3* JTlambda = constraintSolverData->JTlambda;
-        const FmConstraintJacobian& J = constraintSolverData->J;
-        const FmSVector3* pgsRhs = constraintSolverData->pgsRhs;
-        const FmConstraintSolverControlParams& controlParams = *constraintSolverData->currentControlParams;
-        const FmSMatrix3* DAinv = constraintSolverData->GetBlockDiagInv(passIdx);
-        const FmSVector3* totalLambda = (passIdx == 0 && outerIteration > 0) ? constraintSolverData->lambda3Temp : NULL; // not initialized until first iteration
         float omega = controlParams.passParams[passIdx].kPgsRelaxationOmega;
 
         FmSolverIterationNorms norms;
@@ -514,13 +485,13 @@ namespace AMD
         {
             uint rowIdx = indices[indexId];
 
-            FmPgsIteration3Row(&norms, lambda3, JTlambda, J, pgsRhs, DAinv, totalLambda, omega, passIdx, rowIdx);
+            FmPgsIteration3Row(&norms, lambda3, JTlambda, J, pgsRhs, DAinv, omega, passIdx, rowIdx);
         }
 
         *resultNorms = norms;
     }
 
-    static inline void FmPgsIteration3Reverse(FmSolverIterationNorms* resultNorms, FmConstraintSolverData* constraintSolverData, uint passIdx, uint outerIteration)
+    static inline void FmPgsIteration3Reverse(FmSolverIterationNorms* resultNorms, FmConstraintSolverData* constraintSolverData, uint* indices, uint numRows, uint passIdx)
     {
         FmSVector3* lambda3 = constraintSolverData->lambda3;
         FmSVector3* JTlambda = constraintSolverData->JTlambda;
@@ -528,31 +499,6 @@ namespace AMD
         const FmSVector3* pgsRhs = constraintSolverData->pgsRhs;
         const FmConstraintSolverControlParams& controlParams = *constraintSolverData->currentControlParams;
         const FmSMatrix3* DAinv = constraintSolverData->GetBlockDiagInv(passIdx);
-        const FmSVector3* totalLambda = (passIdx == FM_CG_PASS_IDX && outerIteration > 0) ? constraintSolverData->lambda3Temp : NULL; // not initialized until first iteration
-        float omega = controlParams.passParams[passIdx].kPgsRelaxationOmega;
-
-        uint numRows = constraintSolverData->numConstraints;
-
-        FmSolverIterationNorms norms;
-        norms.Zero();
-
-        for (int rowIdx = (int)numRows - 1; rowIdx >= 0; rowIdx--)
-        {
-            FmPgsIteration3Row(&norms, lambda3, JTlambda, J, pgsRhs, DAinv, totalLambda, omega, passIdx, rowIdx);
-        }
-
-        *resultNorms = norms;
-    }
-
-    static inline void FmPgsIteration3Reverse(FmSolverIterationNorms* resultNorms, FmConstraintSolverData* constraintSolverData, uint* indices, uint numRows, uint passIdx, uint outerIteration)
-    {
-        FmSVector3* lambda3 = constraintSolverData->lambda3;
-        FmSVector3* JTlambda = constraintSolverData->JTlambda;
-        const FmConstraintJacobian& J = constraintSolverData->J;
-        const FmSVector3* pgsRhs = constraintSolverData->pgsRhs;
-        const FmConstraintSolverControlParams& controlParams = *constraintSolverData->currentControlParams;
-        const FmSMatrix3* DAinv = constraintSolverData->GetBlockDiagInv(passIdx);
-        const FmSVector3* totalLambda = (passIdx == FM_CG_PASS_IDX && outerIteration > 0) ? constraintSolverData->lambda3Temp : NULL;
         float omega = controlParams.passParams[passIdx].kPgsRelaxationOmega;
 
         FmSolverIterationNorms norms;
@@ -562,7 +508,7 @@ namespace AMD
         {
             uint rowIdx = indices[indexId];
 
-            FmPgsIteration3Row(&norms, lambda3, JTlambda, J, pgsRhs, DAinv, totalLambda, omega, passIdx, rowIdx);
+            FmPgsIteration3Row(&norms, lambda3, JTlambda, J, pgsRhs, DAinv, omega, passIdx, rowIdx);
         }
 
         *resultNorms = norms;
@@ -648,11 +594,11 @@ namespace AMD
 
             uint stateIdx = numIslandTetMeshVerts + islandRbIdx * 2;
 
-            constraintSolverData->deltaVel[stateIdx] = FmInitSVector3(rigidBody.deltaVel);
-            constraintSolverData->deltaVel[stateIdx + 1] = FmInitSVector3(rigidBody.deltaAngVel);
+            constraintSolverData->deltaVel[stateIdx] = FmSVector3(rigidBody.deltaVel);
+            constraintSolverData->deltaVel[stateIdx + 1] = FmSVector3(rigidBody.deltaAngVel);
 
-            FmSVector3 JTlambda0 = FmInitSVector3(rigidBody.deltaVel * rigidBody.mass);
-            FmSVector3 JTlambda1 = FmInitSVector3(mul(rigidBody.worldInertiaTensor, rigidBody.deltaAngVel));
+            FmSVector3 JTlambda0 = FmSVector3(rigidBody.deltaVel * rigidBody.mass);
+            FmSVector3 JTlambda1 = FmSVector3(rigidBody.worldInertiaTensor * rigidBody.deltaAngVel);
 
             constraintSolverData->JTlambda[stateIdx] = JTlambda0;
             constraintSolverData->JTlambda[stateIdx + 1] = JTlambda1;
@@ -676,12 +622,12 @@ namespace AMD
             uint stateIdx = numIslandTetMeshVerts + islandRbIdx * 2;
 
 #if FM_CONSTRAINT_STABILIZATION_SOLVE
-            constraintSolverData->deltaPos[stateIdx] = FmInitSVector3(rigidBody.deltaPos);
-            constraintSolverData->deltaPos[stateIdx + 1] = FmInitSVector3(rigidBody.deltaAngPos);
+            constraintSolverData->deltaPos[stateIdx] = FmSVector3(rigidBody.deltaPos);
+            constraintSolverData->deltaPos[stateIdx + 1] = FmSVector3(rigidBody.deltaAngPos);
 #endif
 
-            FmSVector3 JTlambda0 = FmInitSVector3(rigidBody.deltaPos * rigidBody.mass);
-            FmSVector3 JTlambda1 = FmInitSVector3(mul(rigidBody.worldInertiaTensor, rigidBody.deltaAngPos));
+            FmSVector3 JTlambda0 = FmSVector3(rigidBody.deltaPos * rigidBody.mass);
+            FmSVector3 JTlambda1 = FmSVector3(rigidBody.worldInertiaTensor * rigidBody.deltaAngPos);
 
             constraintSolverData->JTlambda[stateIdx] = JTlambda0;
             constraintSolverData->JTlambda[stateIdx + 1] = JTlambda1;
@@ -704,8 +650,8 @@ namespace AMD
 
             uint stateIdx = FmGetRigidBodySolverOffsetById(*scene->constraintSolverBuffer, rbId);
 
-            rigidBody.deltaVel = FmInitVector3(constraintSolverData->deltaVel[stateIdx]);
-            rigidBody.deltaAngVel = FmInitVector3(constraintSolverData->deltaVel[stateIdx + 1]);
+            rigidBody.deltaVel = FmVector3(constraintSolverData->deltaVel[stateIdx]);
+            rigidBody.deltaAngVel = FmVector3(constraintSolverData->deltaVel[stateIdx + 1]);
         }
     }
 
@@ -726,8 +672,8 @@ namespace AMD
 
             uint stateIdx = FmGetRigidBodySolverOffsetById(*scene->constraintSolverBuffer, rbId);
 
-            rigidBody.deltaPos = FmInitVector3(constraintSolverData->deltaPos[stateIdx]);
-            rigidBody.deltaAngPos = FmInitVector3(constraintSolverData->deltaPos[stateIdx + 1]);
+            rigidBody.deltaPos = FmVector3(constraintSolverData->deltaPos[stateIdx]);
+            rigidBody.deltaAngPos = FmVector3(constraintSolverData->deltaPos[stateIdx + 1]);
         }
     }
 #endif
@@ -793,7 +739,7 @@ namespace AMD
     }
 
 #if FM_CONSTRAINT_ISLAND_DEPENDENCY_GRAPH
-    class FmTaskDataPartitionGsIterationOrRbResponse : public FmAsyncTaskData
+    class FmTaskDataPartitionGsIterationOrRbResponse : public TLTaskDataBase
     {
     public:
         FmScene* scene;
@@ -834,7 +780,7 @@ namespace AMD
     void FmTaskFuncPartitionGsIteration(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(GS_ITERATION_WORK);
+        FM_TRACE_SCOPED_EVENT("GsIterationWork");
 
         FmTaskDataPartitionGsIterationOrRbResponse* taskData = (FmTaskDataPartitionGsIterationOrRbResponse*)inTaskData;
         FmScene* scene = taskData->scene;
@@ -879,8 +825,6 @@ namespace AMD
                 FmDiagxNegOffDiagMxV(pgsDeltaVelTerm, meshData, deltaVec);
             }
         }
-
-        taskData->progress.TasksAreFinished(endIdx - beginIdx, taskData);
     }
 
     // For rigid bodies, compute delta pos or delta vel from JTlambda.
@@ -889,6 +833,9 @@ namespace AMD
     {
         (void)inTaskEndIndex;
         FmTaskDataPartitionGsIterationOrRbResponse* taskData = (FmTaskDataPartitionGsIterationOrRbResponse*)inTaskData;
+
+        if (taskData->numRigidBodies == 0)
+            return;
 
         uint taskIdx = (uint)inTaskBeginIndex;
 
@@ -915,14 +862,12 @@ namespace AMD
 
             uint stateOffset = FmGetRigidBodySolverOffsetById(constraintSolverBuffer, objectId);
 
-            deltaVec[stateOffset] = mul(constraintSolverData->DAinv[stateOffset], constraintSolverData->JTlambda[stateOffset]);
-            deltaVec[stateOffset + 1] = mul(constraintSolverData->DAinv[stateOffset + 1], constraintSolverData->JTlambda[stateOffset + 1]);
+            deltaVec[stateOffset] = constraintSolverData->DAinv[stateOffset] * constraintSolverData->JTlambda[stateOffset];
+            deltaVec[stateOffset + 1] = constraintSolverData->DAinv[stateOffset + 1] * constraintSolverData->JTlambda[stateOffset + 1];
         }
-
-        taskData->progress.TaskIsFinished(taskData);
     }
 
-    int32_t FmBatchingFuncPartitionGsIterationOrRbResponse(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    int32_t FmGrainFuncPartitionGsIterationOrRbResponse(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         FmTaskDataPartitionGsIterationOrRbResponse* taskData = (FmTaskDataPartitionGsIterationOrRbResponse*)inTaskData;
 
@@ -957,7 +902,7 @@ namespace AMD
         }
     }
 
-    FM_WRAPPED_TASK_FUNC(FmTaskFuncPartitionGsIterationOrRbResponse)
+    void FmTaskFuncPartitionGsIterationOrRbResponse(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         (void)inTaskEndIndex;
         FmTaskDataPartitionGsIterationOrRbResponse* taskData = (FmTaskDataPartitionGsIterationOrRbResponse*)inTaskData;
@@ -978,7 +923,7 @@ namespace AMD
         }
     }
 
-    class FmTaskDataPartitionRunMpcgOrRbResponse : public FmAsyncTaskData
+    class FmTaskDataPartitionRunMpcgOrRbResponse : public TLTaskDataBase
     {
     public:
         FmScene* scene;
@@ -1009,7 +954,7 @@ namespace AMD
         }
     };
 
-    int32_t FmBatchingFuncPartitionRunMpcgOrRbResponse(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    int32_t FmGrainFuncPartitionRunMpcgOrRbResponse(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         FmTaskDataPartitionRunMpcgOrRbResponse* taskData = (FmTaskDataPartitionRunMpcgOrRbResponse*)inTaskData;
 
@@ -1046,8 +991,7 @@ namespace AMD
 
     void FmTaskFuncPartitionRunMpcg(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
-        (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(MPCG_WORK);
+        FM_TRACE_SCOPED_EVENT("MpcgWork");
 
         FmTaskDataPartitionRunMpcgOrRbResponse* taskData = (FmTaskDataPartitionRunMpcgOrRbResponse*)inTaskData;
         FmScene* scene = taskData->scene;
@@ -1078,7 +1022,7 @@ namespace AMD
 
             FmSVector3* deltavec = &islandDeltaVec[meshData.solverStateOffset];
 
-            uint workerIndex = scene->taskSystemCallbacks.GetTaskSystemWorkerIndex();
+            uint workerIndex = TLGetTaskSystemThreadIndex();
             uint8_t* tempBuffer = scene->threadTempMemoryBuffer->buffers[workerIndex];
             uint8_t* tempBufferEnd = tempBuffer + scene->threadTempMemoryBuffer->numBytesPerBuffer;
 
@@ -1098,17 +1042,18 @@ namespace AMD
             }
             else
             {
-                FmVfill(&constraintSolverData->JTlambda[meshData.solverStateOffset], FmInitSVector3(0.0f), meshData.A.numRows);
+                FmVfill(&constraintSolverData->JTlambda[meshData.solverStateOffset], FmSVector3(0.0f), meshData.A.numRows);
             }
         }
-
-        taskData->progress.TasksAreFinished(endIdx - beginIdx, taskData);
     }
 
     void FmTaskFuncPartitionCgPassRbResponse(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         (void)inTaskEndIndex;
         FmTaskDataPartitionRunMpcgOrRbResponse* taskData = (FmTaskDataPartitionRunMpcgOrRbResponse*)inTaskData;
+
+        if (taskData->numRigidBodies == 0)
+            return;
 
         uint taskIdx = (uint)inTaskBeginIndex;
 
@@ -1140,8 +1085,8 @@ namespace AMD
 
             if (isFirstOuterIteration)
             {
-                totalJTlambda0 = FmInitSVector3(0.0f);
-                totalJTlambda1 = FmInitSVector3(0.0f);
+                totalJTlambda0 = FmSVector3(0.0f);
+                totalJTlambda1 = FmSVector3(0.0f);
             }
             else
             {
@@ -1152,8 +1097,8 @@ namespace AMD
             totalJTlambda0 += constraintSolverData->JTlambda[stateOffset];
             totalJTlambda1 += constraintSolverData->JTlambda[stateOffset + 1];
 
-            deltaVec[stateOffset] = mul(constraintSolverData->DAinv[stateOffset], totalJTlambda0);
-            deltaVec[stateOffset + 1] = mul(constraintSolverData->DAinv[stateOffset + 1], totalJTlambda1);
+            deltaVec[stateOffset] = constraintSolverData->DAinv[stateOffset] * totalJTlambda0;
+            deltaVec[stateOffset + 1] = constraintSolverData->DAinv[stateOffset + 1] * totalJTlambda1;
 
             if (isLastOuterIteration)
             {
@@ -1165,15 +1110,13 @@ namespace AMD
                 constraintSolverData->velTemp[stateOffset] = totalJTlambda0;
                 constraintSolverData->velTemp[stateOffset + 1] = totalJTlambda1;
 
-                constraintSolverData->JTlambda[stateOffset] = FmInitSVector3(0.0f);
-                constraintSolverData->JTlambda[stateOffset + 1] = FmInitSVector3(0.0f);
+                constraintSolverData->JTlambda[stateOffset] = FmSVector3(0.0f);
+                constraintSolverData->JTlambda[stateOffset + 1] = FmSVector3(0.0f);
             }
         }
-
-        taskData->progress.TaskIsFinished(taskData);
     }
 
-    FM_WRAPPED_TASK_FUNC(FmTaskFuncPartitionRunMpcgOrRbResponse)
+    void FmTaskFuncPartitionRunMpcgOrRbResponse(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         (void)inTaskEndIndex;
         FmTaskDataPartitionRunMpcgOrRbResponse* taskData = (FmTaskDataPartitionRunMpcgOrRbResponse*)inTaskData;
@@ -1194,12 +1137,12 @@ namespace AMD
         }
     }
 
-    FM_WRAPPED_TASK_FUNC(FmNodeTaskFuncProcessPartitionPairConstraints)
+    FM_NODE_TASK(FmNodeTaskFuncProcessPartitionPairConstraints)
     {
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(PGS_ITERATION_WORK);
+        FM_TRACE_SCOPED_EVENT("PgsIterationWork");
 
-        FmTaskGraphNode* node = (FmTaskGraphNode*)inTaskData;
+        TLTaskGraphNode* node = (TLTaskGraphNode*)inTaskData;
         FmConstraintSolveTaskGraph* taskGraph = (FmConstraintSolveTaskGraph*)node->GetGraph();
         FmTaskGraphSolveData* taskData = &taskGraph->solveData;
 
@@ -1261,18 +1204,16 @@ namespace AMD
 
         if (forwardDirection)
         {
-            FmPgsIteration3(&partitionPair.norms, constraintSolverData, partitionPair.constraintIndices, partitionPair.numConstraints, passIdx, nodeData.outerIteration);
+            FmPgsIteration3(&partitionPair.norms, constraintSolverData, partitionPair.constraintIndices, partitionPair.numConstraints, passIdx);
         }
         else
         {
-            FmPgsIteration3Reverse(&partitionPair.norms, constraintSolverData, partitionPair.constraintIndices, partitionPair.numConstraints, passIdx, nodeData.outerIteration);
+            FmPgsIteration3Reverse(&partitionPair.norms, constraintSolverData, partitionPair.constraintIndices, partitionPair.numConstraints, passIdx);
         }
 
-        FmTaskGraphNode* nextNode = NULL;
         if (completedInnerIterations)
         {
             // Increase or reset outer iteration
-            bool isFirstOuterIteration = outerIteration == 0;
             bool isLastOuterIteration = outerIteration + 1 >= maxOuterIterations;
 
             if (isLastOuterIteration)
@@ -1291,53 +1232,29 @@ namespace AMD
 
             if (passIdx == FM_CG_PASS_IDX)
             {
-                // End of inner iterations, reset lambda for next outer iteration
-                for (uint constraintIdx = 0; constraintIdx < partitionPair.numConstraints; constraintIdx++)
-                {
-                    uint rowIdx = partitionPair.constraintIndices[constraintIdx];
-
-                    FmSVector3 lambda3Sum = isFirstOuterIteration ? FmInitSVector3(0.0f) : constraintSolverData->lambda3Temp[rowIdx];
-
-                    lambda3Sum += constraintSolverData->lambda3[rowIdx];
-
-                    if (isLastOuterIteration)
-                    {
-                        // Set lambda to the accumulated sum over all outer iterations
-                        constraintSolverData->lambda3[rowIdx] = lambda3Sum;
-                    }
-                    else
-                    {
-                        // Store lambda sum and reset lambda to zero
-                        constraintSolverData->lambda3Temp[rowIdx] = lambda3Sum;
-                        constraintSolverData->lambda3[rowIdx] = FmInitSVector3(0.0f);
-                    }
-                }
-
                 // Enable dependent MPCG solves
-                FmPartitionMpcgTaskMessages(taskGraph, pairIdx, outerIteration, &nextNode);
+                FmPartitionMpcgTaskMessages(taskGraph, pairIdx, outerIteration);
             }
             else
             {
                 // Enable dependent GS iterations
-                FmPartitionGsTaskMessages(taskGraph, pairIdx, outerIteration, &nextNode);
+                FmPartitionGsTaskMessages(taskGraph, pairIdx, outerIteration);
             }
         }
         else
         {
-            FmNextIterationMessages(taskGraph, pairIdx, innerIteration, &nextNode);
+            FmNextIterationMessages(taskGraph, pairIdx, innerIteration);
         }
+    }
 
-        node->TaskIsFinished(0, &nextNode);
-    };
-
-    FM_WRAPPED_TASK_FUNC(FmNodeTaskFuncExternalPgsIteration)
+    FM_NODE_TASK(FmNodeTaskFuncExternalPgsIteration)
     {
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(EXTERNAL_PGS_ITERATION_WORK);
+        FM_TRACE_SCOPED_EVENT("ExternalPgsIterationWork");
 
         uint pairIdx = (uint)inTaskBeginIndex;
 
-        FmTaskGraphNode* node = (FmTaskGraphNode*)inTaskData;
+        TLTaskGraphNode* node = (TLTaskGraphNode*)inTaskData;
         FmConstraintSolveTaskGraph* taskGraph = (FmConstraintSolveTaskGraph*)node->GetGraph();
         FmTaskGraphSolveData* taskData = &taskGraph->solveData;
 
@@ -1384,7 +1301,6 @@ namespace AMD
 
         FmExternalPgsIteration(*taskData);
 
-        FmTaskGraphNode* nextNode = NULL;
         if (completedInnerIterations)
         {
             // Increase or reset outer iteration
@@ -1407,22 +1323,21 @@ namespace AMD
         }
         else
         {
-            FmNextIterationMessages(taskGraph, pairIdx, innerIteration, &nextNode);
+            FmNextIterationMessages(taskGraph, pairIdx, innerIteration);
         }
-
-        node->TaskIsFinished(0, &nextNode);
     }
 
 #if FM_ASYNC_THREADING
     void FmNodeTaskFuncPartitionRunMpcgFinish(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
 #endif
 
-    FM_WRAPPED_TASK_FUNC(FmNodeTaskFuncProcessPartitionMpcg)
+    // Declared with FM_ASYNC_TASK not FM_NODE_TASK because second task takes care of marking the node complete
+    FM_ASYNC_TASK(FmNodeTaskFuncProcessPartitionMpcg)
     {
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(MPCG_WORK);
+        FM_TRACE_SCOPED_EVENT("MpcgWork");
 
-        FmTaskGraphNode* node = (FmTaskGraphNode*)inTaskData;
+        TLTaskGraphNode* node = (TLTaskGraphNode*)inTaskData;
         FmConstraintSolveTaskGraph* taskGraph = (FmConstraintSolveTaskGraph*)node->GetGraph();
         FmTaskGraphSolveData* taskData = &taskGraph->solveData;
 
@@ -1448,62 +1363,56 @@ namespace AMD
         bool isLastIteration = iterationParams.outerIsLastIteration;
 #endif
 
-        uint numTasksToRun = numTetMeshes + numRigidBodyTasks;
+        uint numItemsToRun = numTetMeshes + numRigidBodyTasks;
 
 #if FM_ASYNC_THREADING
-        if (numTasksToRun > 0)
+        if (numItemsToRun > 0)
         {
             FmTaskDataPartitionRunMpcgOrRbResponse* runData = new FmTaskDataPartitionRunMpcgOrRbResponse(scene, constraintSolverData, constraintIsland, partitionIdx, numTetMeshes, numRigidBodies, numRigidBodyTasks, isFirstIteration, isLastIteration);
 
-            runData->progress.Init(numTasksToRun, FmNodeTaskFuncPartitionRunMpcgFinish, inTaskData, inTaskBeginIndex, inTaskBeginIndex + 1);
+            TLTask followTask(FmNodeTaskFuncPartitionRunMpcgFinish, inTaskData, inTaskBeginIndex, inTaskBeginIndex + 1);
 
-            FmParallelForAsync("PartitionRunMpcg", FM_TASK_AND_WRAPPED_TASK_ARGS(FmTaskFuncPartitionRunMpcgOrRbResponse), 
-                FmBatchingFuncPartitionRunMpcgOrRbResponse,
-                runData, numTasksToRun, scene->taskSystemCallbacks.SubmitAsyncTask, scene->params.numThreads);
+            TLParallelForAsync(FmTaskFuncPartitionRunMpcgOrRbResponse,
+                runData, 0, numItemsToRun, TLParallelForOptions::GrainFunc(FmGrainFuncPartitionRunMpcgOrRbResponse), followTask, true);
         }
         else
         {
-            FmSetNextTask(FmNodeTaskFuncPartitionRunMpcgFinish, inTaskData, inTaskBeginIndex, inTaskBeginIndex + 1);
+            TLSetNextTask(FmNodeTaskFuncPartitionRunMpcgFinish, inTaskData, inTaskBeginIndex, inTaskBeginIndex + 1);
         }
 #else
         FmTaskDataPartitionRunMpcgOrRbResponse runData(scene, constraintSolverData, constraintIsland, partitionIdx, numTetMeshes, numRigidBodies, numRigidBodyTasks, isFirstIteration, isLastIteration);
 
-        scene->taskSystemCallbacks.ParallelFor("PartitionRunMpcg", FmTaskFuncPartitionRunMpcg, &runData, (int)partition.numTetMeshes);
+        TLParallelFor(FmTaskFuncPartitionRunMpcgOrRbResponse, &runData, 0, numItemsToRun,
+            TLParallelForOptions::GrainFunc(FmGrainFuncPartitionRunMpcgOrRbResponse));
 
-        node->TaskIsFinished(0);
+        node->Finished(0);
 #endif
     }
 
-    FM_WRAPPED_TASK_FUNC(FmNodeTaskFuncPartitionRunMpcgFinish)
+    FM_NODE_TASK(FmNodeTaskFuncPartitionRunMpcgFinish)
     {
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(MPCG_WORK);
-
-        (void)inTaskBeginIndex;
-
-        FmTaskGraphNode* node = (FmTaskGraphNode*)inTaskData;
+        FM_TRACE_SCOPED_EVENT("MpcgWork");
 
         // Signal to nodes in next outer iteration, which may be the start of the next (GS-based) pass.
         uint partitionId = (uint)inTaskBeginIndex;
 
+        TLTaskGraphNode* node = (TLTaskGraphNode*)inTaskData;
         FmConstraintSolveTaskGraph* taskGraph = (FmConstraintSolveTaskGraph*)node->GetGraph();
-        FmTaskGraphNode* nextNode = NULL;
 
-        FmNextOuterIterationMessages(taskGraph, partitionId, &nextNode);
-
-        node->TaskIsFinished(0, &nextNode);
+        FmNextOuterIterationMessages(taskGraph, partitionId);
     }
 
 #if FM_ASYNC_THREADING
     void FmNodeTaskFuncPartitionGsIterationFinish(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
 #endif
 
-    FM_WRAPPED_TASK_FUNC(FmNodeTaskFuncProcessPartitionGsIterationOrRbResponse)
+    FM_ASYNC_TASK(FmNodeTaskFuncProcessPartitionGsIterationOrRbResponse)
     {
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(GS_ITERATION_WORK);
+        FM_TRACE_SCOPED_EVENT("GsIterationWork");
 
-        FmTaskGraphNode* node = (FmTaskGraphNode*)inTaskData;
+        TLTaskGraphNode* node = (TLTaskGraphNode*)inTaskData;
         FmConstraintSolveTaskGraph* taskGraph = (FmConstraintSolveTaskGraph*)node->GetGraph();
         FmTaskGraphSolveData* taskData = &taskGraph->solveData;
 
@@ -1544,43 +1453,43 @@ namespace AMD
         //FM_ASSERT(forwardDirection == constraintSolverData->iterationParams.outerForwardDirection);
 
         // If last iteration, include tasks which update the delta pos and delta vel values for rigid bodies based on JTLambda
-        uint numTasksToRun = isLastIteration ? (numTetMeshes + numRigidBodyTasks) : numTetMeshes;
+        uint numItemsToRun = isLastIteration ? (numTetMeshes + numRigidBodyTasks) : numTetMeshes;
 
 #if FM_ASYNC_THREADING
-        if (numTasksToRun > 0)
+        if (numItemsToRun > 0)
         {
             FmTaskDataPartitionGsIterationOrRbResponse* runData = new FmTaskDataPartitionGsIterationOrRbResponse(scene, constraintSolverData, constraintIsland, partitionIdx, numTetMeshes, numRigidBodies, numRigidBodyTasks,
                 isLastIteration, forwardDirection);
 
-            runData->progress.Init(numTasksToRun, FmNodeTaskFuncPartitionGsIterationFinish, inTaskData, inTaskBeginIndex, inTaskBeginIndex + 1);
+            TLTask followTask(FmNodeTaskFuncPartitionGsIterationFinish, inTaskData, inTaskBeginIndex, inTaskBeginIndex + 1);
 
-            FmParallelForAsync("PartitionGsIteration", FM_TASK_AND_WRAPPED_TASK_ARGS(FmTaskFuncPartitionGsIterationOrRbResponse), 
-                FmBatchingFuncPartitionGsIterationOrRbResponse,
-                runData, numTasksToRun, scene->taskSystemCallbacks.SubmitAsyncTask, scene->params.numThreads);
+            TLParallelForAsync(FmTaskFuncPartitionGsIterationOrRbResponse,
+                runData, 0, numItemsToRun, TLParallelForOptions::GrainFunc(FmGrainFuncPartitionGsIterationOrRbResponse), followTask, true);
         }
         else
         {
-            FmSetNextTask(FmNodeTaskFuncPartitionGsIterationFinish, inTaskData, inTaskBeginIndex, inTaskBeginIndex + 1);
+            TLSetNextTask(FmNodeTaskFuncPartitionGsIterationFinish, inTaskData, inTaskBeginIndex, inTaskBeginIndex + 1);
         }
 #else
         FmTaskDataPartitionGsIterationOrRbResponse runData(scene, constraintSolverData, constraintIsland, partitionIdx, numTetMeshes, numRigidBodies, numRigidBodyTasks,
             isLastIteration, forwardDirection);
 
-        scene->taskSystemCallbacks.ParallelFor("PartitionGsIteration", FmTaskFuncPartitionGsIterationOrRbResponse, &runData, numTasksToRun);
+        TLParallelFor(FmTaskFuncPartitionGsIterationOrRbResponse, &runData, 0, numItemsToRun,
+            TLParallelForOptions::GrainFunc(FmGrainFuncPartitionGsIterationOrRbResponse));
 
-        node->TaskIsFinished(0);
+        node->Finished(0);
 #endif
-    };
+    }
 
 #if FM_ASYNC_THREADING
-    FM_WRAPPED_TASK_FUNC(FmNodeTaskFuncPartitionGsIterationFinish)
+    FM_NODE_TASK(FmNodeTaskFuncPartitionGsIterationFinish)
     {
-        FM_TRACE_SCOPED_EVENT(GS_ITERATION_WORK);
+        FM_TRACE_SCOPED_EVENT("GsIterationWork");
 
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
 
-        FmTaskGraphNode* node = (FmTaskGraphNode*)inTaskData;
+        TLTaskGraphNode* node = (TLTaskGraphNode*)inTaskData;
 
         // Signal nodes in next outer iteration if not complete
         uint partitionId = (uint)inTaskBeginIndex;
@@ -1588,19 +1497,17 @@ namespace AMD
         bool isLastOuterIteration = (node->GetPredecessorMessage() == 0);
 
         FmConstraintSolveTaskGraph* taskGraph = (FmConstraintSolveTaskGraph*)node->GetGraph();
-        FmTaskGraphNode* nextNode = NULL;
 
         if (!isLastOuterIteration)
         {
-            FmNextOuterIterationMessages(taskGraph, partitionId, &nextNode);
+            FmNextOuterIterationMessages(taskGraph, partitionId);
         }
-
-        node->TaskIsFinished(0, &nextNode);
     }
 #endif
-#endif
 
-    class FmTaskDataIslandGsIterationOrRbResponse : public FmAsyncTaskData
+#else // !FM_CONSTRAINT_ISLAND_DEPENDENCY_GRAPH
+
+    class FmTaskDataIslandGsIterationOrRbResponse : public TLTaskDataBase
     {
     public:
         FmScene* scene;
@@ -1626,7 +1533,7 @@ namespace AMD
     void FmTaskFuncIslandGsIteration(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(GS_ITERATION_WORK);
+        FM_TRACE_SCOPED_EVENT("GsIterationWork");
 
         FmTaskDataIslandGsIterationOrRbResponse* taskData = (FmTaskDataIslandGsIterationOrRbResponse*)inTaskData;
         FmScene* scene = taskData->scene;
@@ -1663,8 +1570,6 @@ namespace AMD
                 FmDiagxNegOffDiagMxV(pgsDeltaVelTerm, meshData, deltaVec);
             }
         }
-
-        taskData->progress.TaskIsFinished(taskData);
     }
 
     // For rigid bodies, compute delta pos or delta vel from JTlambda.
@@ -1673,6 +1578,9 @@ namespace AMD
     {
         (void)inTaskEndIndex;
         FmTaskDataIslandGsIterationOrRbResponse* taskData = (FmTaskDataIslandGsIterationOrRbResponse*)inTaskData;
+
+        if (taskData->numRigidBodies == 0)
+            return;
 
         uint taskIdx = (uint)inTaskBeginIndex;
 
@@ -1695,14 +1603,12 @@ namespace AMD
 
             uint stateOffset = FmGetRigidBodySolverOffsetById(constraintSolverBuffer, objectId);
 
-            deltaVec[stateOffset] = mul(constraintSolverData->DAinv[stateOffset], constraintSolverData->JTlambda[stateOffset]);
-            deltaVec[stateOffset + 1] = mul(constraintSolverData->DAinv[stateOffset + 1], constraintSolverData->JTlambda[stateOffset + 1]);
+            deltaVec[stateOffset] = constraintSolverData->DAinv[stateOffset] * constraintSolverData->JTlambda[stateOffset];
+            deltaVec[stateOffset + 1] = constraintSolverData->DAinv[stateOffset + 1] * constraintSolverData->JTlambda[stateOffset + 1];
         }
-
-        taskData->progress.TaskIsFinished(taskData);
     }
 
-    FM_WRAPPED_TASK_FUNC(FmTaskFuncIslandGsIterationOrRbResponse)
+    void FmTaskFuncIslandGsIterationOrRbResponse(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         (void)inTaskEndIndex;
         FmTaskDataIslandGsIterationOrRbResponse* taskData = (FmTaskDataIslandGsIterationOrRbResponse*)inTaskData;
@@ -1722,7 +1628,7 @@ namespace AMD
         }
     }
 
-    class FmTaskDataIslandRunMpcgOrRbResponse : public FmAsyncTaskData
+    class FmTaskDataIslandRunMpcgOrRbResponse : public TLTaskDataBase
     {
     public:
         FmScene* scene;
@@ -1746,7 +1652,7 @@ namespace AMD
     void FmTaskFuncIslandRunMpcg(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(MPCG_WORK);
+        FM_TRACE_SCOPED_EVENT("MpcgWork");
 
         FmTaskDataIslandRunMpcgOrRbResponse* taskData = (FmTaskDataIslandRunMpcgOrRbResponse*)inTaskData;
         FmScene* scene = taskData->scene;
@@ -1773,7 +1679,7 @@ namespace AMD
 
             FmSVector3* deltavec = &islandDeltaVec[meshData.solverStateOffset];
 
-            uint workerIndex = scene->taskSystemCallbacks.GetTaskSystemWorkerIndex();
+            uint workerIndex = TLGetTaskSystemThreadIndex();
             uint8_t* tempBuffer = scene->threadTempMemoryBuffer->buffers[workerIndex];
             uint8_t* tempBufferEnd = tempBuffer + scene->threadTempMemoryBuffer->numBytesPerBuffer;
 
@@ -1793,17 +1699,18 @@ namespace AMD
             }
             else
             {
-                FmVfill(&constraintSolverData->JTlambda[meshData.solverStateOffset], FmInitSVector3(0.0f), meshData.A.numRows);
+                FmVfill(&constraintSolverData->JTlambda[meshData.solverStateOffset], FmSVector3(0.0f), meshData.A.numRows);
             }
         }
-
-        taskData->progress.TasksAreFinished(endIdx - beginIdx, taskData);
     }
 
     void FmTaskFuncIslandCgPassRbResponse(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         (void)inTaskEndIndex;
         FmTaskDataIslandRunMpcgOrRbResponse* taskData = (FmTaskDataIslandRunMpcgOrRbResponse*)inTaskData;
+
+        if (taskData->numRigidBodies == 0)
+            return;
 
         uint taskIdx = (uint)inTaskBeginIndex;
 
@@ -1834,8 +1741,8 @@ namespace AMD
 
             if (isFirstOuterIteration)
             {
-                totalJTlambda0 = FmInitSVector3(0.0f);
-                totalJTlambda1 = FmInitSVector3(0.0f);
+                totalJTlambda0 = FmSVector3(0.0f);
+                totalJTlambda1 = FmSVector3(0.0f);
             }
             else
             {
@@ -1846,8 +1753,8 @@ namespace AMD
             totalJTlambda0 += constraintSolverData->JTlambda[stateOffset];
             totalJTlambda1 += constraintSolverData->JTlambda[stateOffset + 1];
 
-            deltaVec[stateOffset] = mul(constraintSolverData->DAinv[stateOffset], totalJTlambda0);
-            deltaVec[stateOffset + 1] = mul(constraintSolverData->DAinv[stateOffset + 1], totalJTlambda1);
+            deltaVec[stateOffset] = constraintSolverData->DAinv[stateOffset] * totalJTlambda0;
+            deltaVec[stateOffset + 1] = constraintSolverData->DAinv[stateOffset + 1] * totalJTlambda1;
 
             if (isLastOuterIteration)
             {
@@ -1859,15 +1766,13 @@ namespace AMD
                 constraintSolverData->velTemp[stateOffset] = totalJTlambda0;
                 constraintSolverData->velTemp[stateOffset + 1] = totalJTlambda1;
 
-                constraintSolverData->JTlambda[stateOffset] = FmInitSVector3(0.0f);
-                constraintSolverData->JTlambda[stateOffset + 1] = FmInitSVector3(0.0f);
+                constraintSolverData->JTlambda[stateOffset] = FmSVector3(0.0f);
+                constraintSolverData->JTlambda[stateOffset + 1] = FmSVector3(0.0f);
             }
         }
-
-        taskData->progress.TaskIsFinished(taskData);
     }
 
-    FM_WRAPPED_TASK_FUNC(FmTaskFuncIslandRunMpcgOrRbResponse)
+    void FmTaskFuncIslandRunMpcgOrRbResponse(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         (void)inTaskEndIndex;
         FmTaskDataIslandRunMpcgOrRbResponse* taskData = (FmTaskDataIslandRunMpcgOrRbResponse*)inTaskData;
@@ -1888,8 +1793,9 @@ namespace AMD
             FmTaskFuncIslandCgPassRbResponse(taskData, taskIndex, taskIndex + 1);
         }
     }
+#endif
 
-    class FmTaskDataPartitionPairPgsIteration : public FmAsyncTaskData
+    class FmTaskDataPartitionPairPgsIteration : public TLTaskDataBase
     {
     public:
         FmScene* scene;
@@ -1908,10 +1814,10 @@ namespace AMD
     };
 
 
-    FM_WRAPPED_TASK_FUNC(FmTaskFuncPartitionPairPgsIteration)
+    FM_ASYNC_TASK(FmTaskFuncPartitionPairPgsIteration)
     {
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(PGS_ITERATION_WORK);
+        FM_TRACE_SCOPED_EVENT("PgsIterationWork");
 
         FmTaskDataPartitionPairPgsIteration* taskData = (FmTaskDataPartitionPairPgsIteration*)inTaskData;
         FmConstraintSolverData* constraintSolverData = taskData->constraintSolverData;
@@ -1948,17 +1854,85 @@ namespace AMD
 
             if (forwardDirection)
             {
-                FmPgsIteration3(&partitionPair.norms, constraintSolverData, partitionPair.constraintIndices, partitionPair.numConstraints, passIdx, outerIteration);
+                FmPgsIteration3(&partitionPair.norms, constraintSolverData, partitionPair.constraintIndices, partitionPair.numConstraints, passIdx);
             }
             else
             {
-                FmPgsIteration3Reverse(&partitionPair.norms, constraintSolverData, partitionPair.constraintIndices, partitionPair.numConstraints, passIdx, outerIteration);
+                FmPgsIteration3Reverse(&partitionPair.norms, constraintSolverData, partitionPair.constraintIndices, partitionPair.numConstraints, passIdx);
             }
         }
     }
 
 #if !FM_CONSTRAINT_ISLAND_DEPENDENCY_GRAPH
-    // NOTE: This is not multithreaded, and mainly illustrating steps involved in the partition-based solve
+    struct FmTaskDataRunMpcg : public TLTaskDataBase
+    {
+        FmScene* scene;
+        FmConstraintSolverData* constraintSolverData;
+        const FmConstraintIsland* constraintIsland;
+
+        FM_CLASS_NEW_DELETE(FmTaskDataRunMpcg);
+
+        FmTaskDataRunMpcg(FmScene* inScene, FmConstraintSolverData* inConstraintSolverData, const FmConstraintIsland* inConstraintIsland)
+        {
+            scene = inScene;
+            constraintSolverData = inConstraintSolverData;
+            constraintIsland = inConstraintIsland;
+        }
+    };
+
+    void FmTaskFuncRunMpcg(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    {
+        (void)inTaskEndIndex;
+        FM_TRACE_SCOPED_EVENT("MpcgWork");
+
+        FmTaskDataRunMpcg* taskData = (FmTaskDataRunMpcg*)inTaskData;
+        FmScene* scene = taskData->scene;
+        FmConstraintSolverData* constraintSolverData = taskData->constraintSolverData;
+        const FmConstraintIsland* constraintIsland = constraintSolverData->constraintIsland;
+
+        const FmConstraintSolverIterationParams& iterationParams = constraintSolverData->iterationParams;
+        const FmConstraintSolverControlParams& controlParams = *constraintSolverData->currentControlParams;
+
+        bool isLastIteration = iterationParams.outerIsLastIteration;
+
+        uint beginIdx = (uint)inTaskBeginIndex;
+        uint endIdx = (uint)inTaskBeginIndex + 1;
+
+        FmSVector3* islandDeltaVec = constraintSolverData->GetDeltaVec();
+
+        for (uint islandMeshIdx = beginIdx; islandMeshIdx < endIdx; islandMeshIdx++)
+        {
+            FmMpcgSolverData& meshData = *FmGetSolverDataById(*scene, constraintIsland->tetMeshIds[islandMeshIdx]);
+
+            FmVpV(meshData.b, meshData.b, &constraintSolverData->JTlambda[meshData.solverStateOffset], meshData.A.numRows);
+
+            FmSVector3* deltavec = &islandDeltaVec[meshData.solverStateOffset];
+
+            float epsilon = controlParams.epsilonCgPass;
+            uint maxIterations = controlParams.maxCgIterationsCgPass;
+
+            uint workerIndex = TLGetTaskSystemThreadIndex();
+            uint8_t* tempBuffer = scene->threadTempMemoryBuffer->buffers[workerIndex];
+            uint8_t* tempBufferEnd = tempBuffer + scene->threadTempMemoryBuffer->numBytesPerBuffer;
+            FmMpcgSolverDataTemps temps;
+            temps.Alloc(&tempBuffer, tempBufferEnd, meshData.A.numRows);
+
+            FmRunMpcgSolve(deltavec, &meshData, &temps, epsilon, maxIterations);
+
+            if (isLastIteration)
+            {
+                FmVcV(&constraintSolverData->JTlambda[meshData.solverStateOffset], meshData.b, meshData.A.numRows);
+
+                // If finished the CG pass, update pgsDeltaVelTerm = DAinv * (UA + LA) * deltaVel for GS pass
+                FmDiagxNegOffDiagMxV(constraintSolverData->pgsDeltaVelTerm, meshData, islandDeltaVec);
+            }
+            else
+            {
+                FmVfill(&constraintSolverData->JTlambda[meshData.solverStateOffset], FmSVector3(0.0f), meshData.A.numRows);
+            }
+        }
+    }
+
     void FmPgsSolve(FmScene* scene, FmConstraintSolverData* constraintSolverData, const FmConstraintIsland& constraintIsland)
     {
         (void)constraintIsland;
@@ -1986,14 +1960,7 @@ namespace AMD
                 FmGraphColoringSet& independentSet = constraintSolverData->partitionPairIndependentSets[pairSetIdx];
 
                 FmTaskDataPartitionPairPgsIteration taskDataPairIteration(scene, constraintSolverData, &independentSet);
-#if FM_ASYNC_THREADING
-                for (uint pairIdx = 0; pairIdx < independentSet.numElements; pairIdx++)
-                {
-                    FmTaskFuncPartitionPairPgsIteration(&taskDataPairIteration, pairIdx, pairIdx + 1);
-                }
-#else
-                scene->taskSystemCallbacks.ParallelFor("PartitionPairPgsIteration", FmTaskFuncPartitionPairPgsIteration, &taskDataPairIteration, (int)independentSet.numElements);
-#endif
+                TLParallelFor(FmTaskFuncPartitionPairPgsIteration, &taskDataPairIteration, 0, (int)independentSet.numElements);
             }
 
             FmTaskGraphSolveData externalPgsData;
@@ -2002,40 +1969,6 @@ namespace AMD
             externalPgsData.constraintIsland = &constraintIsland;
 
             FmExternalPgsIteration(externalPgsData);
-        }
-
-        bool isFirstOuterIteration = iterationParams.outerIteration == 0;
-        bool isLastOuterIteration = iterationParams.outerIsLastIteration;
-
-        // End of inner iterations, reset lambda for next outer iteration
-        if (passIdx == FM_CG_PASS_IDX)
-        {
-            uint numPartitionPairs = constraintSolverData->numPartitionPairs;
-
-            for (uint pairIdx = 0; pairIdx < numPartitionPairs; pairIdx++)
-            {
-                FmPartitionPair& partitionPair = constraintSolverData->partitionPairs[pairIdx];
-                for (uint constraintIdx = 0; constraintIdx < partitionPair.numConstraints; constraintIdx++)
-                {
-                    uint rowIdx = partitionPair.constraintIndices[constraintIdx];
-
-                    FmSVector3 lambda3Sum = isFirstOuterIteration ? FmInitSVector3(0.0f) : constraintSolverData->lambda3Temp[rowIdx];
-
-                    lambda3Sum += constraintSolverData->lambda3[rowIdx];
-
-                    if (isLastOuterIteration)
-                    {
-                        // Set lambda to the accumulated sum over all outer iterations
-                        constraintSolverData->lambda3[rowIdx] = lambda3Sum;
-                    }
-                    else
-                    {
-                        // Store lambda sum and reset lambda to zero
-                        constraintSolverData->lambda3Temp[rowIdx] = lambda3Sum;
-                        constraintSolverData->lambda3[rowIdx] = FmInitSVector3(0.0f);
-                    }
-                }
-            }
         }
     }
 #endif
@@ -2051,13 +1984,13 @@ namespace AMD
         FmConstraintIsland* constraintIsland;
         uint outerIteration;
 
-        FmTaskFuncCallback followTaskFunc;
+        TLTaskFuncCallback followTaskFunc;
         void* followTaskData;
 
         FmRunConstraintSolvePassIterationData(FmScene* inScene,
             FmConstraintSolverData* inConstraintSolverData,
             FmConstraintIsland* inConstraintIsland,
-            FmTaskFuncCallback inFollowTaskFunc,
+            TLTaskFuncCallback inFollowTaskFunc,
             void* inFollowTaskData)
         {
             scene = inScene;
@@ -2071,10 +2004,10 @@ namespace AMD
 
     void FmTaskFuncRunConstraintSolveCgPassIterationStart(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
 
-    FM_WRAPPED_TASK_FUNC(FmTaskFuncRunConstraintSolveBegin)
+    FM_ASYNC_TASK(FmTaskFuncRunConstraintSolveBegin)
     {
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(ISLAND_SOLVE_RUN_SOLVE_BEGIN);
+        FM_TRACE_SCOPED_EVENT("IslandSolveRunSolveBegin");
 
         (void)inTaskBeginIndex;
         FmRunConstraintSolvePassIterationData* iterationData = (FmRunConstraintSolvePassIterationData*)inTaskData;
@@ -2107,16 +2040,16 @@ namespace AMD
         constraintSolverData->externaPgsNorms.Zero();
 #endif
 
-        FmSetNextTask(FmTaskFuncRunConstraintSolveCgPassIterationStart, iterationData, 0, 1);
+        TLSetNextTask(FmTaskFuncRunConstraintSolveCgPassIterationStart, iterationData, 0, 1);
     }
 
     void FmTaskFuncRunConstraintSolveCgPassIterationMiddle(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
     void FmTaskFuncRunConstraintSolveMidPasses(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
 
-    void FmTaskFuncRunConstraintSolveCgPassIterationStart(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK(FmTaskFuncRunConstraintSolveCgPassIterationStart)
     {
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(ISLAND_SOLVE_CG_PASS_START);
+        FM_TRACE_SCOPED_EVENT("IslandSolveCgPassStart");
 
         (void)inTaskBeginIndex;
 
@@ -2139,13 +2072,13 @@ namespace AMD
         // masses and uses PCG to compute response of tet meshes.  Resulting constraint forces and velocity changes are 
         // used to warm start the standard GS-based solver.
 
-        FmSetNextTask(FmTaskFuncRunConstraintSolveCgPassIterationMiddle, iterationData, 0, 1);
+        TLSetNextTask(FmTaskFuncRunConstraintSolveCgPassIterationMiddle, iterationData, 0, 1);
     }
 
     void FmTaskFuncRunConstraintSolveCgPassIterationEnd(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
     void FmTaskFuncRunConstraintSolvePostGraph(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
 
-    void FmTaskFuncRunConstraintSolveCgPassIterationMiddle(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK(FmTaskFuncRunConstraintSolveCgPassIterationMiddle)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
@@ -2180,20 +2113,21 @@ namespace AMD
         if (numIslandTetMeshes > 0)
         {
             FmTaskDataRunMpcg* taskDataRunMpcg = new FmTaskDataRunMpcg(scene, constraintSolverData, iterationData->constraintIsland);
-            taskDataRunMpcg->progress.Init(numIslandTetMeshes, FmTaskFuncRunConstraintSolveCgPassIterationEnd, iterationData);
 
-            FmParallelForAsync("RunMpcg", FM_TASK_AND_WRAPPED_TASK_ARGS(FmTaskFuncRunMpcg), NULL, taskDataRunMpcg, numIslandTetMeshes, scene->taskSystemCallbacks.SubmitAsyncTask, scene->params.numThreads);
+            TLTask followTask(FmTaskFuncRunConstraintSolveCgPassIterationEnd, iterationData);
+
+            TLParallelForAsync(FmTaskFuncRunMpcg, taskDataRunMpcg, 0, numIslandTetMeshes, TLParallelForOptions::GrainSize(1), followTask, true);
         }
         else
         {
-            FmSetNextTask(FmTaskFuncRunConstraintSolveCgPassIterationEnd, iterationData, 0, 1);
+            TLSetNextTask(FmTaskFuncRunConstraintSolveCgPassIterationEnd, iterationData, 0, 1);
         }
 #endif
     }
 
-    void FmTaskFuncRunConstraintSolveCgPassIterationEnd(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK(FmTaskFuncRunConstraintSolveCgPassIterationEnd)
     {
-        FM_TRACE_SCOPED_EVENT(ISLAND_SOLVE_CG_PASS_END);
+        FM_TRACE_SCOPED_EVENT("IslandSolveCgPassEnd");
 
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
@@ -2211,12 +2145,12 @@ namespace AMD
 
         iterationData->outerIteration++;
 
-        FmSetNextTask(FmTaskFuncRunConstraintSolveCgPassIterationStart, iterationData, 0, 1);
+        TLSetNextTask(FmTaskFuncRunConstraintSolveCgPassIterationStart, iterationData, 0, 1);
     }
 
     void FmTaskFuncRunConstraintSolveGsPassStart(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
 
-    void FmTaskFuncRunConstraintSolveMidPasses(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK(FmTaskFuncRunConstraintSolveMidPasses)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
@@ -2233,7 +2167,7 @@ namespace AMD
 
     void FmTaskFuncRunConstraintSolveGsPassMiddle(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
 
-    void FmTaskFuncRunConstraintSolveGsPassStart(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK(FmTaskFuncRunConstraintSolveGsPassStart)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
@@ -2270,7 +2204,7 @@ namespace AMD
             // Solve finished, setup next task, and delete solver iteration data.
             // The next task will get the island id from the task index.
             int32_t taskIndex = (int32_t)constraintIsland.islandId;
-            FmSetNextTask(iterationData->followTaskFunc, iterationData->followTaskData, taskIndex, taskIndex + 1);
+            TLSetNextTask(iterationData->followTaskFunc, iterationData->followTaskData, taskIndex, taskIndex + 1);
 
             delete iterationData;
 
@@ -2279,10 +2213,10 @@ namespace AMD
 
         // Run a pass solving only TetMesh/TetMesh and TetMesh/RigidBody constraints.
 
-        FmSetNextTask(FmTaskFuncRunConstraintSolveGsPassMiddle, iterationData, 0, 1);
+        TLSetNextTask(FmTaskFuncRunConstraintSolveGsPassMiddle, iterationData, 0, 1);
     }
 
-    void FmTaskFuncRunConstraintSolvePostGraph(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK(FmTaskFuncRunConstraintSolvePostGraph)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
@@ -2312,14 +2246,14 @@ namespace AMD
         // Solve finished, setup next task, and delete solver iteration data.
         // The next task will get the island id from the task index.
         int32_t taskIndex = (int32_t)constraintIsland.islandId;
-        FmSetNextTask(iterationData->followTaskFunc, iterationData->followTaskData, taskIndex, taskIndex + 1);
+        TLSetNextTask(iterationData->followTaskFunc, iterationData->followTaskData, taskIndex, taskIndex + 1);
 
         delete iterationData;
     }
 
     void FmTaskFuncRunConstraintSolveGsPassEnd(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
 
-    void FmTaskFuncRunConstraintSolveGsPassMiddle(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK(FmTaskFuncRunConstraintSolveGsPassMiddle)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
@@ -2359,24 +2293,25 @@ namespace AMD
         uint numRigidBodyTasks = FmGetNumTasksLimited(numRigidBodies, rigidBodyBatchSize, scene->params.numThreads*4);
 
         // If last iteration, include tasks which update the delta pos and delta vel values for rigid bodies based on JTLambda
-        uint numTasksToRun = isLastIteration ? (numTetMeshes + numRigidBodyTasks) : numTetMeshes;
+        uint numItemsToRun = isLastIteration ? (numTetMeshes + numRigidBodyTasks) : numTetMeshes;
 
-        if (numTasksToRun > 0)
+        if (numItemsToRun > 0)
         {
             FmTaskDataIslandGsIterationOrRbResponse* taskData = new FmTaskDataIslandGsIterationOrRbResponse(scene, constraintSolverData, iterationData->constraintIsland,
                 numTetMeshes, numRigidBodies, numRigidBodyTasks);
-            taskData->progress.Init(numTasksToRun, FmTaskFuncRunConstraintSolveGsPassEnd, iterationData);
 
-            FmParallelForAsync("GsIteration", FM_TASK_AND_WRAPPED_TASK_ARGS(FmTaskFuncIslandGsIterationOrRbResponse), NULL, taskData, numTasksToRun, scene->taskSystemCallbacks.SubmitAsyncTask, scene->params.numThreads);
+            TLTask followTask(FmTaskFuncRunConstraintSolveGsPassEnd, iterationData);
+
+            TLParallelForAsync(FmTaskFuncIslandGsIterationOrRbResponse, taskData, 0, numItemsToRun, TLParallelForOptions::GrainSize(1), followTask, true);
         }
         else
         {
-            FmSetNextTask(FmTaskFuncRunConstraintSolveGsPassEnd, iterationData, 0, 1);
+            TLSetNextTask(FmTaskFuncRunConstraintSolveGsPassEnd, iterationData, 0, 1);
         }
 #endif
     }
 
-    void FmTaskFuncRunConstraintSolveGsPassEnd(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK(FmTaskFuncRunConstraintSolveGsPassEnd)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
@@ -2394,14 +2329,14 @@ namespace AMD
 
         iterationData->outerIteration++;
 
-        FmSetNextTask(FmTaskFuncRunConstraintSolveGsPassStart, iterationData, 0, 1);
+        TLSetNextTask(FmTaskFuncRunConstraintSolveGsPassStart, iterationData, 0, 1);
     }
 #endif
 
     void FmTaskFuncRunConstraintSolveBegin(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
 
     void FmRunConstraintSolve(FmScene* scene, FmConstraintSolverData* constraintSolverData, FmConstraintIsland& constraintIsland,
-        FmTaskFuncCallback followTaskFunc, void* followTaskData)
+        TLTaskFuncCallback followTaskFunc, void* followTaskData)
     {
 #if FM_ASYNC_THREADING
         if (followTaskFunc)
@@ -2413,9 +2348,8 @@ namespace AMD
             return;
         }
 #else
-        uint numIslandTetMeshVerts = constraintIsland.numTetMeshVerts;
-        uint numIslandStateVecs3 = constraintSolverData->numStateVecs3;
-        uint numIslandConstraints = constraintSolverData->numConstraints;
+        (void)followTaskFunc;
+        (void)followTaskData;
 
         FmConstraintSolverIterationParams& iterationParams = constraintSolverData->iterationParams;
 
@@ -2451,11 +2385,6 @@ namespace AMD
 
         if (maxOuterIterationsCgPass > 0)
         {
-            for (uint i = 0; i < numIslandConstraints; i++)
-            {
-                constraintSolverData->lambda3Temp[i] = FmInitSVector3(0.0f);
-            }
-
             for (uint outerIteration = 0; outerIteration < maxOuterIterationsCgPass; outerIteration++)
             {
                 bool isLastIteration = (outerIteration >= maxOuterIterationsCgPass - 1);
@@ -2474,27 +2403,16 @@ namespace AMD
                 uint rigidBodyBatchSize = FM_RIGID_BODY_APPLY_DELTAS_SLEEPING_BATCH_SIZE;
                 uint numRigidBodyTasks = FmGetNumTasksLimited(numRigidBodies, rigidBodyBatchSize, scene->params.numThreads * 4);
 
-                uint numTasksToRun = numTetMeshes + numRigidBodyTasks;
+                uint numItemsToRun = numTetMeshes + numRigidBodyTasks;
 
                 FmTaskDataIslandRunMpcgOrRbResponse taskDataRunMpcg(scene, constraintSolverData, &constraintIsland, numRigidBodies, numRigidBodyTasks);
-                scene->taskSystemCallbacks.ParallelFor("RunMpcg", FmTaskFuncIslandRunMpcgOrRbResponse, &taskDataRunMpcg, numTasksToRun);
+                TLParallelFor(FmTaskFuncIslandRunMpcgOrRbResponse, &taskDataRunMpcg, 0, numItemsToRun);
 #endif
-
-                for (uint i = 0; i < numIslandConstraints; i++)
-                {
-                    constraintSolverData->lambda3Temp[i] += constraintSolverData->lambda3[i];
-                    constraintSolverData->lambda3[i] = FmInitSVector3(0.0f);
-                }
 
                 if (passParamsCopy.useInnerIterationsFalloff && passParamsCopy.maxInnerIterations > 1)
                 {
                     passParamsCopy.maxInnerIterations--;
                 }
-            }
-
-            for (uint i = 0; i < numIslandConstraints; i++)
-            {
-                constraintSolverData->lambda3[i] = constraintSolverData->lambda3Temp[i];
             }
 
             FmDiagxNegOffDiagMxV(constraintSolverData->pgsDeltaVelTerm, scene, constraintIsland, constraintSolverData->GetDeltaVec());
@@ -2529,10 +2447,10 @@ namespace AMD
             uint numRigidBodyTasks = FmGetNumTasksLimited(numRigidBodies, rigidBodyBatchSize, scene->params.numThreads * 4);
 
             // If last iteration, include tasks which update the delta pos and delta vel values for rigid bodies based on JTLambda
-            uint numTasksToRun = isLastIteration ? (numTetMeshes + numRigidBodyTasks) : numTetMeshes;
+            uint numItemsToRun = isLastIteration ? (numTetMeshes + numRigidBodyTasks) : numTetMeshes;
 
             FmTaskDataIslandGsIterationOrRbResponse taskData(scene, constraintSolverData, &constraintIsland, numTetMeshes, numRigidBodies, numRigidBodyTasks);
-            scene->taskSystemCallbacks.ParallelFor("GsIteration", FmTaskFuncIslandGsIterationOrRbResponse, &taskData, numTasksToRun);
+            TLParallelFor(FmTaskFuncIslandGsIterationOrRbResponse, &taskData, 0, numItemsToRun);
 #endif
 
             if (passParamsCopy.useInnerIterationsFalloff && passParamsCopy.maxInnerIterations > 1)
@@ -2598,7 +2516,7 @@ namespace AMD
         FmScene* scene, FmTetMesh* inTetMesh, 
         FmConstraintIsland* constraintIsland,
         const FmConstraintSolverData& constraintSolverData, float timestep,
-        FmAsyncTaskData* parentTaskData)
+        TLTaskDataBase* updateIslandsProgress)
     {
         FmTetMesh& tetMesh = *inTetMesh;
 
@@ -2619,11 +2537,11 @@ namespace AMD
             {
                 // Apply constraint solve corrections to position and velocity
 #if FM_CONSTRAINT_STABILIZATION_SOLVE
-                FmVector3 deltaPos = FmInitVector3(constraintSolverData.deltaPos[stateOffset + si]);
+                FmVector3 deltaPos = FmVector3(constraintSolverData.deltaPos[stateOffset + si]);
                 tetMesh.vertsPos[i] += deltaPos;
 #endif
 
-                FmVector3 deltaVel = FmInitVector3(constraintSolverData.deltaVel[stateOffset + si]);
+                FmVector3 deltaVel = FmVector3(constraintSolverData.deltaVel[stateOffset + si]);
                 tetMesh.vertsVel[i] += deltaVel;
 
                 dynamicVert = true;
@@ -2657,15 +2575,15 @@ namespace AMD
             }
         }
 
-        FmUpdatePositionsFracturePlasticity(scene, &tetMesh, timestep, parentTaskData);
+        FmUpdatePositionsFracturePlasticity(scene, &tetMesh, timestep, updateIslandsProgress);
     }
 
-    void FmTaskFuncMeshApplySolveDeltasAndTestSleeping(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK(FmTaskFuncMeshApplySolveDeltasAndTestSleeping)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
 
-        FM_TRACE_SCOPED_EVENT(ISLAND_SOLVE_MESH_APPLY_SOLVE_DELTAS);
+        FM_TRACE_SCOPED_EVENT("IslandSolveMeshApplySolveDeltas");
 
         FmTaskDataApplySolveDeltasAndTestSleeping* taskData = (FmTaskDataApplySolveDeltasAndTestSleeping*)inTaskData;
         FmScene* scene = taskData->scene;
@@ -2686,19 +2604,23 @@ namespace AMD
             FmPostIslandSolveUpdatePositionsPlasticityFracture(scene, &tetMesh, &constraintIsland, *constraintSolverData, timestep, taskData);
 
             // A task reached from FmPostIslandSolveUpdatePositionsPlasticityFracture will update the global progress and delete task data
-            //taskData->progress.TaskIsFinished(taskData);
+            //taskData->WorkItemFinished(taskData);
 #else
-            FmPostIslandSolveUpdatePositionsPlasticityFracture(scene, &tetMesh, &constraintIsland, *constraintSolverData, timestep, NULL);
+            FmPostIslandSolveUpdatePositionsPlasticityFracture(scene, &tetMesh, &constraintIsland, *constraintSolverData, timestep, nullptr);
 #endif
         }
     }
 
-    void FmTaskFuncRbApplySolveDeltasAndTestSleeping(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK_COUNTED_WITH_DELETE(FmTaskFuncRbApplySolveDeltasAndTestSleeping, FmTaskDataApplySolveDeltasAndTestSleeping)
     {
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(ISLAND_SOLVE_RB_APPLY_SOLVE_DELTAS);
+        FM_TRACE_SCOPED_EVENT("IslandSolveRbApplySolveDeltas");
 
         FmTaskDataApplySolveDeltasAndTestSleeping* taskData = (FmTaskDataApplySolveDeltasAndTestSleeping*)inTaskData;
+
+        if (taskData->numRigidBodies == 0)
+            return;
+
         FmScene* scene = taskData->scene;
         FmConstraintSolverData* constraintSolverData = taskData->constraintSolverData;
         const FmConstraintSolverBuffer& constraintSolverBuffer = *scene->constraintSolverBuffer;
@@ -2724,11 +2646,11 @@ namespace AMD
                 if (FM_NOT_SET(rigidBody.flags, FM_OBJECT_FLAG_KINEMATIC))
                 {
                     uint stateOffset = FmGetRigidBodySolverOffsetById(constraintSolverBuffer, objectId);
-                    FmVector3 deltaVel = FmInitVector3(constraintSolverData->deltaVel[stateOffset]);
-                    FmVector3 deltaAngVel = FmInitVector3(constraintSolverData->deltaVel[stateOffset+1]);
+                    FmVector3 deltaVel = FmVector3(constraintSolverData->deltaVel[stateOffset]);
+                    FmVector3 deltaAngVel = FmVector3(constraintSolverData->deltaVel[stateOffset+1]);
 #if FM_CONSTRAINT_STABILIZATION_SOLVE
-                    FmVector3 deltaPos = FmInitVector3(constraintSolverData->deltaPos[stateOffset]);
-                    FmVector3 deltaAngPos = FmInitVector3(constraintSolverData->deltaPos[stateOffset + 1]);
+                    FmVector3 deltaPos = FmVector3(constraintSolverData->deltaPos[stateOffset]);
+                    FmVector3 deltaAngPos = FmVector3(constraintSolverData->deltaPos[stateOffset + 1]);
 
                     rigidBody.state.pos = rigidBody.state.pos + deltaPos;
                     rigidBody.state.quat = FmIntegrateQuat(rigidBody.state.quat, deltaAngPos, 1.0f);
@@ -2736,10 +2658,10 @@ namespace AMD
 
                     rigidBody.state.vel = rigidBody.state.vel + deltaVel;
                     rigidBody.state.angVel = rigidBody.state.angVel + deltaAngVel;
-                    rigidBody.deltaPos = FmInitVector3(0.0f);
-                    rigidBody.deltaAngPos = FmInitVector3(0.0f);
-                    rigidBody.deltaVel = FmInitVector3(0.0f);
-                    rigidBody.deltaAngVel = FmInitVector3(0.0f);
+                    rigidBody.deltaPos = FmVector3(0.0f);
+                    rigidBody.deltaAngPos = FmVector3(0.0f);
+                    rigidBody.deltaVel = FmVector3(0.0f);
+                    rigidBody.deltaAngVel = FmVector3(0.0f);
                     rigidBody.flags |= (FM_OBJECT_FLAG_POS_CHANGED | FM_OBJECT_FLAG_VEL_CHANGED);
                 }
             }
@@ -2785,30 +2707,28 @@ namespace AMD
                 FmAtomicWrite(&constraintIsland.isIslandStable.val, 0);
             }
         }
-
-        taskData->progress.TaskIsFinished(taskData);
     }
 
-    void FmTaskFuncDestroyIslandDependencyGraph(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK_COUNTED_WITH_DELETE(FmTaskFuncDestroyIslandDependencyGraph, FmTaskDataApplySolveDeltasAndTestSleeping)
     {
-        FM_TRACE_SCOPED_EVENT(ISLAND_SOLVE_DESTROY_DEPENDENCY_GRAPH);
+        FM_TRACE_SCOPED_EVENT("IslandSolveDestroyDependencyGraph");
 
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
-        FmTaskDataApplySolveDeltasAndTestSleeping* taskData = (FmTaskDataApplySolveDeltasAndTestSleeping*)inTaskData;
+        (void)inTaskData;
 
 #if FM_CONSTRAINT_ISLAND_DEPENDENCY_GRAPH
+        FmTaskDataApplySolveDeltasAndTestSleeping* taskData = (FmTaskDataApplySolveDeltasAndTestSleeping*)inTaskData;
+
         if (taskData->constraintSolverData->taskGraph)
         {
             FmDestroyConstraintSolveTaskGraph(taskData->constraintSolverData->taskGraph);
-            taskData->constraintSolverData->taskGraph = NULL;
+            taskData->constraintSolverData->taskGraph = nullptr;
         }
 #endif
-
-        taskData->progress.TaskIsFinished(taskData);
     }
 
-    FM_WRAPPED_TASK_FUNC(FmTaskFuncApplySolveDeltasAndTestSleeping)
+    FM_ASYNC_TASK(FmTaskFuncApplySolveDeltasAndTestSleeping)
     {
         FmTaskDataApplySolveDeltasAndTestSleeping* taskData = (FmTaskDataApplySolveDeltasAndTestSleeping*)inTaskData;
 
@@ -2830,7 +2750,7 @@ namespace AMD
         }
     }
 
-    int32_t FmBatchingFuncPartitionApplySolveDeltasAndTestSleeping(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    int32_t FmGrainFuncPartitionApplySolveDeltasAndTestSleeping(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         FmTaskDataApplySolveDeltasAndTestSleeping* taskData = (FmTaskDataApplySolveDeltasAndTestSleeping*)inTaskData;
 
@@ -2870,11 +2790,11 @@ namespace AMD
         FmScene* scene,
         FmConstraintSolverData* constraintSolverData,
         FmConstraintIsland& constraintIsland,
-        FmTaskFuncCallback followTaskFunc,
+        TLTaskFuncCallback followTaskFunc,
         void* followTaskData)
     {
-        FmAtomicWrite(&constraintIsland.isIslandStable.val, 1);
-        FmAtomicWrite(&constraintIsland.numFixedPoints.val, 0);
+        constraintIsland.isIslandStable.val = 1;
+        constraintIsland.numFixedPoints.val = 0;
 
         float timestep = scene->params.timestep;
         bool rigidBodiesExternal = scene->params.rigidBodiesExternal;
@@ -2884,11 +2804,11 @@ namespace AMD
         uint rigidBodyBatchSize = FM_RIGID_BODY_APPLY_DELTAS_SLEEPING_BATCH_SIZE;
         uint numRigidBodyTasks = FmGetNumTasksLimited(numRigidBodies, rigidBodyBatchSize, scene->params.numThreads*4);
 
-        uint numTasks = numTetMeshes + numRigidBodyTasks;
+        uint numItems = numTetMeshes + numRigidBodyTasks;
 
 #if FM_CONSTRAINT_ISLAND_DEPENDENCY_GRAPH
         // Extra task will destroy the dependency graph during pos/vel and sleeping updates
-        numTasks++;
+        numItems++;
 #endif
 
 #if FM_ASYNC_THREADING
@@ -2901,21 +2821,27 @@ namespace AMD
                 timestep, rigidBodiesExternal);
 
             int32_t taskIdx = (int32_t)constraintIsland.islandId;
-            taskData->progress.Init(numTasks, followTaskFunc, followTaskData, taskIdx, taskIdx + 1);
 
-            FmParallelForAsync("ApplySolveDeltasAndTestSleeping", FM_TASK_AND_WRAPPED_TASK_ARGS(FmTaskFuncApplySolveDeltasAndTestSleeping), 
-                FmBatchingFuncPartitionApplySolveDeltasAndTestSleeping,
-                taskData, numTasks, scene->taskSystemCallbacks.SubmitAsyncTask, scene->params.numThreads);
+            // NOTE: taskData used in asynchronous tasks after the parallel-for, must be managed by task
+            TLTask followTask(followTaskFunc, followTaskData, taskIdx, taskIdx + 1);
+            taskData->Init(numItems, followTask);
+
+            TLParallelForAsync(FmTaskFuncApplySolveDeltasAndTestSleeping, taskData, 0, numItems,
+                TLParallelForOptions::GrainFunc(FmGrainFuncPartitionApplySolveDeltasAndTestSleeping));
         }
         else
 #endif
 #if !FM_ASYNC_THREADING
         {
+            (void)followTaskFunc;
+            (void)followTaskData;
+
             FmTaskDataApplySolveDeltasAndTestSleeping taskData(scene, constraintSolverData, &constraintIsland, 
                 numTetMeshes, numRigidBodies, numRigidBodyTasks,
                 timestep, rigidBodiesExternal);
 
-            scene->taskSystemCallbacks.ParallelFor("ApplySolveDeltasAndTestSleeping", FmTaskFuncApplySolveDeltasAndTestSleeping, &taskData, numTasks);
+            TLParallelFor(FmTaskFuncApplySolveDeltasAndTestSleeping, &taskData, 0, numItems,
+                TLParallelForOptions::GrainFunc(FmGrainFuncPartitionApplySolveDeltasAndTestSleeping));
 
             if (FmAtomicRead(&constraintIsland.isIslandStable.val) == 1
                 && (constraintIsland.numFixedAttachments + FmAtomicRead(&constraintIsland.numFixedPoints.val)) >= 3)
@@ -2929,7 +2855,7 @@ namespace AMD
                 numTetMeshes, numRigidBodies, numRigidBodyTasks,
                 timestep, rigidBodiesExternal);
 
-            for (int32_t taskIdx = 0; taskIdx < (int32_t)numTasks; taskIdx++)
+            for (int32_t taskIdx = 0; taskIdx < (int32_t)numItems; taskIdx++)
             {
                 FmTaskFuncApplySolveDeltasAndTestSleeping(&taskData, taskIdx, taskIdx + 1);
             }

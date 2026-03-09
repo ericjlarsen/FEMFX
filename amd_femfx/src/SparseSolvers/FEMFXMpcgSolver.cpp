@@ -118,7 +118,7 @@ namespace AMD
 
             FM_ASSERT(rowEnd >= rowStart);
 
-            rResult -= mul(submats[row3], x[row3]);
+            rResult -= submats[row3] * x[row3];
 
             for (uint i = rowStart; i < rowEnd; i++)
             {
@@ -126,13 +126,13 @@ namespace AMD
                 uint idx = indices[i];
                 FmSVector3 x_idx = x[idx];
 
-                FmSVector3 ax = mul(submat, x_idx);
+                FmSVector3 ax = submat * x_idx;
                 rResult -= ax;
             }
 
-            FmSVector3 pResult = mul(PInvDiag_row, rResult);
+            FmSVector3 pResult = PInvDiag_row * rResult;
 
-            bdelta += dot(sResult, mul(PInvDiag_row, sResult));
+            bdelta += dot(sResult, PInvDiag_row * sResult);
             delta += dot(rResult, pResult);
 
             r[row3] = rResult;
@@ -168,10 +168,10 @@ namespace AMD
 #if 0
                 FM_ASSERT(rowEnd >= rowStart);
                 FmSVector3 p_row = p[row3];
-                FmSVector3 rowResult0 = mul(submats[row3], p_row);
-                FmSVector3 rowResult1 = FmInitSVector3(0.0f);
-                FmSVector3 rowResult2 = FmInitSVector3(0.0f);
-                FmSVector3 rowResult3 = FmInitSVector3(0.0f);
+                FmSVector3 rowResult0 = submats[row3] * p_row;
+                FmSVector3 rowResult1 = FmSVector3(0.0f);
+                FmSVector3 rowResult2 = FmSVector3(0.0f);
+                FmSVector3 rowResult3 = FmSVector3(0.0f);
 
                 const uint groupSize = 4;
                 uint numGroups = rowSize / groupSize;
@@ -198,10 +198,10 @@ namespace AMD
                     uint groupStart = rowStart + 4;
                     for (uint i = 0; i < numGroups - 1; i++)
                     {
-                        rowResult0 += mul(submat0, p0);
-                        rowResult1 += mul(submat1, p1);
-                        rowResult2 += mul(submat2, p2);
-                        rowResult3 += mul(submat3, p3);
+                        rowResult0 += submat0 * p0;
+                        rowResult1 += submat1 * p1;
+                        rowResult2 += submat2 * p2;
+                        rowResult3 += submat3 * p3;
 
                         submat0 = submats[groupStart];
                         submat1 = submats[groupStart + 1];
@@ -221,10 +221,10 @@ namespace AMD
                         groupStart += 4;
                     }
 
-                    rowResult0 += mul(submat0, p0);
-                    rowResult1 += mul(submat1, p1);
-                    rowResult2 += mul(submat2, p2);
-                    rowResult3 += mul(submat3, p3);
+                    rowResult0 += submat0 * p0;
+                    rowResult1 += submat1 * p1;
+                    rowResult2 += submat2 * p2;
+                    rowResult3 += submat3 * p3;
                 }
 
                 uint startIdx = rowStart + numGroups * groupSize;
@@ -238,14 +238,14 @@ namespace AMD
 
                     for (uint i = startIdx; i < rowEnd - 1; i++)
                     {
-                        rowResult0 += mul(submat0, p0);
+                        rowResult0 += submat0 * p0;
 
                         submat0 = submats[i + 1];
                         idx0 = indices[i + 1];
                         p0 = p[idx0];
                     }
 
-                    rowResult0 += mul(submat0, p0);
+                    rowResult0 += submat0 * p0;
                 }
 
                 FmSVector3 rowResult = rowResult0 + rowResult1;
@@ -256,7 +256,7 @@ namespace AMD
 
                 FmSMatrix3 submat = submats[row3];
                 FmSVector3 p_row = p[row3];
-                FmSVector3 rowResult = mul(submat, p_row);
+                FmSVector3 rowResult = submat * p_row;
 
                 for (uint i = rowStart; i < rowEnd; i++)
                 {
@@ -264,7 +264,7 @@ namespace AMD
                     uint idx = indices[i];
                     FmSVector3 p_idx = p[idx];
 
-                    rowResult += mul(submat, p_idx);
+                    rowResult += submat * p_idx;
                 }
 #endif
 
@@ -290,7 +290,7 @@ namespace AMD
                 FmSMatrix3 diagRow = PInvDiag[row3];
 
                 FmSVector3 r_new = r_row - alpha * s_row;
-                FmSVector3 h_new = mul(diagRow, r_new);
+                FmSVector3 h_new = diagRow * r_new;
 
                 delta += dot(r_new, h_new);
 
@@ -310,7 +310,7 @@ namespace AMD
     // Terminates when mag of residual < epsilon * mag of right-hand-side or maxIterations reached.
     uint FmRunMpcgSolve(FmSVector3* solution, FmMpcgSolverData* solverData, FmMpcgSolverDataTemps* solverDataTemps, float epsilon, uint maxIterations)
     {
-        FM_TRACE_SCOPED_EVENT(MPCG_SOLVE);
+        FM_TRACE_SCOPED_EVENT("MpcgSolve");
 
         if (!solverData->hasKinematicVerts)
         {
@@ -348,9 +348,9 @@ namespace AMD
         float delta = 0.0f;
         for (uint row3 = 0; row3 < numRows3; row3++)
         {
-            FmSVector3 sResult = FmInitSVector3(0.0f);
-            FmSVector3 rResult = FmInitSVector3(0.0f);
-            FmSVector3 pResult = FmInitSVector3(0.0f);
+            FmSVector3 sResult = FmSVector3(0.0f);
+            FmSVector3 rResult = FmSVector3(0.0f);
+            FmSVector3 pResult = FmSVector3(0.0f);
             if (!kinematicFlags[row3])
             {
                 uint rowStart = rowStarts[row3];
@@ -369,7 +369,7 @@ namespace AMD
                     FmSVector3 x_idx = x[idx];
                     bool kinematic = kinematicFlags[idx];
 
-                    FmSVector3 ax = mul(submat, x_idx);
+                    FmSVector3 ax = submat * x_idx;
                     if (kinematic)
                     {
                         sResult -= ax;
@@ -384,7 +384,7 @@ namespace AMD
                     FmSVector3 x_idx = x[idx];
                     bool kinematic = kinematicFlags[idx];
 
-                    FmSVector3 ax = mul(submat, x_idx);
+                    FmSVector3 ax = submat * x_idx;
                     if (kinematic)
                     {
                         sResult -= ax;
@@ -392,9 +392,9 @@ namespace AMD
                     rResult -= ax;
                 }
 
-                pResult = mul(PInvDiag_row, rResult);
+                pResult = PInvDiag_row * rResult;
 
-                bdelta += dot(sResult, mul(PInvDiag_row, sResult));
+                bdelta += dot(sResult, PInvDiag_row * sResult);
                 delta += dot(rResult, pResult);
             }
 
@@ -429,7 +429,7 @@ namespace AMD
 
                 if (kinematic)
                 {
-                    s[row3] = FmInitSVector3(0.0f);
+                    s[row3] = FmSVector3(0.0f);
                 }
                 else
                 {
@@ -440,7 +440,7 @@ namespace AMD
 
                     FmSMatrix3 submat = submats[row3];
                     FmSVector3 p_row = p[row3];
-                    FmSVector3 rowResult = mul(submat, p_row);
+                    FmSVector3 rowResult = submat * p_row;
 
                     for (uint i = rowStart; i < rowEnd; i++)
                     {
@@ -448,7 +448,7 @@ namespace AMD
                         uint idx = indices[i];
                         FmSVector3 p_idx = p[idx];
 
-                        rowResult += mul(submat, p_idx);
+                        rowResult += submat * p_idx;
                     }
 
                     pdots += dot(p_row, rowResult);
@@ -474,7 +474,7 @@ namespace AMD
                 FmSMatrix3 diagRow = PInvDiag[row3];
 
                 FmSVector3 r_new = r_row - alpha * s_row;
-                FmSVector3 h_new = mul(diagRow, r_new);
+                FmSVector3 h_new = diagRow * r_new;
 
                 delta += dot(r_new, h_new);
 

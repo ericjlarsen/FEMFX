@@ -45,9 +45,7 @@ namespace AMD
         typename T::SoaVector3 vel0;
         typename T::SoaVector3 vel1;
         typename T::SoaVector3 vel2;
-        typename T::SoaUint id;
-
-        FEMSoaFXTri() : id(0x3f) {}
+        typename T::SoaUint id = 0x3f;
 
         const typename T::SoaVector3& Pos(uint i) const { return *(&pos0 + i); }
         const typename T::SoaVector3& Vel(uint i) const { return *(&vel0 + i); }
@@ -81,24 +79,22 @@ namespace AMD
         typename T::SoaVector3 direction;    // direction pointing from i to j
         typename T::SoaVector3 posi;
         typename T::SoaVector3 posj;
-        typename T::SoaFloat   distance;
-        typename T::SoaFloat   time;
-        typename T::SoaUint    numIterations;
-        FmSoaFeaturePair<T> featurePair;
-        typename T::SoaUint    retVal;
+        typename T::SoaFloat   distance = 0.0f;
+        typename T::SoaFloat   time = 0.0f;
+        typename T::SoaUint    numIterations = 0;
+        FmSoaFeaturePair<T>    featurePair;
+        typename T::SoaUint    retVal = FM_CCD_RET_NO_IMPACT;
     };
 
     template<class T>
     struct FmSoaCcdTerminationConditions
     {
-        typename T::SoaFloat impactGap;          // Distance between tris at time of impact.  impactGap may be the sum of triangle thicknesses.
-        typename T::SoaFloat contactGap;         // Distance defining contact condition at beginning of timestep.  Assumed to be greater than impactGap.
-        typename T::SoaFloat impactGapAbsError;  // Search terminates if distance within this absolute error of impact gap.
-        typename T::SoaFloat impactGapRelError;  // Search terminates if distance within this relative error of impact gap.
-        typename T::SoaFloat minTimeStep;        // Search terminates if time step of next iteration is less than this minimum.
-        typename T::SoaUint  maxIterations;      // Search terminates if maximum iterations reached.
-
-        FmSoaCcdTerminationConditions() : impactGap(0.0f), contactGap(0.0f), impactGapAbsError(FLT_EPSILON), impactGapRelError(FLT_EPSILON), minTimeStep(FLT_EPSILON), maxIterations(FM_DEFAULT_MAX_CCD_ITERATIONS) {}
+        typename T::SoaFloat impactGap = 0.0f;                               // Distance between tris at time of impact.  impactGap may be the sum of triangle thicknesses.
+        typename T::SoaFloat contactGap = 0.0f;                              // Distance defining contact condition at beginning of timestep.  Assumed to be greater than impactGap.
+        typename T::SoaFloat impactGapAbsError = FLT_EPSILON;                // Search terminates if distance within this absolute error of impact gap.
+        typename T::SoaFloat impactGapRelError = FLT_EPSILON;                // Search terminates if distance within this relative error of impact gap.
+        typename T::SoaFloat minTimeStep = FLT_EPSILON;                      // Search terminates if time step of next iteration is less than this minimum.
+        typename T::SoaUint  maxIterations = FM_DEFAULT_MAX_CCD_ITERATIONS;  // Search terminates if maximum iterations reached.
     };
 
     template<class T>
@@ -108,8 +104,8 @@ namespace AMD
         typename T::SoaVector3 eAvel[2];
         typename T::SoaVector3 eBpos[2];
         typename T::SoaVector3 eBvel[2];
-        typename T::SoaUint    i;           // triangle corner indices of edge start verts
-        typename T::SoaUint    j;
+        typename T::SoaUint    i = 0;           // triangle corner indices of edge start verts
+        typename T::SoaUint    j = 0;
     };
 
     template<class T>
@@ -119,7 +115,7 @@ namespace AMD
         typename T::SoaVector3 vAvel;
         typename T::SoaVector3 fBpos[3];
         typename T::SoaVector3 fBvel[3];
-        typename T::SoaUint    i;            // triangle corner index of vA
+        typename T::SoaUint    i = 0;            // triangle corner index of vA
     };
 
     template<class T>
@@ -129,7 +125,7 @@ namespace AMD
         typename T::SoaVector3 fAvel[3];
         typename T::SoaVector3 vBpos;
         typename T::SoaVector3 vBvel;
-        typename T::SoaUint    j;            // triangle corner index of vB
+        typename T::SoaUint    j = 0;            // triangle corner index of vB
     };
 
     template<class T>

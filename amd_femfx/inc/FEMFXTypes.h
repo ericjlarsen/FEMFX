@@ -29,13 +29,20 @@ THE SOFTWARE.
 #include <algorithm>
 #include "FEMFXVectorMath.h"
 
-#ifdef WIN32
+#if defined(_MSC_VER)
 #define FM_FORCE_INLINE __forceinline
 #define FM_RESTRICT __restrict
 #define FM_ALIGN_OF(x) __alignof(x)
 #define FM_ALIGN(x) __declspec(align(x))
 #define FM_ALIGN_END(x)
 #define FM_THREAD_LOCAL_STORAGE __declspec(thread)
+#elif defined(__GNUC__)
+#define FM_FORCE_INLINE inline
+#define FM_RESTRICT __restrict
+#define FM_ALIGN_OF(x) __alignof(x)
+#define FM_ALIGN(x)
+#define FM_ALIGN_END(x) __attribute__((aligned(x)))
+#define FM_THREAD_LOCAL_STORAGE thread_local
 #else
 #error "Undefined"
 #endif
@@ -48,8 +55,8 @@ THE SOFTWARE.
 #endif
 #define FM_STATIC_ASSERT(x) static_assert(x, #x)
 
-#define FM_DELETE(ptr) if (ptr) { delete (ptr); (ptr) = NULL; }
-#define FM_DELETE_ARRAY(ptr) if (ptr) { delete [] (ptr); (ptr) = NULL; }
+#define FM_DELETE(ptr) if (ptr) { delete (ptr); (ptr) = nullptr; }
+#define FM_DELETE_ARRAY(ptr) if (ptr) { delete [] (ptr); (ptr) = nullptr; }
 
 #define FM_PI 3.14159265358979323846f
 
@@ -61,14 +68,14 @@ namespace AMD
     struct FmAtomicUint
     {
         FM_ALIGN(64) uint32_t val FM_ALIGN_END(64);
-        FmAtomicUint() {}
+        FmAtomicUint() { val = 0; }
         FmAtomicUint(uint32_t inVal) { val = inVal; }
     };
 
     struct FmAtomicUint64
     {
         FM_ALIGN(64) uint64_t val FM_ALIGN_END(64);
-        FmAtomicUint64() {}
+        FmAtomicUint64() { val = 0; }
         FmAtomicUint64(uint64_t inVal) { val = inVal; }
     };
 

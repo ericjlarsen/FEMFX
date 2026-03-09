@@ -28,10 +28,12 @@ THE SOFTWARE.
 
 #include <algorithm>
 
-#ifdef _WIN32
+#if defined(_MSC_VER)
 #include <malloc.h>
 #include <intrin.h> // for __lzcnt
 #endif
+
+#include <string.h>
 
 // Bit flags
 #define FM_VERT_FLAG_KINEMATIC                            0x1          // Kinematically driven vertex
@@ -60,7 +62,7 @@ THE SOFTWARE.
 #define FM_OBJECT_FLAG_SLEEPING_DISABLED                   0x80         // Disable sleeping for the object
 #define FM_OBJECT_FLAG_HIT_MAX_VERTS                       0x100        // Hit limit of verts during fracture
 #define FM_OBJECT_FLAG_HIT_MAX_EXTERIOR_FACES              0x200        // Hit limit of exterior faces during fracture
-#define FM_OBJECT_FLAG_SURFACE_COLLISION_CALLBACK_DISABLED 0x400        // Disable call to scene's surfaceCollisionCallback (if non-NULL) for a tet mesh
+#define FM_OBJECT_FLAG_SURFACE_COLLISION_CALLBACK_DISABLED 0x400        // Disable call to scene's surfaceCollisionCallback (if non-null) for a tet mesh
 #define FM_OBJECT_FLAG_SIMULATION_DISABLED                 0x800        // Object (tet mesh, rigid body) should not be simulated
 #define FM_OBJECT_FLAG_COMPUTE_TET_STRAIN_MAG              0x1000       // Enable computing tetStrainMagAvg and tetStrainMagMax deformation measures
 #define FM_OBJECT_FLAG_ENABLE_SELF_COLLISION               0x2000       // Enable computing self collision
@@ -89,26 +91,32 @@ namespace AMD
     // Count leading zeros
     static FM_FORCE_INLINE uint FmCountLeadingZeros(uint x)
     {
-#ifdef WIN32
+#if defined(_MSC_VER)
         return __lzcnt(x);
+#elif defined(__GNUC__)
+        return __builtin_clz(x);
 #endif
     }
 
     // Count set bits
     static FM_FORCE_INLINE uint FmCountSetBits(uint x)
     {
-#ifdef WIN32
+#if defined(_MSC_VER)
         return (int)_mm_popcnt_u32(x);
+#elif defined(__GNUC__)
+        return (int)__builtin_popcount(x);
 #endif
     }
 
     static FM_FORCE_INLINE uint FmIntLog2(uint x)
     {
+        FM_ASSERT(x > 0);
         return 32 - FmCountLeadingZeros(x) - 1;
     }
 
     static FM_FORCE_INLINE uint FmNextPowerOf2(uint x)
     {
+        FM_ASSERT(x > 0);
         return 1 << FmIntLog2(x + x - 1);
     }
 }
@@ -154,24 +162,8 @@ namespace AMD
 #include <vector>
 #endif
 
-#define FM_USE_TRACE                    0
-#if FM_USE_TRACE
-extern bool gFEMFXTraceEnabled;
-#include "FEMTrace.h"
-#else
-#define FM_INIT_TRACE()     
-#define FM_SHUTDOWN_TRACE() 
-#define FM_ENABLE_TRACE()   
-#define FM_DISABLE_TRACE()  
-#define FM_TRACE_START_EVENT(name_)
-#define FM_TRACE_STOP_EVENT(name_)
-#define FM_TRACE_SCOPED_EVENT(name_)
-#define FM_TRACE_INC_COUNTER(name_, val_)
-#define FM_TRACE_START_FRAME()
-#define FM_TRACE_STOP_FRAME()
-#endif
-
 #if FM_TIMINGS
+#if defined(_MSC_VER)
 #include "Windows.h"
 namespace AMD
 {
@@ -188,6 +180,20 @@ namespace AMD
         return ((double)timeseconds + (double)timeremainder / (double)freq.QuadPart) * 1000.0;
     }
 }
+#elif defined(__GNUC__)
+#include <sys/time.h>
+namespace AMD
+{
+    static FM_FORCE_INLINE double FmGetTimeMsec()
+    {
+        struct timeval val;
+        gettimeofday(&val, nullptr);
+        double timemilliseconds = val.tv_sec * 1000.0;
+        timemilliseconds += (double)val.tv_usec * 1e-3;
+        return timemilliseconds;
+    }
+}
+#endif
 #define FM_GET_TIME(t) t = FmGetTimeMsec()
 #define FM_SET_START_TIME() gFEMFXStartTime = FmGetTimeMsec()
 #define FM_SET_MESH_COMPONENTS_TIME() gFEMFXMeshComponentsTime = FmGetTimeMsec() - gFEMFXStartTime

@@ -32,148 +32,6 @@ THE SOFTWARE.
 namespace AMD
 {
 
-    static FM_FORCE_INLINE void FmIntersectionX12TetsAddVert(
-        uint& numVerts,
-        FmVector3* verts,
-        int X12Vals[6][4],
-        uint vertIds[6][4],
-        uint edgeA, uint faceB,
-        const FmVector3& eA0, const FmVector3& eA1,
-        const FmVector3& fB0, const FmVector3& fB1, const FmVector3& fB2)
-    {
-        FmVector3 intersectionPoint;
-        int X12Val = FmIntersectionX12(&intersectionPoint, eA0, eA1, fB0, fB1, fB2);
-
-        X12Vals[edgeA][faceB] = X12Val;
-        vertIds[edgeA][faceB] = numVerts;
-        verts[numVerts] = intersectionPoint;
-        numVerts = (X12Val != 0) ? numVerts + 1 : numVerts;
-    }
-
-    static FM_FORCE_INLINE void FmIntersectionX12TriTetAddVert(
-        uint& numVerts,
-        FmVector3* verts,
-        int X12Vals[3][4],
-        uint vertIds[3][4],
-        uint edgeA, uint faceB,
-        const FmVector3& eA0, const FmVector3& eA1,
-        const FmVector3& fB0, const FmVector3& fB1, const FmVector3& fB2)
-    {
-        FmVector3 intersectionPoint;
-        int X12Val = FmIntersectionX12(&intersectionPoint, eA0, eA1, fB0, fB1, fB2);
-
-        X12Vals[edgeA][faceB] = X12Val;
-        vertIds[edgeA][faceB] = numVerts;
-        verts[numVerts] = intersectionPoint;
-        numVerts = (X12Val != 0) ? numVerts + 1 : numVerts;
-    }
-
-    static FM_FORCE_INLINE void FmIntersectionX12TetTriAddVert(
-        uint& numVerts,
-        FmVector3* verts,
-        int X12Vals[6],
-        uint vertIds[6],
-        uint edgeA,
-        const FmVector3& eA0, const FmVector3& eA1,
-        const FmVector3& fB0, const FmVector3& fB1, const FmVector3& fB2)
-    {
-        FmVector3 intersectionPoint;
-        int X12Val = FmIntersectionX12(&intersectionPoint, eA0, eA1, fB0, fB1, fB2);
-
-        X12Vals[edgeA] = X12Val;
-        vertIds[edgeA] = numVerts;
-        verts[numVerts] = intersectionPoint;
-        numVerts = (X12Val != 0) ? numVerts + 1 : numVerts;
-    }
-
-    static FM_FORCE_INLINE void FmIntersectionX21TetsAddVert(
-        uint& numVerts,
-        FmVector3* verts,
-        int X21Vals[4][6],
-        uint vertIds[4][6],
-        uint faceA, uint edgeB,
-        const FmVector3& fA0, const FmVector3& fA1, const FmVector3& fA2,
-        const FmVector3& eB0, const FmVector3& eB1)
-    {
-        FmVector3 intersectionPoint;
-        int X21Val = FmIntersectionX21(&intersectionPoint, fA0, fA1, fA2, eB0, eB1);
-
-        X21Vals[faceA][edgeB] = X21Val;
-        vertIds[faceA][edgeB] = numVerts;
-        verts[numVerts] = intersectionPoint;
-        numVerts = (X21Val != 0) ? numVerts + 1 : numVerts;
-    }
-
-    static FM_FORCE_INLINE void FmIntersectionX21TriTetAddVert(
-        uint& numVerts,
-        FmVector3* verts,
-        int X21Vals[6],
-        uint vertIds[6],
-        uint edgeB,
-        const FmVector3& fA0, const FmVector3& fA1, const FmVector3& fA2,
-        const FmVector3& eB0, const FmVector3& eB1)
-    {
-        FmVector3 intersectionPoint;
-        int X21Val = FmIntersectionX21(&intersectionPoint, fA0, fA1, fA2, eB0, eB1);
-
-        X21Vals[edgeB] = X21Val;
-        vertIds[edgeB] = numVerts;
-        verts[numVerts] = intersectionPoint;
-        numVerts = (X21Val != 0) ? numVerts + 1 : numVerts;
-    }
-
-    static FM_FORCE_INLINE void FmIntersectionX21TetTriAddVert(
-        uint& numVerts,
-        FmVector3* verts,
-        int X21Vals[4][3],
-        uint vertIds[4][3],
-        uint faceA, uint edgeB,
-        const FmVector3& fA0, const FmVector3& fA1, const FmVector3& fA2,
-        const FmVector3& eB0, const FmVector3& eB1)
-    {
-        FmVector3 intersectionPoint;
-        int X21Val = FmIntersectionX21(&intersectionPoint, fA0, fA1, fA2, eB0, eB1);
-
-        X21Vals[faceA][edgeB] = X21Val;
-        vertIds[faceA][edgeB] = numVerts;
-        verts[numVerts] = intersectionPoint;
-        numVerts = (X21Val != 0) ? numVerts + 1 : numVerts;
-    }
-
-    static FM_FORCE_INLINE void FmIntersectionX03AddVert(
-        uint& numVerts,
-        FmVector3* verts,
-        int* X03Vals,
-        uint* vertIds,
-        uint vertA,
-        const FmVector3& vA,
-        const FmVector3& tB0, const FmVector3& tB1, const FmVector3& tB2, const FmVector3& tB3)
-    {
-        int X03Val = FmIntersectionX03(vA, tB0, tB1, tB2, tB3);
-
-        X03Vals[vertA] = X03Val;
-        vertIds[vertA] = numVerts;
-        verts[numVerts] = vA;
-        numVerts = (X03Val != 0) ? numVerts + 1 : numVerts;
-    }
-
-    static FM_FORCE_INLINE void FmIntersectionX30AddVert(
-        uint& numVerts,
-        FmVector3* verts,
-        int* X30Vals,
-        uint* vertIds,
-        uint vertB,
-        const FmVector3& tA0, const FmVector3& tA1, const FmVector3& tA2, const FmVector3& tA3,
-        const FmVector3& vB)
-    {
-        int X30Val = FmIntersectionX30(tA0, tA1, tA2, tA3, vB);
-
-        X30Vals[vertB] = X30Val;
-        vertIds[vertB] = numVerts;
-        verts[numVerts] = vB;
-        numVerts = (X30Val != 0) ? numVerts + 1 : numVerts;
-    }
-
     // Intersection function for edge A and edge B intersecting in XY plane
     int FmIntersectionX11(
         FmVector3* intersectionPointA, FmVector3* intersectionPointB,
@@ -191,6 +49,9 @@ namespace AMD
         int S10ValB1onA = FmShadowFunction(X10ValAwithB1, intersectionPointAwithB1.y, eB1.y);
 
         int intersectionVal = S01ValBonA1 - S01ValBonA0 + S10ValB1onA - S10ValB0onA;
+
+        if (intersectionVal == 0)
+            return intersectionVal;
 
         FmVector3 xBp = intersectionPointBwithA0;
         FmVector3 xAp = eA0;
@@ -243,6 +104,9 @@ namespace AMD
 
         int intersectionVal = -(S01ValB0onA + S01ValB1onA + S01ValB2onA);
 
+        if (intersectionVal == 0)
+            return intersectionVal;
+
         FmVector3 xBp = intersectionPointBe0withA;
         FmVector3 xBm = intersectionPointBe0withA;
 
@@ -278,6 +142,9 @@ namespace AMD
         int S10ValBonAe2 = FmShadowFunction(X10ValAe2withB, intersectionPointAe2withB.y, vB.y);
 
         int intersectionVal = S10ValBonAe0 + S10ValBonAe1 + S10ValBonAe2;
+
+        if (intersectionVal == 0)
+            return intersectionVal;
 
         FmVector3 xAp = intersectionPointAe0withB;
         FmVector3 xAm = intersectionPointAe0withB;
@@ -324,6 +191,9 @@ namespace AMD
         int S11ValBe2onA = FmShadowFunction(X11ValAwithBe2, intersectionPointAwithBe2.z, intersectionPointBe2withA.z);
 
         int intersectionVal = -S02ValBonA1 + S02ValBonA0 - S11ValBe0onA - S11ValBe1onA - S11ValBe2onA;
+
+        if (intersectionVal == 0)
+            return intersectionVal;
 
         float xBp_z = intersectionPointBwithA0.z;
         FmVector3 xAp = eA0;
@@ -384,6 +254,9 @@ namespace AMD
         int S11ValBonAe2 = FmShadowFunction(X11ValAe2withB, intersectionPointAe2withB.z, intersectionPointBwithAe2.z);
 
         int intersectionVal = S20ValB1onA - S20ValB0onA - S11ValBonAe0 - S11ValBonAe1 - S11ValBonAe2;
+
+        if (intersectionVal == 0)
+            return intersectionVal;
 
         float xBp_z = eB0.z;
         FmVector3 xAp = intersectionPointAwithB0;
@@ -632,18 +505,18 @@ namespace AMD
         {
             *isFullFaceIntegration = true;
             *numFullFaceIntegrations = 0;
-            dVdp_contribution[0] = FmInitVector3(0.0f);
-            dVdp_contribution[1] = FmInitVector3(0.0f);
-            dVdp_contribution[2] = FmInitVector3(0.0f);
+            dVdp_contribution[0] = FmVector3(0.0f);
+            dVdp_contribution[1] = FmVector3(0.0f);
+            dVdp_contribution[2] = FmVector3(0.0f);
             return 0.0f;
         }
         else if (FmIsEqual(edge1Pos, triPos2))
         {
             *isFullFaceIntegration = true;
             *numFullFaceIntegrations = isRetainedEdgeStart ? 1 : -1;
-            dVdp_contribution[0] = FmInitVector3(0.0f);
-            dVdp_contribution[1] = FmInitVector3(0.0f);
-            dVdp_contribution[2] = FmInitVector3(0.0f);
+            dVdp_contribution[0] = FmVector3(0.0f);
+            dVdp_contribution[1] = FmVector3(0.0f);
+            dVdp_contribution[2] = FmVector3(0.0f);
             return 0.0f;
         }
         else
@@ -740,12 +613,12 @@ namespace AMD
     {
         if (triIntersectionPoints.numSegments == 0)
         {
-            dVdp_contributionA[0] = FmInitVector3(0.0f, 0.0f, 0.0f);
-            dVdp_contributionA[1] = FmInitVector3(0.0f, 0.0f, 0.0f);
-            dVdp_contributionA[2] = FmInitVector3(0.0f, 0.0f, 0.0f);
-            dVdp_contributionB[0] = FmInitVector3(0.0f, 0.0f, 0.0f);
-            dVdp_contributionB[1] = FmInitVector3(0.0f, 0.0f, 0.0f);
-            dVdp_contributionB[2] = FmInitVector3(0.0f, 0.0f, 0.0f);
+            dVdp_contributionA[0] = FmVector3(0.0f, 0.0f, 0.0f);
+            dVdp_contributionA[1] = FmVector3(0.0f, 0.0f, 0.0f);
+            dVdp_contributionA[2] = FmVector3(0.0f, 0.0f, 0.0f);
+            dVdp_contributionB[0] = FmVector3(0.0f, 0.0f, 0.0f);
+            dVdp_contributionB[1] = FmVector3(0.0f, 0.0f, 0.0f);
+            dVdp_contributionB[2] = FmVector3(0.0f, 0.0f, 0.0f);
 
             *V_contributionA = 0.0f;
             *V_contributionB = 0.0f;
@@ -755,12 +628,12 @@ namespace AMD
 
         FmVector3 dVdp_contribA[3];
         FmVector3 dVdp_contribB[3];
-        dVdp_contribA[0] = FmInitVector3(0.0f, 0.0f, 0.0f);
-        dVdp_contribA[1] = FmInitVector3(0.0f, 0.0f, 0.0f);
-        dVdp_contribA[2] = FmInitVector3(0.0f, 0.0f, 0.0f);
-        dVdp_contribB[0] = FmInitVector3(0.0f, 0.0f, 0.0f);
-        dVdp_contribB[1] = FmInitVector3(0.0f, 0.0f, 0.0f);
-        dVdp_contribB[2] = FmInitVector3(0.0f, 0.0f, 0.0f);
+        dVdp_contribA[0] = FmVector3(0.0f, 0.0f, 0.0f);
+        dVdp_contribA[1] = FmVector3(0.0f, 0.0f, 0.0f);
+        dVdp_contribA[2] = FmVector3(0.0f, 0.0f, 0.0f);
+        dVdp_contribB[0] = FmVector3(0.0f, 0.0f, 0.0f);
+        dVdp_contribB[1] = FmVector3(0.0f, 0.0f, 0.0f);
+        dVdp_contribB[2] = FmVector3(0.0f, 0.0f, 0.0f);
 
         float V_contribA = 0.0f;
         float V_contribB = 0.0f;
@@ -884,12 +757,12 @@ namespace AMD
             *numFullIntegrationsA = 0;
             *numFullIntegrationsB = 0;
 
-            dVdp_contributionA[0] = FmInitVector3(0.0f, 0.0f, 0.0f);
-            dVdp_contributionA[1] = FmInitVector3(0.0f, 0.0f, 0.0f);
-            dVdp_contributionA[2] = FmInitVector3(0.0f, 0.0f, 0.0f);
-            dVdp_contributionB[0] = FmInitVector3(0.0f, 0.0f, 0.0f);
-            dVdp_contributionB[1] = FmInitVector3(0.0f, 0.0f, 0.0f);
-            dVdp_contributionB[2] = FmInitVector3(0.0f, 0.0f, 0.0f);
+            dVdp_contributionA[0] = FmVector3(0.0f, 0.0f, 0.0f);
+            dVdp_contributionA[1] = FmVector3(0.0f, 0.0f, 0.0f);
+            dVdp_contributionA[2] = FmVector3(0.0f, 0.0f, 0.0f);
+            dVdp_contributionB[0] = FmVector3(0.0f, 0.0f, 0.0f);
+            dVdp_contributionB[1] = FmVector3(0.0f, 0.0f, 0.0f);
+            dVdp_contributionB[2] = FmVector3(0.0f, 0.0f, 0.0f);
 
             *V_contributionA = 0.0f;
             *V_contributionB = 0.0f;
@@ -899,12 +772,12 @@ namespace AMD
 
         FmVector3 dVdp_contribA[3];
         FmVector3 dVdp_contribB[3];
-        dVdp_contribA[0] = FmInitVector3(0.0f, 0.0f, 0.0f);
-        dVdp_contribA[1] = FmInitVector3(0.0f, 0.0f, 0.0f);
-        dVdp_contribA[2] = FmInitVector3(0.0f, 0.0f, 0.0f);
-        dVdp_contribB[0] = FmInitVector3(0.0f, 0.0f, 0.0f);
-        dVdp_contribB[1] = FmInitVector3(0.0f, 0.0f, 0.0f);
-        dVdp_contribB[2] = FmInitVector3(0.0f, 0.0f, 0.0f);
+        dVdp_contribA[0] = FmVector3(0.0f, 0.0f, 0.0f);
+        dVdp_contribA[1] = FmVector3(0.0f, 0.0f, 0.0f);
+        dVdp_contribA[2] = FmVector3(0.0f, 0.0f, 0.0f);
+        dVdp_contribB[0] = FmVector3(0.0f, 0.0f, 0.0f);
+        dVdp_contribB[1] = FmVector3(0.0f, 0.0f, 0.0f);
+        dVdp_contribB[2] = FmVector3(0.0f, 0.0f, 0.0f);
 
         float V_contribA = 0.0f;
         float V_contribB = 0.0f;

@@ -59,14 +59,14 @@ namespace AMD
     }
 
     // Compute eigenvectors and values for symmetric matrix, using Jacobi iteration with fixed cycle of (row, col) pairs
-    void FmEigenSymm3x3CyclicJacobi(FmVector3* eigenvals, FmMatrix3* eigenvectors, const FmMatrix3& symmMat)
+    void FmEigenSym3x3(FmVector3* eigenvals, FmMatrix3* eigenvectors, const FmMatrix3& symMat)
     {
-        float s00 = symmMat.col0.x;
-        float s01 = symmMat.col1.x;
-        float s02 = symmMat.col2.x;
-        float s11 = symmMat.col1.y;
-        float s12 = symmMat.col2.y;
-        float s22 = symmMat.col2.z;
+        float s00 = symMat.col0.x;
+        float s01 = symMat.col1.x;
+        float s02 = symMat.col2.x;
+        float s11 = symMat.col1.y;
+        float s12 = symMat.col2.y;
+        float s22 = symMat.col2.z;
 
         const int numIterations = 4;
 
@@ -77,8 +77,8 @@ namespace AMD
             // (p, q) = (0, 1)
             float s, c;
             FmApproxGivens(&s, &c, s00, s01, s11);
-            FmMatrix3 GivensMat = FmInitMatrix3(FmInitVector3(c, s, 0.0f), FmInitVector3(-s, c, 0.0f), FmInitVector3(0.0f, 0.0f, 1.0f));
-            V = mul(V, GivensMat);
+            FmMatrix3 GivensMat = FmMatrix3(FmVector3(c, s, 0.0f), FmVector3(-s, c, 0.0f), FmVector3(0.0f, 0.0f, 1.0f));
+            V = V * GivensMat;
 
             float s00_next = s*s*s11 + s*c*s01 + c*s*s01 + c*c*s00;
             float s01_next = s*c*s11 - s*s*s01 + c*c*s01 - c*s*s00;
@@ -96,8 +96,8 @@ namespace AMD
 
             // (p, q) = (0, 2)
             FmApproxGivens(&s, &c, s00, s02, s22);
-            GivensMat = FmInitMatrix3(FmInitVector3(c, 0.0f, s), FmInitVector3(0.0f, 1.0f, 0.0f), FmInitVector3(-s, 0.0f, c));
-            V = mul(V, GivensMat);
+            GivensMat = FmMatrix3(FmVector3(c, 0.0f, s), FmVector3(0.0f, 1.0f, 0.0f), FmVector3(-s, 0.0f, c));
+            V = V * GivensMat;
 
             s00_next = s*s*s22 + s*c*s02 + c*s*s02 + c*c*s00;
             s01_next = s*s12 + c*s01;
@@ -115,8 +115,8 @@ namespace AMD
 
             // (p, q) = (1, 2)
             FmApproxGivens(&s, &c, s11, s12, s22);
-            GivensMat = FmInitMatrix3(FmInitVector3(1.0f, 0.0f, 0.0f), FmInitVector3(0.0f, c, s), FmInitVector3(0.0f, -s, c));
-            V = mul(V, GivensMat);
+            GivensMat = FmMatrix3(FmVector3(1.0f, 0.0f, 0.0f), FmVector3(0.0f, c, s), FmVector3(0.0f, -s, c));
+            V = V * GivensMat;
 
             //s00_next = s00;
             s01_next = s*s02 + c*s01;
@@ -133,15 +133,39 @@ namespace AMD
             s22 = s22_next;
         }
 
+        *eigenvectors = V;
+        *eigenvals = FmVector3(s00, s11, s22);
+    }
+
+    // Givens rotation used in QR decomposition
+    void FmQRGivens(float& s, float& c, float apq, float aqq, float tolerance)
+    {
+        float sum = apq*apq + aqq*aqq;
+        float denomInv = 1.0f / sqrtf(sum);
+        s = (sum < tolerance) ? 0.0f : apq * denomInv;
+        c = (sum < tolerance) ? 1.0f : aqq * denomInv;
+    }
+
+    // SVD(mat) = U * Sigma * V^T
+    // Reference: McAdams et al., "Computing the Singular Value Decomposition of 3 x 3 matrices with minimal branching and elementary floating point operations"
+    void FmSvd3x3(FmMatrix3* U, FmVector3* sigma, FmMatrix3* V, const FmMatrix3& mat, float givensTolerance /* = FLT_EPSILON */)
+    {
+        // Compute V^T * Sigma^2 * V as Eigendecomposition of Mat^T * Mat
+        FmMatrix3 symMat = transpose(mat) * mat;
+
+        FmVector3 eigenvals;
+        FmMatrix3 eigenvecs;
+        FmEigenSym3x3(&eigenvals, &eigenvecs, symMat);
+
         // Sort eigenvalues in order of decreasing magnitude, and swap eigenvectors to match.
         // Signs flipped during swaps to preserve rotation.
-        FmVector3 eigenvec0 = V.col0;
-        FmVector3 eigenvec1 = V.col1;
-        FmVector3 eigenvec2 = V.col2;
+        FmVector3 eigenvec0 = eigenvecs.col0;
+        FmVector3 eigenvec1 = eigenvecs.col1;
+        FmVector3 eigenvec2 = eigenvecs.col2;
         FmVector3 eigenvectemp;
-        float eigenval0 = s00;
-        float eigenval1 = s11;
-        float eigenval2 = s22;
+        float eigenval0 = eigenvals.x;
+        float eigenval1 = eigenvals.y;
+        float eigenval2 = eigenvals.z;
         float eigenvaltemp;
         float abseigenval0 = fabsf(eigenval0);
         float abseigenval1 = fabsf(eigenval1);
@@ -181,32 +205,11 @@ namespace AMD
         //abseigenval1 = swap ? abseigenval2 : abseigenval1;
         //abseigenval2 = swap ? abseigenvaltemp : abseigenval2;
 
-        *eigenvectors = FmInitMatrix3(eigenvec0, eigenvec1, eigenvec2);
-        *eigenvals = FmInitVector3(eigenval0, eigenval1, eigenval2);
-    }
-
-    // Givens rotation used in QR decomposition
-    void FmQRGivens(float& s, float& c, float apq, float aqq, float tolerance)
-    {
-        float sum = apq*apq + aqq*aqq;
-        float denomInv = 1.0f / sqrtf(sum);
-        s = (sum < tolerance) ? 0.0f : apq * denomInv;
-        c = (sum < tolerance) ? 1.0f : aqq * denomInv;
-    }
-
-    // SVD(mat) = U * Sigma * V^T
-    // Reference: McAdams et al., "Computing the Singular Value Decomposition of 3 x 3 matrices with minimal branching and elementary floating point operations"
-    void FmSvd3x3(FmMatrix3* U, FmVector3* sigma, FmMatrix3* V, const FmMatrix3& mat, float givensTolerance /* = FLT_EPSILON */)
-    {
-        // Compute V^T * Sigma^2 * V as Eigendecomposition of Mat^T * Mat
-        FmMatrix3 symmMat = mul(transpose(mat), mat);
-
-        FmVector3 eigenvals;
-        FmMatrix3 eigenvecs;
-        FmEigenSymm3x3CyclicJacobi(&eigenvals, &eigenvecs, symmMat);
+        eigenvecs = FmMatrix3(eigenvec0, eigenvec1, eigenvec2);
+        eigenvals = FmVector3(eigenval0, eigenval1, eigenval2);
 
         // B = U * Sigma = Mat * V
-        FmMatrix3 B = mul(mat, eigenvecs);
+        FmMatrix3 B = mat * eigenvecs;
 
         // Decompose into U and Sigma with Givens rotations
         FmMatrix3 Q, GivensMat;
@@ -217,26 +220,26 @@ namespace AMD
         B_10 = B.getElem(0, 1);
         B_00 = B.getElem(0, 0);
         FmQRGivens(s, c, B_10, B_00, givensTolerance);
-        GivensMat = FmInitMatrix3(FmInitVector3(c, s, 0.0f), FmInitVector3(-s, c, 0.0f), FmInitVector3(0.0f, 0.0f, 1.0f));
+        GivensMat = FmMatrix3(FmVector3(c, s, 0.0f), FmVector3(-s, c, 0.0f), FmVector3(0.0f, 0.0f, 1.0f));
 
         Q = GivensMat;
-        B = mul(transpose(GivensMat), B);
+        B = transpose(GivensMat) * B;
 
         B_20 = B.getElem(0, 2);
         B_00 = B.getElem(0, 0);
         FmQRGivens(s, c, B_20, B_00, givensTolerance);
-        GivensMat = FmInitMatrix3(FmInitVector3(c, 0.0f, s), FmInitVector3(0.0f, 1.0f, 0.0f), FmInitVector3(-s, 0.0f, c));
+        GivensMat = FmMatrix3(FmVector3(c, 0.0f, s), FmVector3(0.0f, 1.0f, 0.0f), FmVector3(-s, 0.0f, c));
 
-        Q = mul(Q, GivensMat);
-        B = mul(transpose(GivensMat), B);
+        Q = Q * GivensMat;
+        B = transpose(GivensMat) * B;
 
         B_21 = B.getElem(1, 2);
         B_11 = B.getElem(1, 1);
         FmQRGivens(s, c, B_21, B_11, givensTolerance);
-        GivensMat = FmInitMatrix3(FmInitVector3(1.0f, 0.0f, 0.0f), FmInitVector3(0.0f, c, s), FmInitVector3(0.0f, -s, c));
+        GivensMat = FmMatrix3(FmVector3(1.0f, 0.0f, 0.0f), FmVector3(0.0f, c, s), FmVector3(0.0f, -s, c));
 
-        Q = mul(Q, GivensMat);
-        B = mul(transpose(GivensMat), B);
+        Q = Q * GivensMat;
+        B = transpose(GivensMat) * B;
 
         B_00 = B.getElem(0, 0);
         B_11 = B.getElem(1, 1);
@@ -263,7 +266,7 @@ namespace AMD
         sigma.y = absSigma.y > tol ? 1.0f / sigma.y : 0.0f;
         sigma.z = absSigma.z > tol ? 1.0f / sigma.z : 0.0f;
 
-        return mul(V, mul(FmMatrix3::scale(sigma), transpose(U)));
+        return V * FmMatrix3::scale(sigma) * transpose(U);
     }
 
 }

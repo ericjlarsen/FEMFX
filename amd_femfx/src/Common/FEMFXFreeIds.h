@@ -31,14 +31,14 @@ namespace AMD
     // Keeps list of free ids for recycling
     struct FmFreeIds
     {
-        uint* freeIdsArray;
-        uint numFreeIds;
-        uint maxIds;
+        uint* freeIdsArray = nullptr;
+        uint numFreeIds = 0;
+        uint maxIds = 0;
     };
 
     static inline void FmInitFreeIds(FmFreeIds* freeIds)
     {
-        freeIds->freeIdsArray = NULL;
+        freeIds->freeIdsArray = nullptr;
         freeIds->numFreeIds = 0;
         freeIds->maxIds = 0;
     }

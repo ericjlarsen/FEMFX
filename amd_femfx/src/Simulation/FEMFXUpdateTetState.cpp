@@ -23,10 +23,11 @@ THE SOFTWARE.
 */
 
 #include "AMD_FEMFX.h"
-#include "FEMFXAsyncThreading.h"
-#include "FEMFXParallelFor.h"
+#include "FEMFXThreading.h"
+#if FM_SOA_TET_MATH
 #include "FEMFXSoaTetMath.h"
 #include "FEMFXSoaSvd3x3.h"
+#endif
 #include "FEMFXScene.h"
 #include "FEMFXUpdateTetState.h"
 
@@ -37,45 +38,32 @@ namespace AMD
     // Input data required for updating tet state: tet rotation, stiffness, plasticity, and testing fracture
     struct FmUpdateTetStateInput
     {
-        // Deformed tet positions; translated by center of mass for numerical benefit
-        FmVector3 deformedPosition0;
-        FmVector3 deformedPosition1;
-        FmVector3 deformedPosition2;
-        FmVector3 deformedPosition3;
+        // Deformed shape matrix
+        FmMatrix3 deformedShapeMatrix;
 
-        // Rest tet positions
-        FmVector3 restPosition0;
-        FmVector3 restPosition1;
-        FmVector3 restPosition2;
-        FmVector3 restPosition3;
+        // Rest shape matrix
+        FmMatrix3 restShapeMatrix;
 
-        // Rest tet positions used for stress calculation; from original tet mesh or virtual rest positions after plastic deformation
-        FmVector3 stressRestPosition0;
-        FmVector3 stressRestPosition1;
-        FmVector3 stressRestPosition2;
-        FmVector3 stressRestPosition3;
+        // Rest shape matrix used for stress calculation; from original tet mesh or virtual rest positions after plastic deformation
+        FmMatrix3 stressRestShapeMatrix;
 
         FmTetShapeParams shapeParams;         // Shape params based on original rest positions
-        FmTetShapeParams stressShapeParams;   // Shape params based on plastic deformed rest positions, for computing elastic stress
 
         // Matrices from plasticity state
         FmMatrix3 plasticDeformationMatrix;
-#if FM_COMPUTE_PLASTIC_REL_ROTATION            
-        FmMatrix3 plasticTetRelRotation;
-#endif
 
         // Copied material parameters
-        float        youngsModulus;
-        float        poissonsRatio;
-        float        fractureStressThreshold;
-        float        plasticYieldThreshold;
-        float        plasticCreep;
-        float        plasticMin;
-        float        plasticMax;
-        bool         preserveVolume;
+        float youngsModulus = 0.0f;
+        float poissonsRatio = 0.0f;
+        float fractureStressThreshold = 0.0f;
+        float plasticYieldThreshold = 0.0f;
+        float plasticCreep = 0.0f;
+        float plasticMin = 0.0f;
+        float plasticMax = 0.0f;
+        bool  preserveVolume = false;
 
-        bool         testFracture;       // Based on tet properties, set if need to test fracture
-        bool         updatePlasticity;   // Based on tet properties, set if need to update plasticity
+        bool  testFracture = false;       // Based on tet properties, set if need to test fracture
+        bool  updatePlasticity = false;   // Based on tet properties, set if need to update plasticity
     };
 
     // Output tet state which must be stored into mesh
@@ -90,22 +78,18 @@ namespace AMD
 
         // Updated plasticity state
         FmMatrix3 plasticDeformationMatrix;
-        FmTetShapeParams plasticShapeParams;
-#if FM_COMPUTE_PLASTIC_REL_ROTATION            
-        FmMatrix3 plasticTetRelRotation;
-#endif
 
         // Stress measure for fracture
         FmVector3 maxStressDirection;
-        float maxStressEigenvalue;
+        float maxStressEigenvalue = 0.0f;
 
         // Strain magnitude
-        float strainMag;
+        float strainMag = 0.0f;
 
         // Copied from input
-        float fractureStressThreshold;
-        bool testFracture;
-        bool updatePlasticity;
+        float fractureStressThreshold = 0.0f;
+        bool testFracture = false;
+        bool updatePlasticity = false;
     };
 
     static FM_FORCE_INLINE void FmAddToQuat(FmQuat* dst, const FmQuat& src)
@@ -125,45 +109,32 @@ namespace AMD
     template<class T>
     struct FmSoaUpdateTetStateInput
     {
-        // Deformed tet positions; translated by center of mass for numerical benefit
-        typename T::SoaVector3 deformedPosition0;
-        typename T::SoaVector3 deformedPosition1;
-        typename T::SoaVector3 deformedPosition2;
-        typename T::SoaVector3 deformedPosition3;
+        // Deformed shape matrix
+        typename T::SoaMatrix3 deformedShapeMatrix;
 
-        // Rest tet positions
-        typename T::SoaVector3 restPosition0;
-        typename T::SoaVector3 restPosition1;
-        typename T::SoaVector3 restPosition2;
-        typename T::SoaVector3 restPosition3;
+        // Rest shape matrix
+        typename T::SoaMatrix3 restShapeMatrix;
 
-        // Rest tet positions used for stress calculation; from original tet mesh or virtual rest positions after plastic deformation
-        typename T::SoaVector3 stressRestPosition0;
-        typename T::SoaVector3 stressRestPosition1;
-        typename T::SoaVector3 stressRestPosition2;
-        typename T::SoaVector3 stressRestPosition3;
+        // Rest shape matrix used for stress calculation; from original tet mesh or virtual rest positions after plastic deformation
+        typename T::SoaMatrix3 stressRestShapeMatrix;
 
         FmSoaTetShapeParams<T> shapeParams;         // Shape params based on original rest positions
-        FmSoaTetShapeParams<T> stressShapeParams;   // Shape params based on plastic deformed rest positions, for computing elastic stress
 
         // Matrices from plasticity state
         typename T::SoaMatrix3 plasticDeformationMatrix;
-#if FM_COMPUTE_PLASTIC_REL_ROTATION            
-        typename T::SoaMatrix3 plasticTetRelRotation;
-#endif
 
         // Copied material parameters
-        typename T::SoaFloat youngsModulus;
-        typename T::SoaFloat poissonsRatio;
-        typename T::SoaFloat fractureStressThreshold;
-        typename T::SoaFloat plasticYieldThreshold;
-        typename T::SoaFloat plasticCreep;
-        typename T::SoaFloat plasticMin;
-        typename T::SoaFloat plasticMax;
-        typename T::SoaBool  preserveVolume;
+        typename T::SoaFloat youngsModulus = 0.0f;
+        typename T::SoaFloat poissonsRatio = 0.0f;
+        typename T::SoaFloat fractureStressThreshold = 0.0f;
+        typename T::SoaFloat plasticYieldThreshold = 0.0f;
+        typename T::SoaFloat plasticCreep = 0.0f;
+        typename T::SoaFloat plasticMin = 0.0f;
+        typename T::SoaFloat plasticMax = 0.0f;
+        typename T::SoaBool  preserveVolume = false;
 
-        typename T::SoaBool  testFracture;       // Based on tet properties, set if need to test fracture
-        typename T::SoaBool  updatePlasticity;   // Based on tet properties, set if need to test/update plasticity
+        typename T::SoaBool  testFracture = false;       // Based on tet properties, set if need to test fracture
+        typename T::SoaBool  updatePlasticity = false;   // Based on tet properties, set if need to test/update plasticity
     };
 
     // Output tet state which must be stored into mesh
@@ -178,22 +149,18 @@ namespace AMD
 
         // Updated plasticity state
         typename T::SoaMatrix3 plasticDeformationMatrix;
-        typename FmSoaTetShapeParams<T> plasticShapeParams;
-#if FM_COMPUTE_PLASTIC_REL_ROTATION            
-        typename T::SoaMatrix3 plasticTetRelRotation;
-#endif
 
         // Stress measure for fracture
         typename T::SoaVector3 maxStressDirection;
-        typename T::SoaFloat maxStressEigenvalue;
+        typename T::SoaFloat maxStressEigenvalue = 0.0f;
 
         // Deformation value
-        typename T::SoaFloat strainMag;
+        typename T::SoaFloat strainMag = 0.0f;
 
         // Copied from input
-        typename T::SoaFloat fractureStressThreshold;
-        typename T::SoaBool testFracture;
-        typename T::SoaBool updatePlasticity;
+        typename T::SoaFloat fractureStressThreshold = 0.0f;
+        typename T::SoaBool testFracture = false;
+        typename T::SoaBool updatePlasticity = false;
     };
 
     template<class SoaTypes>
@@ -205,34 +172,21 @@ namespace AMD
         FmSoaUpdateTetStateInput<SoaTypes> input;
         FmSoaUpdateTetStateOutput<SoaTypes> output;
 
-        FM_ALIGN(16) FmVector3 aosDeformedPosition0[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector3 aosDeformedPosition1[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector3 aosDeformedPosition2[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector3 aosDeformedPosition3[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector3 aosRestPosition0[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector3 aosRestPosition1[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector3 aosRestPosition2[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector3 aosRestPosition3[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector3 aosStressRestPosition0[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector3 aosStressRestPosition1[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector3 aosStressRestPosition2[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector3 aosStressRestPosition3[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector4 aosShapeParamsBaryMatrixCol0[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector4 aosShapeParamsBaryMatrixCol1[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector4 aosShapeParamsBaryMatrixCol2[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector4 aosShapeParamsBaryMatrixCol3[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector4 aosStressShapeParamsBaryMatrixCol0[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector4 aosStressShapeParamsBaryMatrixCol1[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector4 aosStressShapeParamsBaryMatrixCol2[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector4 aosStressShapeParamsBaryMatrixCol3[SoaTypes::width] FM_ALIGN_END(16);
+        FM_ALIGN(16) FmVector3 aosDeformedShapeMatCol0[SoaTypes::width] FM_ALIGN_END(16);
+        FM_ALIGN(16) FmVector3 aosDeformedShapeMatCol1[SoaTypes::width] FM_ALIGN_END(16);
+        FM_ALIGN(16) FmVector3 aosDeformedShapeMatCol2[SoaTypes::width] FM_ALIGN_END(16);
+        FM_ALIGN(16) FmVector3 aosRestShapeMatCol0[SoaTypes::width] FM_ALIGN_END(16);
+        FM_ALIGN(16) FmVector3 aosRestShapeMatCol1[SoaTypes::width] FM_ALIGN_END(16);
+        FM_ALIGN(16) FmVector3 aosRestShapeMatCol2[SoaTypes::width] FM_ALIGN_END(16);
+        FM_ALIGN(16) FmVector3 aosStressRestShapeMatCol0[SoaTypes::width] FM_ALIGN_END(16);
+        FM_ALIGN(16) FmVector3 aosStressRestShapeMatCol1[SoaTypes::width] FM_ALIGN_END(16);
+        FM_ALIGN(16) FmVector3 aosStressRestShapeMatCol2[SoaTypes::width] FM_ALIGN_END(16);
+        FM_ALIGN(16) FmVector3 aosShapeParamsDmInvCol0[SoaTypes::width] FM_ALIGN_END(16);
+        FM_ALIGN(16) FmVector3 aosShapeParamsDmInvCol1[SoaTypes::width] FM_ALIGN_END(16);
+        FM_ALIGN(16) FmVector3 aosShapeParamsDmInvCol2[SoaTypes::width] FM_ALIGN_END(16);
         FM_ALIGN(16) FmVector3 aosPlasticDeformationMatrixCol0[SoaTypes::width] FM_ALIGN_END(16);
         FM_ALIGN(16) FmVector3 aosPlasticDeformationMatrixCol1[SoaTypes::width] FM_ALIGN_END(16);
         FM_ALIGN(16) FmVector3 aosPlasticDeformationMatrixCol2[SoaTypes::width] FM_ALIGN_END(16);
-#if FM_COMPUTE_PLASTIC_REL_ROTATION            
-        FM_ALIGN(16) FmVector3 aosPlasticTetRelRotationCol0[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector3 aosPlasticTetRelRotationCol1[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector3 aosPlasticTetRelRotationCol2[SoaTypes::width] FM_ALIGN_END(16);
-#endif
 
         FmUpdateTetStateBatch()
         {
@@ -241,38 +195,24 @@ namespace AMD
 
             for (uint sliceIdx = 0; sliceIdx < SoaTypes::width; sliceIdx++)
             {
-                aosDeformedPosition0[sliceIdx] = FmInitVector3(0.0f);
-                aosDeformedPosition1[sliceIdx] = FmInitVector3(0.0f);
-                aosDeformedPosition2[sliceIdx] = FmInitVector3(0.0f);
-                aosDeformedPosition3[sliceIdx] = FmInitVector3(0.0f);
-                aosRestPosition0[sliceIdx] = FmInitVector3(0.0f);
-                aosRestPosition1[sliceIdx] = FmInitVector3(0.0f);
-                aosRestPosition2[sliceIdx] = FmInitVector3(0.0f);
-                aosRestPosition3[sliceIdx] = FmInitVector3(0.0f);
-                aosStressRestPosition0[sliceIdx] = FmInitVector3(0.0f);
-                aosStressRestPosition1[sliceIdx] = FmInitVector3(0.0f);
-                aosStressRestPosition2[sliceIdx] = FmInitVector3(0.0f);
-                aosStressRestPosition3[sliceIdx] = FmInitVector3(0.0f);
-                aosShapeParamsBaryMatrixCol0[sliceIdx] = FmInitVector4(0.0f);
-                aosShapeParamsBaryMatrixCol1[sliceIdx] = FmInitVector4(0.0f);
-                aosShapeParamsBaryMatrixCol2[sliceIdx] = FmInitVector4(0.0f);
-                aosShapeParamsBaryMatrixCol3[sliceIdx] = FmInitVector4(0.0f);
-                aosStressShapeParamsBaryMatrixCol0[sliceIdx] = FmInitVector4(0.0f);
-                aosStressShapeParamsBaryMatrixCol1[sliceIdx] = FmInitVector4(0.0f);
-                aosStressShapeParamsBaryMatrixCol2[sliceIdx] = FmInitVector4(0.0f);
-                aosStressShapeParamsBaryMatrixCol3[sliceIdx] = FmInitVector4(0.0f);
-                aosPlasticDeformationMatrixCol0[sliceIdx] = FmInitVector3(0.0f);
-                aosPlasticDeformationMatrixCol1[sliceIdx] = FmInitVector3(0.0f);
-                aosPlasticDeformationMatrixCol2[sliceIdx] = FmInitVector3(0.0f);
-#if FM_COMPUTE_PLASTIC_REL_ROTATION            
-                aosPlasticTetRelRotationCol0[sliceIdx] = FmInitVector3(0.0f);
-                aosPlasticTetRelRotationCol1[sliceIdx] = FmInitVector3(0.0f);
-                aosPlasticTetRelRotationCol2[sliceIdx] = FmInitVector3(0.0f);
-#endif
+                aosDeformedShapeMatCol0[sliceIdx] = FmVector3(0.0f);
+                aosDeformedShapeMatCol1[sliceIdx] = FmVector3(0.0f);
+                aosDeformedShapeMatCol2[sliceIdx] = FmVector3(0.0f);
+                aosRestShapeMatCol0[sliceIdx] = FmVector3(0.0f);
+                aosRestShapeMatCol1[sliceIdx] = FmVector3(0.0f);
+                aosRestShapeMatCol2[sliceIdx] = FmVector3(0.0f);
+                aosStressRestShapeMatCol0[sliceIdx] = FmVector3(0.0f);
+                aosStressRestShapeMatCol1[sliceIdx] = FmVector3(0.0f);
+                aosStressRestShapeMatCol2[sliceIdx] = FmVector3(0.0f);
+                aosShapeParamsDmInvCol0[sliceIdx] = FmVector3(0.0f);
+                aosShapeParamsDmInvCol1[sliceIdx] = FmVector3(0.0f);
+                aosShapeParamsDmInvCol2[sliceIdx] = FmVector3(0.0f);
+                aosPlasticDeformationMatrixCol0[sliceIdx] = FmVector3(0.0f);
+                aosPlasticDeformationMatrixCol1[sliceIdx] = FmVector3(0.0f);
+                aosPlasticDeformationMatrixCol2[sliceIdx] = FmVector3(0.0f);
             }
 
             input.shapeParams.det = SoaTypes::SoaFloat(0.0f);
-            input.stressShapeParams.det = SoaTypes::SoaFloat(0.0f);
             input.youngsModulus = SoaTypes::SoaFloat(0.0f);
             input.poissonsRatio = SoaTypes::SoaFloat(0.0f);
             input.fractureStressThreshold = SoaTypes::SoaFloat(0.0f);
@@ -290,40 +230,26 @@ namespace AMD
             const FmUpdateTetStateInput& inputSlice,
             bool meshSupportsPlasticity)
         {
-            aosDeformedPosition0[idx] = inputSlice.deformedPosition0;
-            aosDeformedPosition1[idx] = inputSlice.deformedPosition1;
-            aosDeformedPosition2[idx] = inputSlice.deformedPosition2;
-            aosDeformedPosition3[idx] = inputSlice.deformedPosition3;
-            aosRestPosition0[idx] = inputSlice.restPosition0;
-            aosRestPosition1[idx] = inputSlice.restPosition1;
-            aosRestPosition2[idx] = inputSlice.restPosition2;
-            aosRestPosition3[idx] = inputSlice.restPosition3;
-            aosStressRestPosition0[idx] = inputSlice.stressRestPosition0;
-            aosStressRestPosition1[idx] = inputSlice.stressRestPosition1;
-            aosStressRestPosition2[idx] = inputSlice.stressRestPosition2;
-            aosStressRestPosition3[idx] = inputSlice.stressRestPosition3;
-            aosShapeParamsBaryMatrixCol0[idx] = inputSlice.shapeParams.baryMatrix.col0;
-            aosShapeParamsBaryMatrixCol1[idx] = inputSlice.shapeParams.baryMatrix.col1;
-            aosShapeParamsBaryMatrixCol2[idx] = inputSlice.shapeParams.baryMatrix.col2;
-            aosShapeParamsBaryMatrixCol3[idx] = inputSlice.shapeParams.baryMatrix.col3;
-            aosStressShapeParamsBaryMatrixCol0[idx] = inputSlice.stressShapeParams.baryMatrix.col0;
-            aosStressShapeParamsBaryMatrixCol1[idx] = inputSlice.stressShapeParams.baryMatrix.col1;
-            aosStressShapeParamsBaryMatrixCol2[idx] = inputSlice.stressShapeParams.baryMatrix.col2;
-            aosStressShapeParamsBaryMatrixCol3[idx] = inputSlice.stressShapeParams.baryMatrix.col3;
+            aosDeformedShapeMatCol0[idx] = inputSlice.deformedShapeMatrix.col0;
+            aosDeformedShapeMatCol1[idx] = inputSlice.deformedShapeMatrix.col1;
+            aosDeformedShapeMatCol2[idx] = inputSlice.deformedShapeMatrix.col2;
+            aosRestShapeMatCol0[idx] = inputSlice.restShapeMatrix.col0;
+            aosRestShapeMatCol1[idx] = inputSlice.restShapeMatrix.col1;
+            aosRestShapeMatCol2[idx] = inputSlice.restShapeMatrix.col2;
+            aosStressRestShapeMatCol0[idx] = inputSlice.stressRestShapeMatrix.col0;
+            aosStressRestShapeMatCol1[idx] = inputSlice.stressRestShapeMatrix.col1;
+            aosStressRestShapeMatCol2[idx] = inputSlice.stressRestShapeMatrix.col2;
+            aosShapeParamsDmInvCol0[idx] = inputSlice.shapeParams.DmInv.col0;
+            aosShapeParamsDmInvCol1[idx] = inputSlice.shapeParams.DmInv.col1;
+            aosShapeParamsDmInvCol2[idx] = inputSlice.shapeParams.DmInv.col2;
 
             input.shapeParams.det.setSlice(idx, inputSlice.shapeParams.det);
-            input.stressShapeParams.det.setSlice(idx, inputSlice.stressShapeParams.det);
 
             if (meshSupportsPlasticity)
             {
                 aosPlasticDeformationMatrixCol0[idx] = inputSlice.plasticDeformationMatrix.col0;
                 aosPlasticDeformationMatrixCol1[idx] = inputSlice.plasticDeformationMatrix.col1;
                 aosPlasticDeformationMatrixCol2[idx] = inputSlice.plasticDeformationMatrix.col2;
-#if FM_COMPUTE_PLASTIC_REL_ROTATION            
-                aosPlasticTetRelRotationCol0[idx] = inputSlice.plasticTetRelRotation.col0;
-                aosPlasticTetRelRotationCol1[idx] = inputSlice.plasticTetRelRotation.col1;
-                aosPlasticTetRelRotationCol2[idx] = inputSlice.plasticTetRelRotation.col2;
-#endif
             }
 
             input.youngsModulus.setSlice(idx, inputSlice.youngsModulus);
@@ -362,10 +288,6 @@ namespace AMD
             if (meshSupportsPlasticity)
             {
                 outputSlice->plasticDeformationMatrix = FmGetSlice<SoaTypes>(output.plasticDeformationMatrix, idx);
-                FmGetSlice<SoaTypes>(&outputSlice->plasticShapeParams, output.plasticShapeParams, idx);
-#if FM_COMPUTE_PLASTIC_REL_ROTATION            
-                outputSlice->plasticTetRelRotation = FmGetSlice<SoaTypes>(output.plasticTetRelRotation, idx);
-#endif
             }
 
             // Stress measure for fracture
@@ -384,42 +306,27 @@ namespace AMD
 
         void ConvertAosToSoa(bool meshSupportsPlasticity)
         {
-            FmSetSoaFromAlignedAos(&input.deformedPosition0, aosDeformedPosition0);
-            FmSetSoaFromAlignedAos(&input.deformedPosition1, aosDeformedPosition1);
-            FmSetSoaFromAlignedAos(&input.deformedPosition2, aosDeformedPosition2);
-            FmSetSoaFromAlignedAos(&input.deformedPosition3, aosDeformedPosition3);
+            FmSetSoaFromAlignedAos(&input.deformedShapeMatrix.col0, aosDeformedShapeMatCol0);
+            FmSetSoaFromAlignedAos(&input.deformedShapeMatrix.col1, aosDeformedShapeMatCol1);
+            FmSetSoaFromAlignedAos(&input.deformedShapeMatrix.col2, aosDeformedShapeMatCol2);
 
-            FmSetSoaFromAlignedAos(&input.restPosition0, aosRestPosition0);
-            FmSetSoaFromAlignedAos(&input.restPosition1, aosRestPosition1);
-            FmSetSoaFromAlignedAos(&input.restPosition2, aosRestPosition2);
-            FmSetSoaFromAlignedAos(&input.restPosition3, aosRestPosition3);
+            FmSetSoaFromAlignedAos(&input.restShapeMatrix.col0, aosRestShapeMatCol0);
+            FmSetSoaFromAlignedAos(&input.restShapeMatrix.col1, aosRestShapeMatCol1);
+            FmSetSoaFromAlignedAos(&input.restShapeMatrix.col2, aosRestShapeMatCol2);
 
-            FmSetSoaFromAlignedAos(&input.stressRestPosition0, aosStressRestPosition0);
-            FmSetSoaFromAlignedAos(&input.stressRestPosition1, aosStressRestPosition1);
-            FmSetSoaFromAlignedAos(&input.stressRestPosition2, aosStressRestPosition2);
-            FmSetSoaFromAlignedAos(&input.stressRestPosition3, aosStressRestPosition3);
+            FmSetSoaFromAlignedAos(&input.stressRestShapeMatrix.col0, aosStressRestShapeMatCol0);
+            FmSetSoaFromAlignedAos(&input.stressRestShapeMatrix.col1, aosStressRestShapeMatCol1);
+            FmSetSoaFromAlignedAos(&input.stressRestShapeMatrix.col2, aosStressRestShapeMatCol2);
 
-            FmSetSoaFromAlignedAos(&input.shapeParams.baryMatrix.col0, aosShapeParamsBaryMatrixCol0);
-            FmSetSoaFromAlignedAos(&input.shapeParams.baryMatrix.col1, aosShapeParamsBaryMatrixCol1);
-            FmSetSoaFromAlignedAos(&input.shapeParams.baryMatrix.col2, aosShapeParamsBaryMatrixCol2);
-            FmSetSoaFromAlignedAos(&input.shapeParams.baryMatrix.col3, aosShapeParamsBaryMatrixCol3);
-
-            FmSetSoaFromAlignedAos(&input.stressShapeParams.baryMatrix.col0, aosStressShapeParamsBaryMatrixCol0);
-            FmSetSoaFromAlignedAos(&input.stressShapeParams.baryMatrix.col1, aosStressShapeParamsBaryMatrixCol1);
-            FmSetSoaFromAlignedAos(&input.stressShapeParams.baryMatrix.col2, aosStressShapeParamsBaryMatrixCol2);
-            FmSetSoaFromAlignedAos(&input.stressShapeParams.baryMatrix.col3, aosStressShapeParamsBaryMatrixCol3);
+            FmSetSoaFromAlignedAos(&input.shapeParams.DmInv.col0, aosShapeParamsDmInvCol0);
+            FmSetSoaFromAlignedAos(&input.shapeParams.DmInv.col1, aosShapeParamsDmInvCol1);
+            FmSetSoaFromAlignedAos(&input.shapeParams.DmInv.col2, aosShapeParamsDmInvCol2);
 
             if (meshSupportsPlasticity)
             {
                 FmSetSoaFromAlignedAos(&input.plasticDeformationMatrix.col0, aosPlasticDeformationMatrixCol0);
                 FmSetSoaFromAlignedAos(&input.plasticDeformationMatrix.col1, aosPlasticDeformationMatrixCol1);
                 FmSetSoaFromAlignedAos(&input.plasticDeformationMatrix.col2, aosPlasticDeformationMatrixCol2);
-
-#if FM_COMPUTE_PLASTIC_REL_ROTATION            
-                FmSetSoaFromAlignedAos(&input.plasticTetRelRotation.col0, aosPlasticTetRelRotationCol0);
-                FmSetSoaFromAlignedAos(&input.plasticTetRelRotation.col1, aosPlasticTetRelRotationCol1);
-                FmSetSoaFromAlignedAos(&input.plasticTetRelRotation.col2, aosPlasticTetRelRotationCol2);
-#endif
             }
         }
     };
@@ -429,7 +336,6 @@ namespace AMD
     static FM_FORCE_INLINE void FmGatherUpdateTetStateInput(
         FmUpdateTetStateInput* tetUpdateInput,
         const FmTetMesh& tetMesh, uint tetId,
-        const FmVector3& centerOfMass,
         bool testingFracture,
         bool updatingPlasticity)
     {
@@ -448,48 +354,48 @@ namespace AMD
         FM_ASSERT(vId0 < tetMesh.numVerts && vId1 < tetMesh.numVerts && vId2 < tetMesh.numVerts && vId3 < tetMesh.numVerts);
 
         // Compute tet rotation based on deformed positions
-        FmVector3 deformedPosition0 = tetMesh.vertsPos[vId0] - centerOfMass;  // Offset positions closer to origin
-        FmVector3 deformedPosition1 = tetMesh.vertsPos[vId1] - centerOfMass;
-        FmVector3 deformedPosition2 = tetMesh.vertsPos[vId2] - centerOfMass;
-        FmVector3 deformedPosition3 = tetMesh.vertsPos[vId3] - centerOfMass;
+        FmVector3 deformedPosition0 = tetMesh.vertsPos[vId0];
+        FmVector3 deformedPosition1 = tetMesh.vertsPos[vId1];
+        FmVector3 deformedPosition2 = tetMesh.vertsPos[vId2];
+        FmVector3 deformedPosition3 = tetMesh.vertsPos[vId3];
+        deformedPosition1 -= deformedPosition0;
+        deformedPosition2 -= deformedPosition0;
+        deformedPosition3 -= deformedPosition0;
+        deformedPosition0 = FmVector3(0.0f);
 
         FmVector3 restPosition0 = tetMesh.vertsRestPos[vId0];
         FmVector3 restPosition1 = tetMesh.vertsRestPos[vId1];
         FmVector3 restPosition2 = tetMesh.vertsRestPos[vId2];
         FmVector3 restPosition3 = tetMesh.vertsRestPos[vId3];
+        restPosition1 -= restPosition0;
+        restPosition2 -= restPosition0;
+        restPosition3 -= restPosition0;
+        restPosition0 = FmVector3(0.0f);
 
         // Get tet rest positions.
         // For plastic deformation, modify rest positions with current plastic deformation
-        FmVector3 stressRestPosition0, stressRestPosition1, stressRestPosition2, stressRestPosition3;
-        FmTetShapeParams stressShapeParams;
+        FmVector3 stressRestPosition1, stressRestPosition2, stressRestPosition3;
 
-        bool meshSupportsPlasticity = (tetMesh.tetsPlasticity != NULL);
+        bool meshSupportsPlasticity = (tetMesh.tetsPlasticity != nullptr);
 
         if (meshSupportsPlasticity)
         {
             const FmTetPlasticityState& plasticityState = tetMesh.tetsPlasticity[tetId];
 
-            // Shift the rest positions according to the plastic deformation. Also update tet matrices that depend on these positions.
-            plasticityState.plasticShapeParams.ComputeRestPositions(&stressRestPosition0, &stressRestPosition1, &stressRestPosition2, &stressRestPosition3);
-
-            stressShapeParams = plasticityState.plasticShapeParams;
+            stressRestPosition1 = plasticityState.plasticDeformationMatrix * restPosition1;
+            stressRestPosition2 = plasticityState.plasticDeformationMatrix * restPosition2;
+            stressRestPosition3 = plasticityState.plasticDeformationMatrix * restPosition3;
 
             tetUpdateInput->plasticDeformationMatrix = plasticityState.plasticDeformationMatrix;
-#if FM_COMPUTE_PLASTIC_REL_ROTATION
-            tetUpdateInput->plasticTetRelRotation = plasticityState.plasticTetRelRotation;
-#endif
         }
         else
         {
-            stressRestPosition0 = restPosition0;
             stressRestPosition1 = restPosition1;
             stressRestPosition2 = restPosition2;
             stressRestPosition3 = restPosition3;
-
-            stressShapeParams = tetShapeParams;
         }
 
-        bool meshSupportsFracture = (tetMesh.tetsToFracture != NULL);
+        bool meshSupportsFracture = (tetMesh.tetsToFracture != nullptr);
 
         bool tetTestFracture = testingFracture
             && meshSupportsFracture
@@ -505,23 +411,19 @@ namespace AMD
             && tetPlasticityMaterialParams.plasticCreep > 0.0f
             && FM_NOT_SET(tetFlags, FM_TET_FLAG_PLASTICITY_DISABLED);
 
-        tetUpdateInput->deformedPosition0 = deformedPosition0;
-        tetUpdateInput->deformedPosition1 = deformedPosition1;
-        tetUpdateInput->deformedPosition2 = deformedPosition2;
-        tetUpdateInput->deformedPosition3 = deformedPosition3;
+        tetUpdateInput->deformedShapeMatrix.col0 = deformedPosition1;
+        tetUpdateInput->deformedShapeMatrix.col1 = deformedPosition2;
+        tetUpdateInput->deformedShapeMatrix.col2 = deformedPosition3;
 
-        tetUpdateInput->restPosition0 = restPosition0;
-        tetUpdateInput->restPosition1 = restPosition1;
-        tetUpdateInput->restPosition2 = restPosition2;
-        tetUpdateInput->restPosition3 = restPosition3;
+        tetUpdateInput->restShapeMatrix.col0 = restPosition1;
+        tetUpdateInput->restShapeMatrix.col1 = restPosition2;
+        tetUpdateInput->restShapeMatrix.col2 = restPosition3;
 
-        tetUpdateInput->stressRestPosition0 = stressRestPosition0;
-        tetUpdateInput->stressRestPosition1 = stressRestPosition1;
-        tetUpdateInput->stressRestPosition2 = stressRestPosition2;
-        tetUpdateInput->stressRestPosition3 = stressRestPosition3;
+        tetUpdateInput->stressRestShapeMatrix.col0 = stressRestPosition1;
+        tetUpdateInput->stressRestShapeMatrix.col1 = stressRestPosition2;
+        tetUpdateInput->stressRestShapeMatrix.col2 = stressRestPosition3;
 
         tetUpdateInput->shapeParams = tetShapeParams;
-        tetUpdateInput->stressShapeParams = stressShapeParams;
 
         tetUpdateInput->youngsModulus = tetStressMaterialParams.youngsModulus;
         tetUpdateInput->poissonsRatio = tetStressMaterialParams.poissonsRatio;
@@ -547,29 +449,17 @@ namespace AMD
     // - Irving et al., "Invertible Finite Elements For Robust Simulation of Large Deformation"
     // - Bargteil et al., "A Finite Element Method for Animating Large Viscoplastic Flow"
     static FM_FORCE_INLINE bool FmUpdateTetPlasticity(
-#if FM_COMPUTE_PLASTIC_REL_ROTATION
-        FmMatrix3* outPlasticTetRelRotation,
-#endif
         FmMatrix3* outPlasticDeformationMatrix,
-        FmTetShapeParams* outPlasticShapeParams,
         const FmMatrix3& inPlasticDeformationMatrix,
-        const FmTetShapeParams& inPlasticShapeParams,
         const FmMatrix3& tetRotationInv,
-        const FmVector3& restPosition0,
-        const FmVector3& restPosition1,
-        const FmVector3& restPosition2,
-        const FmVector3& restPosition3,
-        const FmVector3& deformedPosition0,
-        const FmVector3& deformedPosition1,
-        const FmVector3& deformedPosition2,
-        const FmVector3& deformedPosition3,
+        const FmMatrix3& restShapeMatrixInv,
+        const FmMatrix3& deformedShapeMatrix,
         const FmVector3& stress0,
         const FmVector3& stress1,
         float plasticYieldThreshold, float plasticCreep, float plasticMin, float plasticMax, bool preserveVolume)
     {
         (void)tetRotationInv;
         FmMatrix3 plasticDeformationMatrix = inPlasticDeformationMatrix;
-        FmTetShapeParams plasticShapeParams = inPlasticShapeParams;
 
         float elasticStressMag = sqrtf(lengthSqr(stress0) + lengthSqr(stress1));
         float yieldStress = plasticYieldThreshold;
@@ -578,17 +468,11 @@ namespace AMD
 
         if (elasticStressMag > yieldStress)
         {
-            FmMatrix3 restVolumeMatrixInv = inverse(FmComputeTetVolumeMatrix(restPosition0, restPosition1, restPosition2, restPosition3));
-
             // Compute deformation gradient (decomposed into SVD), after applying plastic deformation offset
             FmMatrix3 U, V;
             FmVector3 Fhat;
             FmComputeTetElasticDeformationGradient(&U, &Fhat, &V,
-                deformedPosition0,
-                deformedPosition1,
-                deformedPosition2,
-                deformedPosition3,
-                restVolumeMatrixInv, inverse(plasticDeformationMatrix));
+                deformedShapeMatrix, restShapeMatrixInv, inverse(plasticDeformationMatrix));
 
             FmVector3 elasticDeformation = Fhat;
 
@@ -618,9 +502,9 @@ namespace AMD
                 Fphat.y = powf(elasticDeformation.y, plasticPower);
                 Fphat.z = powf(elasticDeformation.z, plasticPower);
 
-                FmMatrix3 contribution = mul(mul(V, FmMatrix3::scale(Fphat)), transpose(V));
+                FmMatrix3 contribution = V * FmMatrix3::scale(Fphat) * transpose(V);
 
-                plasticDeformationMatrix = mul(contribution, plasticDeformationMatrix);
+                plasticDeformationMatrix = contribution * plasticDeformationMatrix;
 
                 // Limit total plastic deformation by limiting singular values
                 FmVector3 totalPlasticDeformation;
@@ -641,42 +525,16 @@ namespace AMD
                     totalPlasticDeformation = totalPlasticDeformation * powf(plasticDet, -(1.0f / 3.0f));
                 }
 
-                plasticDeformationMatrix = mul(mul(V, FmMatrix3::scale(totalPlasticDeformation)), transpose(V));
-
-                // Adjust stress and strain matrices to match the displaced rest positions.  This has seemed to fix some false 
-                // motion issues seen in some plastically deformed objects when they aren't pinned down by kinematic vertices.
-                // However the change in aspect ratios can have a negative effect on the system matrix conditioning.
-                // Note the plastic min and max values give a way to limit that change.
-                FmMatrix3 offsets = mul(plasticDeformationMatrix, inverse(restVolumeMatrixInv));
-                FmVector3 plasticRestPosition3 = FmVector3(0.0f);
-                FmVector3 plasticRestPosition0 = offsets.col0;
-                FmVector3 plasticRestPosition1 = offsets.col1;
-                FmVector3 plasticRestPosition2 = offsets.col2;
-
-                FmComputeShapeParams(&plasticShapeParams, plasticRestPosition0, plasticRestPosition1, plasticRestPosition2, plasticRestPosition3);
+                plasticDeformationMatrix = V * FmMatrix3::scale(totalPlasticDeformation) * transpose(V);
 
                 *outPlasticDeformationMatrix = plasticDeformationMatrix;
-                *outPlasticShapeParams = plasticShapeParams;
-
-#if FM_COMPUTE_PLASTIC_REL_ROTATION     
-                // Compute rotation based on plastic rest positions, and relative transform to be applied to regular rotation
-                FmMatrix3 plasticTetRotation = FmComputeTetRotationPolarDecompSvd(
-                    deformedPosition0,
-                    deformedPosition1,
-                    deformedPosition2,
-                    deformedPosition3,
-                    plasticShapeParams.baryMatrix);
-
-                FmMatrix3 plasticTetRelRotation = mul(plasticTetRotation, tetRotationInv);
-
-                *outPlasticTetRelRotation = plasticTetRelRotation;
-#endif
             }
         }
 
         return updateNeeded;
     }
 
+#if FM_SOA_TET_MATH
     // Update state of the multiplicative plasticity model.
     // If return is true, outputs updated plasticDeformationMatrix and shape params.
     // References:
@@ -684,29 +542,17 @@ namespace AMD
     // - Bargteil et al., "A Finite Element Method for Animating Large Viscoplastic Flow"
     template<class T>
     typename T::SoaBool FmUpdateTetPlasticity(
-#if FM_COMPUTE_PLASTIC_REL_ROTATION
-        typename T::SoaMatrix3* outPlasticTetRelRotation,
-#endif
         typename T::SoaMatrix3* outPlasticDeformationMatrix,
-        FmSoaTetShapeParams<T>* outPlasticShapeParams,
         const typename T::SoaMatrix3& inPlasticDeformationMatrix,
-        const FmSoaTetShapeParams<T>& inPlasticShapeParams,
         const typename T::SoaMatrix3& tetRotationInv,
-        const typename T::SoaVector3& restPosition0,
-        const typename T::SoaVector3& restPosition1,
-        const typename T::SoaVector3& restPosition2,
-        const typename T::SoaVector3& restPosition3,
-        const typename T::SoaVector3& deformedPosition0,
-        const typename T::SoaVector3& deformedPosition1,
-        const typename T::SoaVector3& deformedPosition2,
-        const typename T::SoaVector3& deformedPosition3,
+        const typename T::SoaMatrix3& restShapeMatrixInv,
+        const typename T::SoaMatrix3& deformedShapeMatrix,
         const typename T::SoaVector3& stress0,
         const typename T::SoaVector3& stress1,
         typename T::SoaFloat plasticYieldThreshold, typename T::SoaFloat plasticCreep, typename T::SoaFloat plasticMin, typename T::SoaFloat plasticMax, typename T::SoaBool preserveVolume)
     {
         (void)tetRotationInv;
         typename T::SoaMatrix3 plasticDeformationMatrix = inPlasticDeformationMatrix;
-        FmSoaTetShapeParams<T> plasticShapeParams = inPlasticShapeParams;
 
         typename T::SoaFloat elasticStressMag = sqrtf(lengthSqr(stress0) + lengthSqr(stress1));
         typename T::SoaFloat yieldStress = plasticYieldThreshold;
@@ -716,17 +562,11 @@ namespace AMD
 
         if (any(updateNeeded))
         {
-            typename T::SoaMatrix3 restVolumeMatrixInv = inverse(FmComputeTetVolumeMatrix<T>(restPosition0, restPosition1, restPosition2, restPosition3));
-
             // Compute deformation gradient (decomposed into SVD), after applying plastic deformation offset
             typename T::SoaMatrix3 U, V;
             typename T::SoaVector3 Fhat;
             FmComputeTetElasticDeformationGradient<T>(&U, &Fhat, &V,
-                deformedPosition0,
-                deformedPosition1,
-                deformedPosition2,
-                deformedPosition3,
-                restVolumeMatrixInv, inverse(plasticDeformationMatrix));
+                deformedShapeMatrix, restShapeMatrixInv, inverse(plasticDeformationMatrix));
 
             typename T::SoaVector3 elasticDeformation = Fhat;
 
@@ -761,9 +601,9 @@ namespace AMD
                 Fphat.y = powf(elasticDeformation.y, plasticPower);
                 Fphat.z = powf(elasticDeformation.z, plasticPower);
 
-                typename T::SoaMatrix3 contribution = mul(mul(V, typename T::SoaMatrix3::scale(Fphat)), transpose(V));
+                typename T::SoaMatrix3 contribution = V * typename T::SoaMatrix3::scale(Fphat) * transpose(V);
 
-                plasticDeformationMatrix = mul(contribution, plasticDeformationMatrix);
+                plasticDeformationMatrix = contribution * plasticDeformationMatrix;
 
                 // Limit total plastic deformation by limiting singular values
                 typename T::SoaVector3 totalPlasticDeformation;
@@ -784,131 +624,75 @@ namespace AMD
                     totalPlasticDeformation = select(totalPlasticDeformation, totalPlasticDeformation * powf(plasticDet, -(1.0f / 3.0f)), preserveVolume);
                 }
 
-                plasticDeformationMatrix = mul(mul(V, typename T::SoaMatrix3::scale(totalPlasticDeformation)), transpose(V));
-
-                // Adjust stress and strain matrices to match the displaced rest positions.  This has seemed to fix some false 
-                // motion issues seen in some plastically deformed objects when they aren't pinned down by kinematic vertices.
-                // However the change in aspect ratios can have a negative effect on the system matrix conditioning.
-                // Note the plastic min and max values give a way to limit that change.
-                typename T::SoaMatrix3 offsets = mul(plasticDeformationMatrix, inverse(restVolumeMatrixInv));
-                typename T::SoaVector3 plasticRestPosition3 = typename T::SoaVector3(0.0f);
-                typename T::SoaVector3 plasticRestPosition0 = offsets.col0;
-                typename T::SoaVector3 plasticRestPosition1 = offsets.col1;
-                typename T::SoaVector3 plasticRestPosition2 = offsets.col2;
-
-                FmComputeShapeParams<T>(&plasticShapeParams, plasticRestPosition0, plasticRestPosition1, plasticRestPosition2, plasticRestPosition3);
+                plasticDeformationMatrix = V * typename T::SoaMatrix3::scale(totalPlasticDeformation) * transpose(V);
 
                 *outPlasticDeformationMatrix = plasticDeformationMatrix;
-                *outPlasticShapeParams = plasticShapeParams;
-
-#if FM_COMPUTE_PLASTIC_REL_ROTATION     
-                // Compute rotation based on plastic rest positions, and relative transform to be applied to regular rotation
-                typename T::SoaMatrix3 plasticTetRotation = FmComputeTetRotationPolarDecompSvd<T>(
-                    deformedPosition0,
-                    deformedPosition1,
-                    deformedPosition2,
-                    deformedPosition3,
-                    plasticShapeParams.baryMatrix);
-
-                typename T::SoaMatrix3 plasticTetRelRotation = mul(plasticTetRotation, tetRotationInv);
-
-                *outPlasticTetRelRotation = plasticTetRelRotation;
-#endif
             }
         }
 
         return updateNeeded;
     }
+#endif
 
     void FmComputeUpdateTetStateOutput(
         FmUpdateTetStateOutput* tetUpdateOutput,
         const FmUpdateTetStateInput& tetUpdateInput,
         bool meshHasPlasticity, bool computingTetDeformation)
     {
-        (void)meshHasPlasticity;
-
         tetUpdateOutput->fractureStressThreshold = tetUpdateInput.fractureStressThreshold;
         tetUpdateOutput->testFracture = tetUpdateInput.testFracture;
         tetUpdateOutput->updatePlasticity = tetUpdateInput.updatePlasticity;
 
-        FmMatrix3 tetRotation = FmComputeTetRotationPolarDecompSvd(
-            tetUpdateInput.deformedPosition0,
-            tetUpdateInput.deformedPosition1,
-            tetUpdateInput.deformedPosition2,
-            tetUpdateInput.deformedPosition3,
-            tetUpdateInput.shapeParams.baryMatrix);
+        FmMatrix3 deformationGradient = tetUpdateInput.deformedShapeMatrix * tetUpdateInput.shapeParams.DmInv;
+        FmMatrix3 tetRotation = FmComputeTetRotationSvd(deformationGradient);
 
         tetUpdateOutput->tetRotation = tetRotation;
+
+        FmMatrix3 stressShapeParamsDmInv = tetUpdateInput.shapeParams.DmInv;
+        if (meshHasPlasticity)
+        {
+            stressShapeParamsDmInv *= inverse(tetUpdateInput.plasticDeformationMatrix);
+        }
 
         FmTetStressMatrix stressMat;
 
 #if !FM_MATRIX_ASSEMBLY_BY_TETS
+        float stressShapeParamsV0 = tetUpdateInput.shapeParams.GetVolume();
+        if (meshHasPlasticity)
+        {
+            stressShapeParamsV0 *= determinant(tetUpdateInput.plasticDeformationMatrix);
+        }
         FmTetStiffnessMatrix stiffnessMat;
         FmComputeTetStressAndStiffnessMatrix(&stressMat, &stiffnessMat,
-            tetUpdateInput.stressShapeParams.baryMatrix.col0,
-            tetUpdateInput.stressShapeParams.baryMatrix.col1,
-            tetUpdateInput.stressShapeParams.baryMatrix.col2,
-            tetUpdateInput.stressShapeParams.GetVolume(),
+            stressShapeParamsDmInv,
+            stressShapeParamsV0,
             tetUpdateInput.youngsModulus, tetUpdateInput.poissonsRatio);
 #else
         FmComputeTetStressMatrix(&stressMat,
-            tetUpdateInput.stressShapeParams.baryMatrix.col0,
-            tetUpdateInput.stressShapeParams.baryMatrix.col1,
-            tetUpdateInput.stressShapeParams.baryMatrix.col2,
+            stressShapeParamsDmInv,
             tetUpdateInput.youngsModulus, tetUpdateInput.poissonsRatio);
-#endif
-
-#if FM_COMPUTE_PLASTIC_REL_ROTATION || !FM_MATRIX_ASSEMBLY_BY_TETS
-        // Tet rotation for stress calculation, which depends on plastic deformation
-        FmMatrix3 stressTetRotation;
-
-#if FM_COMPUTE_PLASTIC_REL_ROTATION
-        if (meshHasPlasticity)
-        {
-            // Modify the tet rotation to represent the rotation from modified rest positions.
-            stressTetRotation = mul(tetUpdateInput.plasticTetRelRotation, tetRotation);
-        }
-        else
-#endif
-        {
-            stressTetRotation = tetRotation;
-        }
 #endif
 
 #if !FM_MATRIX_ASSEMBLY_BY_TETS
         // Compute rotated stiffness for matrix assembly
         FmComputeRotatedStiffnessMatrix(&tetUpdateOutput->rotatedStiffnessMat, stiffnessMat,
-            tetUpdateInput.stressRestPosition0,
-            tetUpdateInput.stressRestPosition1,
-            tetUpdateInput.stressRestPosition2,
-            tetUpdateInput.stressRestPosition3,
-            stressTetRotation);
+            tetUpdateInput.restShapeMatrix, tetRotation);
 #endif
 
         if (computingTetDeformation || tetUpdateInput.testFracture || tetUpdateInput.updatePlasticity)
         {
             FmMatrix3 tetRotationInv = transpose(tetRotation);
 
-#if FM_COMPUTE_PLASTIC_REL_ROTATION     
-            // Compute the offsets needed for stress calculation.
-            // Use post-plasticity rotation to more accurately compute elastic stress.
-            FmMatrix3 stressTetRotationInv = transpose(stressTetRotation);
-#else
-            FmMatrix3 stressTetRotationInv = tetRotationInv;
-#endif
-
-
             if (computingTetDeformation)
             {
                 // Compute deformation offsets for strain calculation.
                 // Use the original rest positions for total deformation.
-                FmVector3 unrotatedOffset0 = mul(tetRotationInv, tetUpdateInput.deformedPosition0) - tetUpdateInput.restPosition0;
-                FmVector3 unrotatedOffset1 = mul(tetRotationInv, tetUpdateInput.deformedPosition1) - tetUpdateInput.restPosition1;
-                FmVector3 unrotatedOffset2 = mul(tetRotationInv, tetUpdateInput.deformedPosition2) - tetUpdateInput.restPosition2;
-                FmVector3 unrotatedOffset3 = mul(tetRotationInv, tetUpdateInput.deformedPosition3) - tetUpdateInput.restPosition3;
+                FmVector3 unrotatedOffset1 = (tetRotationInv * tetUpdateInput.deformedShapeMatrix.col0) - tetUpdateInput.restShapeMatrix.col0;
+                FmVector3 unrotatedOffset2 = (tetRotationInv * tetUpdateInput.deformedShapeMatrix.col1) - tetUpdateInput.restShapeMatrix.col1;
+                FmVector3 unrotatedOffset3 = (tetRotationInv * tetUpdateInput.deformedShapeMatrix.col2) - tetUpdateInput.restShapeMatrix.col2;
 
                 FmVector3 strain[2];
-                FmComputeTetStrain(strain, tetUpdateInput.shapeParams, unrotatedOffset0, unrotatedOffset1, unrotatedOffset2, unrotatedOffset3);
+                FmComputeTetStrain(strain, tetUpdateInput.shapeParams, unrotatedOffset1, unrotatedOffset2, unrotatedOffset3);
                 float strainMag = sqrtf(lengthSqr(strain[0]) + lengthSqr(strain[1]));
 
                 tetUpdateOutput->strainMag = strainMag;
@@ -917,21 +701,20 @@ namespace AMD
             if (tetUpdateInput.testFracture || tetUpdateInput.updatePlasticity)
             {
                 // Compute elastic stress
-                FmVector3 unrotatedOffset0 = mul(stressTetRotationInv, tetUpdateInput.deformedPosition0) - tetUpdateInput.stressRestPosition0;
-                FmVector3 unrotatedOffset1 = mul(stressTetRotationInv, tetUpdateInput.deformedPosition1) - tetUpdateInput.stressRestPosition1;
-                FmVector3 unrotatedOffset2 = mul(stressTetRotationInv, tetUpdateInput.deformedPosition2) - tetUpdateInput.stressRestPosition2;
-                FmVector3 unrotatedOffset3 = mul(stressTetRotationInv, tetUpdateInput.deformedPosition3) - tetUpdateInput.stressRestPosition3;
+                FmVector3 unrotatedOffset1 = (tetRotationInv * tetUpdateInput.deformedShapeMatrix.col0) - tetUpdateInput.stressRestShapeMatrix.col0;
+                FmVector3 unrotatedOffset2 = (tetRotationInv * tetUpdateInput.deformedShapeMatrix.col1) - tetUpdateInput.stressRestShapeMatrix.col1;
+                FmVector3 unrotatedOffset3 = (tetRotationInv * tetUpdateInput.deformedShapeMatrix.col2) - tetUpdateInput.stressRestShapeMatrix.col2;
 
                 FmVector3 stress0 =
-                    mul(stressMat.EBe00, unrotatedOffset0) +
-                    mul(stressMat.EBe01, unrotatedOffset1) +
-                    mul(stressMat.EBe02, unrotatedOffset2) +
-                    mul(stressMat.EBe03, unrotatedOffset3);
+                    /* stressMat.EBe00 * unrotatedOffset0 + */
+                    stressMat.EBe01 * unrotatedOffset1 +
+                    stressMat.EBe02 * unrotatedOffset2 +
+                    stressMat.EBe03 * unrotatedOffset3;
                 FmVector3 stress1 =
-                    mul(stressMat.EBe10, unrotatedOffset0) +
-                    mul(stressMat.EBe11, unrotatedOffset1) +
-                    mul(stressMat.EBe12, unrotatedOffset2) +
-                    mul(stressMat.EBe13, unrotatedOffset3);
+                    /* stressMat.EBe10 * unrotatedOffset0 + */
+                    stressMat.EBe11 * unrotatedOffset1 +
+                    stressMat.EBe12 * unrotatedOffset2 +
+                    stressMat.EBe13 * unrotatedOffset3;
 
                 if (tetUpdateInput.testFracture)
                 {
@@ -944,38 +727,38 @@ namespace AMD
                     float sxy = stress1.z;
 
                     FmMatrix3 stress3(
-                        FmInitVector3(sxx, sxy, szx),
-                        FmInitVector3(sxy, syy, syz),
-                        FmInitVector3(szx, syz, szz));
+                        FmVector3(sxx, sxy, szx),
+                        FmVector3(sxy, syy, syz),
+                        FmVector3(szx, syz, szz));
 
                     // primary direction of stress is eigenvector for largest eigenvalue
                     FmVector3 eigenvals;
                     FmMatrix3 eigenvecs;
-                    FmEigenSymm3x3CyclicJacobi(&eigenvals, &eigenvecs, stress3);
+                    FmEigenSym3x3(&eigenvals, &eigenvecs, stress3);
 
-                    tetUpdateOutput->maxStressDirection = eigenvecs.col0;
-                    tetUpdateOutput->maxStressEigenvalue = fabsf(eigenvals.x);
+                    FmVector3 absEigenvals = abs(eigenvals);
+                    FmVector3 maxDirection = eigenvecs.col0;
+                    float maxEigenvalue = absEigenvals.x;
+                    bool swap = absEigenvals.y > maxEigenvalue;
+                    maxDirection = swap ? eigenvecs.col1 : maxDirection;
+                    maxEigenvalue = swap ? absEigenvals.y : maxEigenvalue;
+                    swap = absEigenvals.z > maxEigenvalue;
+                    maxDirection = swap ? eigenvecs.col2 : maxDirection;
+                    maxEigenvalue = swap ? absEigenvals.z : maxEigenvalue;
+
+                    tetUpdateOutput->maxStressDirection = maxDirection;
+                    tetUpdateOutput->maxStressEigenvalue = maxEigenvalue;
                 }
 
                 if (tetUpdateInput.updatePlasticity)
                 {
                     bool updateNeeded = 
                         FmUpdateTetPlasticity(
-#if FM_COMPUTE_PLASTIC_REL_ROTATION
-                            &tetUpdateOutput->plasticTetRelRotation,
-#endif
-                            &tetUpdateOutput->plasticDeformationMatrix, &tetUpdateOutput->plasticShapeParams,
+                            &tetUpdateOutput->plasticDeformationMatrix,
                             tetUpdateInput.plasticDeformationMatrix,
-                            tetUpdateInput.stressShapeParams,  // = FmTetPlasticityState::plasticShapeParams
                             tetRotationInv,
-                            tetUpdateInput.restPosition0,
-                            tetUpdateInput.restPosition1, 
-                            tetUpdateInput.restPosition2, 
-                            tetUpdateInput.restPosition3,
-                            tetUpdateInput.deformedPosition0,
-                            tetUpdateInput.deformedPosition1,
-                            tetUpdateInput.deformedPosition2,
-                            tetUpdateInput.deformedPosition3,
+                            tetUpdateInput.shapeParams.DmInv,
+                            tetUpdateInput.deformedShapeMatrix,
                             stress0,
                             stress1,
                             tetUpdateInput.plasticYieldThreshold, tetUpdateInput.plasticCreep, tetUpdateInput.plasticMin, tetUpdateInput.plasticMax, tetUpdateInput.preserveVolume);
@@ -993,89 +776,60 @@ namespace AMD
         const FmSoaUpdateTetStateInput<T>& tetUpdateInput,
         bool meshHasPlasticity, bool computingTetDeformation)
     {
-        (void)meshHasPlasticity;
-
         tetUpdateOutput->fractureStressThreshold = tetUpdateInput.fractureStressThreshold;
         tetUpdateOutput->testFracture = tetUpdateInput.testFracture;
         tetUpdateOutput->updatePlasticity = tetUpdateInput.updatePlasticity;
 
-        typename T::SoaMatrix3 tetRotation = FmComputeTetRotationPolarDecompSvd<T>(
-            tetUpdateInput.deformedPosition0,
-            tetUpdateInput.deformedPosition1,
-            tetUpdateInput.deformedPosition2,
-            tetUpdateInput.deformedPosition3,
-            tetUpdateInput.shapeParams.baryMatrix);
+        typename T::SoaMatrix3 deformationGradient = tetUpdateInput.deformedShapeMatrix * tetUpdateInput.shapeParams.DmInv;
+        typename T::SoaMatrix3 tetRotation = FmComputeTetRotationSvd<T>(deformationGradient);
 
         tetUpdateOutput->tetRotation = tetRotation;
+
+        typename T::SoaMatrix3 stressShapeParamsDmInv = tetUpdateInput.shapeParams.DmInv;
+        if (meshHasPlasticity)
+        {
+            stressShapeParamsDmInv *= inverse(tetUpdateInput.plasticDeformationMatrix);
+        }
 
         FmSoaTetStressMatrix<T> stressMat;
 
 #if !FM_MATRIX_ASSEMBLY_BY_TETS
-        FmSoaTetStiffnessMatrix<T> stiffnessMat;
-        FmComputeTetStressAndStiffnessMatrix(&stressMat, &stiffnessMat,
-            tetUpdateInput.stressShapeParams.baryMatrix.col0,
-            tetUpdateInput.stressShapeParams.baryMatrix.col1,
-            tetUpdateInput.stressShapeParams.baryMatrix.col2,
-            tetUpdateInput.stressShapeParams.GetVolume(),
-            tetUpdateInput.youngsModulus, tetUpdateInput.poissonsRatio);
-#else
-        FmComputeTetStressMatrix(&stressMat,
-            tetUpdateInput.stressShapeParams.baryMatrix.col0,
-            tetUpdateInput.stressShapeParams.baryMatrix.col1,
-            tetUpdateInput.stressShapeParams.baryMatrix.col2,
-            tetUpdateInput.youngsModulus, tetUpdateInput.poissonsRatio);
-#endif
-
-#if FM_COMPUTE_PLASTIC_REL_ROTATION || !FM_MATRIX_ASSEMBLY_BY_TETS
-        // Tet rotation for stress calculation, which depends on plastic deformation
-        typename T::SoaMatrix3 stressTetRotation;
-        
-#if FM_COMPUTE_PLASTIC_REL_ROTATION
+        typename T::SoaFloat stressShapeParamsV0 = tetUpdateInput.shapeParams.GetVolume();
         if (meshHasPlasticity)
         {
-            // Modify the tet rotation to represent the rotation from modified rest positions.
-            stressTetRotation = mul(tetUpdateInput.plasticTetRelRotation, tetRotation);
+            stressShapeParamsV0 *= determinant(tetUpdateInput.plasticDeformationMatrix);
         }
-        else
-#endif
-        {
-            stressTetRotation = tetRotation;
-        }
+        FmSoaTetStiffnessMatrix<T> stiffnessMat;
+        FmComputeTetStressAndStiffnessMatrix(&stressMat, &stiffnessMat,
+            stressShapeParamsDmInv,
+            stressShapeParamsV0,
+            tetUpdateInput.youngsModulus, tetUpdateInput.poissonsRatio);
+#else
+        FmComputeTetStressMatrix<T>(&stressMat,
+            stressShapeParamsDmInv,
+            tetUpdateInput.youngsModulus, tetUpdateInput.poissonsRatio);
 #endif
 
 #if !FM_MATRIX_ASSEMBLY_BY_TETS
         // Compute rotated stiffness for matrix assembly
         FmComputeRotatedStiffnessMatrix(&tetUpdateOutput->rotatedStiffnessMat, stiffnessMat,
-            tetUpdateInput.stressRestPosition0,
-            tetUpdateInput.stressRestPosition1,
-            tetUpdateInput.stressRestPosition2,
-            tetUpdateInput.stressRestPosition3,
-            stressTetRotation);
+            tetUpdateInput.restShapeMatrix, tetRotation);
 #endif
 
         if (computingTetDeformation || any(tetUpdateInput.testFracture | tetUpdateInput.updatePlasticity))
         {
             typename T::SoaMatrix3 tetRotationInv = transpose(tetRotation);
 
-#if FM_COMPUTE_PLASTIC_REL_ROTATION     
-            // Compute the offsets needed for stress calculation.
-            // Use post-plasticity rotation to more accurately compute elastic stress.
-            typename T::SoaMatrix3 stressTetRotationInv = transpose(stressTetRotation);
-#else
-            typename T::SoaMatrix3 stressTetRotationInv = tetRotationInv;
-#endif
-
             if (computingTetDeformation)
             {
                 // Compute deformation offsets for strain calculation.
                 // Use the original rest positions for total deformation.
-                typename T::SoaVector3 unrotatedOffset0 = mul(tetRotationInv, tetUpdateInput.deformedPosition0) - tetUpdateInput.restPosition0;
-                typename T::SoaVector3 unrotatedOffset1 = mul(tetRotationInv, tetUpdateInput.deformedPosition1) - tetUpdateInput.restPosition1;
-                typename T::SoaVector3 unrotatedOffset2 = mul(tetRotationInv, tetUpdateInput.deformedPosition2) - tetUpdateInput.restPosition2;
-                typename T::SoaVector3 unrotatedOffset3 = mul(tetRotationInv, tetUpdateInput.deformedPosition3) - tetUpdateInput.restPosition3;
+                typename T::SoaVector3 unrotatedOffset1 = (tetRotationInv * tetUpdateInput.deformedShapeMatrix.col0) - tetUpdateInput.restShapeMatrix.col0;
+                typename T::SoaVector3 unrotatedOffset2 = (tetRotationInv * tetUpdateInput.deformedShapeMatrix.col1) - tetUpdateInput.restShapeMatrix.col1;
+                typename T::SoaVector3 unrotatedOffset3 = (tetRotationInv * tetUpdateInput.deformedShapeMatrix.col2) - tetUpdateInput.restShapeMatrix.col2;
 
                 typename T::SoaVector3 strain[2];
-                FmComputeTetStrain<T>(strain, tetUpdateInput.shapeParams, unrotatedOffset0, unrotatedOffset1, unrotatedOffset2, unrotatedOffset3);
+                FmComputeTetStrain<T>(strain, tetUpdateInput.shapeParams, unrotatedOffset1, unrotatedOffset2, unrotatedOffset3);
                 typename T::SoaFloat tetDeformation = sqrtf(lengthSqr(strain[0]) + lengthSqr(strain[1]));
 
                 tetUpdateOutput->strainMag = tetDeformation;
@@ -1084,21 +838,20 @@ namespace AMD
             if (any(tetUpdateInput.testFracture | tetUpdateInput.updatePlasticity))
             {
                 // Compute elastic stress
-                typename T::SoaVector3 unrotatedOffset0 = mul(stressTetRotationInv, tetUpdateInput.deformedPosition0) - tetUpdateInput.stressRestPosition0;
-                typename T::SoaVector3 unrotatedOffset1 = mul(stressTetRotationInv, tetUpdateInput.deformedPosition1) - tetUpdateInput.stressRestPosition1;
-                typename T::SoaVector3 unrotatedOffset2 = mul(stressTetRotationInv, tetUpdateInput.deformedPosition2) - tetUpdateInput.stressRestPosition2;
-                typename T::SoaVector3 unrotatedOffset3 = mul(stressTetRotationInv, tetUpdateInput.deformedPosition3) - tetUpdateInput.stressRestPosition3;
+                typename T::SoaVector3 unrotatedOffset1 = (tetRotationInv * tetUpdateInput.deformedShapeMatrix.col0) - tetUpdateInput.stressRestShapeMatrix.col0;
+                typename T::SoaVector3 unrotatedOffset2 = (tetRotationInv * tetUpdateInput.deformedShapeMatrix.col1) - tetUpdateInput.stressRestShapeMatrix.col1;
+                typename T::SoaVector3 unrotatedOffset3 = (tetRotationInv * tetUpdateInput.deformedShapeMatrix.col2) - tetUpdateInput.stressRestShapeMatrix.col2;
 
                 typename T::SoaVector3 stress0 =
-                    mul(stressMat.EBe00, unrotatedOffset0) +
-                    mul(stressMat.EBe01, unrotatedOffset1) +
-                    mul(stressMat.EBe02, unrotatedOffset2) +
-                    mul(stressMat.EBe03, unrotatedOffset3);
+                    /* stressMat.EBe00 * unrotatedOffset0 + */
+                    stressMat.EBe01 * unrotatedOffset1 +
+                    stressMat.EBe02 * unrotatedOffset2 +
+                    stressMat.EBe03 * unrotatedOffset3;
                 typename T::SoaVector3 stress1 =
-                    mul(stressMat.EBe10, unrotatedOffset0) +
-                    mul(stressMat.EBe11, unrotatedOffset1) +
-                    mul(stressMat.EBe12, unrotatedOffset2) +
-                    mul(stressMat.EBe13, unrotatedOffset3);
+                    /* stressMat.EBe10 * unrotatedOffset0 + */
+                    stressMat.EBe11 * unrotatedOffset1 +
+                    stressMat.EBe12 * unrotatedOffset2 +
+                    stressMat.EBe13 * unrotatedOffset3;
 
                 if (any(tetUpdateInput.testFracture))
                 {
@@ -1111,38 +864,38 @@ namespace AMD
                     typename T::SoaFloat sxy = stress1.z;
 
                     typename T::SoaMatrix3 stress3(
-                        FmInitVector3<T>(sxx, sxy, szx),
-                        FmInitVector3<T>(sxy, syy, syz),
-                        FmInitVector3<T>(szx, syz, szz));
+                        typename T::SoaVector3(sxx, sxy, szx),
+                        typename T::SoaVector3(sxy, syy, syz),
+                        typename T::SoaVector3(szx, syz, szz));
 
                     // primary direction of stress is eigenvector for largest eigenvalue
                     typename T::SoaVector3 eigenvals;
                     typename T::SoaMatrix3 eigenvecs;
-                    FmEigenSymm3x3CyclicJacobi<T>(&eigenvals, &eigenvecs, stress3);
+                    FmEigenSym3x3<T>(&eigenvals, &eigenvecs, stress3);
 
-                    tetUpdateOutput->maxStressDirection = eigenvecs.col0;
-                    tetUpdateOutput->maxStressEigenvalue = fabsf(eigenvals.x);
+                    typename T::SoaVector3 absEigenvals = abs(eigenvals);
+                    typename T::SoaVector3 maxDirection = eigenvecs.col0;
+                    typename T::SoaFloat maxEigenvalue = absEigenvals.x;
+                    typename T::SoaBool swap = absEigenvals.y > maxEigenvalue;
+                    maxDirection = select(maxDirection, eigenvecs.col1, swap);
+                    maxEigenvalue = select(maxEigenvalue, absEigenvals.y, swap);
+                    swap = absEigenvals.z > maxEigenvalue;
+                    maxDirection = select(maxDirection, eigenvecs.col2, swap);
+                    maxEigenvalue = select(maxEigenvalue, absEigenvals.z, swap);
+
+                    tetUpdateOutput->maxStressDirection = maxDirection;
+                    tetUpdateOutput->maxStressEigenvalue = maxEigenvalue;
                 }
 
                 if (any(tetUpdateInput.updatePlasticity))
                 {
                     typename T::SoaBool updateNeeded = 
-                        FmUpdateTetPlasticity(
-#if FM_COMPUTE_PLASTIC_REL_ROTATION
-                            &tetUpdateOutput->plasticTetRelRotation,
-#endif
-                            &tetUpdateOutput->plasticDeformationMatrix, &tetUpdateOutput->plasticShapeParams,
+                        FmUpdateTetPlasticity<T>(
+                            &tetUpdateOutput->plasticDeformationMatrix,
                             tetUpdateInput.plasticDeformationMatrix,
-                            tetUpdateInput.stressShapeParams,  // = typename T::SoaTetPlasticityState::plasticShapeParams
                             tetRotationInv,
-                            tetUpdateInput.restPosition0,
-                            tetUpdateInput.restPosition1,
-                            tetUpdateInput.restPosition2,
-                            tetUpdateInput.restPosition3,
-                            tetUpdateInput.deformedPosition0,
-                            tetUpdateInput.deformedPosition1,
-                            tetUpdateInput.deformedPosition2,
-                            tetUpdateInput.deformedPosition3,
+                            tetUpdateInput.shapeParams.DmInv,
+                            tetUpdateInput.deformedShapeMatrix,
                             stress0,
                             stress1,
                             tetUpdateInput.plasticYieldThreshold, tetUpdateInput.plasticCreep, tetUpdateInput.plasticMin, tetUpdateInput.plasticMax, tetUpdateInput.preserveVolume);
@@ -1178,10 +931,6 @@ namespace AMD
             FmTetPlasticityState& plasticityState = tetMesh->tetsPlasticity[tetId];
 
             plasticityState.plasticDeformationMatrix = updatedState.plasticDeformationMatrix;
-            plasticityState.plasticShapeParams = updatedState.plasticShapeParams;
-#if FM_COMPUTE_PLASTIC_REL_ROTATION            
-            plasticityState.plasticTetRelRotation = updatedState.plasticTetRelRotation;
-#endif
         }
 
         bool removedKinematicFlag = false;
@@ -1229,7 +978,7 @@ namespace AMD
             uint vId2 = tetVertIds.ids[2];
             uint vId3 = tetVertIds.ids[3];
 
-            FmQuat tetQuat = FmInitQuat(tetMesh->tetsRotation[tetId]);
+            FmQuat tetQuat = FmQuat(tetMesh->tetsRotation[tetId]);
 
             // Accumulate quaternions for average vertex orientation
             FmAddToQuat(&tetMesh->vertsTetValues[vId0].tetQuatSum, tetQuat);
@@ -1259,7 +1008,6 @@ namespace AMD
         bool* outRemovedKinematicFlag,
         uint* outMaxUnconstrainedSolveIterations,
         FmTetMesh* tetMesh, uint beginIdx, uint endIdx,
-        const FmVector3& centerOfMass,
         bool runFracture, bool updatePlasticity, bool meshSupportsPlasticity, bool computingStrainMag)
     {
         bool removedKinematicFlag = false;
@@ -1277,13 +1025,12 @@ namespace AMD
         for (uint tetId = beginIdx; tetId < endIdx; tetId++)
         {
             uint tetMaxUnconstrainedSolveIterations = tetMesh->tetsMaxUnconstrainedSolveIterations[tetId];
-            FmTetVertIds tetVertIds = tetMesh->tetsVertIds[tetId];
 
             maxUnconstrainedSolveIterations = FmMaxUint(maxUnconstrainedSolveIterations, tetMaxUnconstrainedSolveIterations);
 
             // Collect input data from tet
             FmUpdateTetStateInput tetUpdateInput;
-            FmGatherUpdateTetStateInput(&tetUpdateInput, *tetMesh, tetId, centerOfMass, runFracture, updatePlasticity);
+            FmGatherUpdateTetStateInput(&tetUpdateInput, *tetMesh, tetId, runFracture, updatePlasticity);
 
             // Compute tet rotations, stress, stiffness matrices
 #if FM_SOA_TET_MATH
@@ -1341,7 +1088,7 @@ namespace AMD
         *outMaxUnconstrainedSolveIterations = maxUnconstrainedSolveIterations;
     }
 
-    class FmTaskDataUpdateTetState : public FmAsyncTaskData
+    class FmTaskDataUpdateTetState : public TLTaskDataBase
     {
     public:
         FM_CLASS_NEW_DELETE(FmTaskDataUpdateTetState)
@@ -1351,7 +1098,6 @@ namespace AMD
 
         FmScene* scene;
         FmTetMesh* tetMesh;
-        FmVector3 centerOfMass;
         uint numTets;
         uint numTetTasks;
 
@@ -1360,34 +1106,35 @@ namespace AMD
         bool meshSupportsPlasticity;
         bool computingStrainMag;
 
+        TLTaskDataBase* updateIslandsProgress;
+
         FmTaskDataUpdateTetState(
-            FmScene* inScene, FmTetMesh* inTetMesh, const FmVector3& inCenterOfMass,
+            FmScene* inScene, FmTetMesh* inTetMesh,
             uint inNumTets, uint inNumTetTasks,
             bool inRunFracture, bool inUpdatePlasticity, bool inMeshSupportsPlasticity, bool inComputingDeformation)
         {
-            FmAtomicWrite(&removedKinematicFlag.val, 0);
-            FmAtomicWrite(&maxUnconstrainedSolveIterations.val, 0);
+            removedKinematicFlag.val = 0;
+            maxUnconstrainedSolveIterations.val = 0;
             scene = inScene;
             tetMesh = inTetMesh;
-            centerOfMass = inCenterOfMass;
             numTets = inNumTets;
             numTetTasks = inNumTetTasks;
             runFracture = inRunFracture;
             updatePlasticity = inUpdatePlasticity;
             meshSupportsPlasticity = inMeshSupportsPlasticity;
             computingStrainMag = inComputingDeformation;
+            updateIslandsProgress = nullptr;
         }
     };
 
-    FM_WRAPPED_TASK_FUNC(FmTaskFuncUpdateTetsBatch)
+    void FmTaskFuncUpdateTetsBatch(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(UPDATE_TET_STATE);
+        FM_TRACE_SCOPED_EVENT("UpdateTetState");
 
         FmTaskDataUpdateTetState* taskData = (FmTaskDataUpdateTetState *)inTaskData;
 
         FmTetMesh* tetMesh = taskData->tetMesh;
-        FmVector3 centerOfMass = taskData->centerOfMass;
         bool runFracture = taskData->runFracture;
         bool updatePlasticity = taskData->updatePlasticity;
         bool meshSupportsPlasticity = taskData->meshSupportsPlasticity;
@@ -1399,7 +1146,7 @@ namespace AMD
         bool removedKinematicFlag;
         uint maxUnconstrainedSolveIterations;
 
-        FmUpdateTetsRange(&removedKinematicFlag, &maxUnconstrainedSolveIterations, tetMesh, beginIdx, endIdx, centerOfMass, runFracture, updatePlasticity, meshSupportsPlasticity, computingStrainMag);
+        FmUpdateTetsRange(&removedKinematicFlag, &maxUnconstrainedSolveIterations, tetMesh, beginIdx, endIdx, runFracture, updatePlasticity, meshSupportsPlasticity, computingStrainMag);
 
         if (removedKinematicFlag)
         {
@@ -1407,14 +1154,10 @@ namespace AMD
         }
 
         FmAtomicMax(&taskData->maxUnconstrainedSolveIterations.val, maxUnconstrainedSolveIterations);
-
-        // Mark progress in tet mesh; call FmTaskFuncFinishMeshUpdateFracture() on last task, which will delete taskData
-        taskData->progress.TaskIsFinished();
     }
 
-    void FmTaskFuncFinishUpdateTetsAndFracture(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
-    {
-        FM_TRACE_SCOPED_EVENT(FINISH_UPDATE_TETS_FRACTURE);
+    FM_ASYNC_TASK(FmTaskFuncFinishUpdateTetsAndFracture)    {
+        FM_TRACE_SCOPED_EVENT("FinishUpdateTetsFracture");
 
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
@@ -1441,7 +1184,11 @@ namespace AMD
         }
 
         // Mark progress in island
-        taskData->parentTaskData->progress.TaskIsFinished(taskData->parentTaskData);
+#if FM_ASYNC_THREADING
+        taskData->updateIslandsProgress->WorkItemFinished(taskData->updateIslandsProgress);
+#else
+        taskData->updateIslandsProgress->WorkItemFinished();
+#endif
 
         delete taskData;
     }
@@ -1452,41 +1199,40 @@ namespace AMD
     // Set mesh's unconstrained solver iterations as max of tet settings.
     void FmUpdateTetStateAndFracture(FmScene* scene, FmTetMesh* tetMesh, 
         bool runFracture, bool updatePlasticity,
-        FmAsyncTaskData* parentTaskData)
+        TLTaskDataBase* updateIslandsProgress)
     {
         uint numTets = tetMesh->numTets;
 
         // Clear fracture state
         // Keep existing crack tips to continue fracture from them
-        FmAtomicWrite(&tetMesh->numTetsToFracture.val, 0);
+        tetMesh->numTetsToFracture.val = 0;
         tetMesh->flags &= ~(FM_OBJECT_FLAG_REMOVED_KINEMATIC | FM_OBJECT_FLAG_HIT_MAX_VERTS | FM_OBJECT_FLAG_HIT_MAX_EXTERIOR_FACES);
 
-        FmVector3 centerOfMass = tetMesh->centerOfMass;
-
-        bool meshSupportsFracture = (tetMesh->tetsToFracture != NULL);
-        bool meshSupportsPlasticity = (tetMesh->tetsPlasticity != NULL);
+        bool meshSupportsFracture = (tetMesh->tetsToFracture != nullptr);
+        bool meshSupportsPlasticity = (tetMesh->tetsPlasticity != nullptr);
 
         // Set runFracture only if fracture supported on this mesh and scene pointer valid
-        runFracture = runFracture && meshSupportsFracture && (scene != NULL);
+        runFracture = runFracture && meshSupportsFracture && (scene != nullptr);
 
         bool computingStrainMag = FM_IS_SET(tetMesh->flags, FM_OBJECT_FLAG_COMPUTE_TET_STRAIN_MAG);
         
-        uint numUpdateTetTasks = FmGetNumTasks(tetMesh->numTets, FM_UPDATE_TET_BATCH_SIZE); 
-
 #if FM_ASYNC_THREADING
-        if (parentTaskData)
+        uint numUpdateTetTasks = FmGetNumTasks(tetMesh->numTets, FM_UPDATE_TET_BATCH_SIZE);
+
+        if (updateIslandsProgress)
         {
             if (numTets > 128)
             {
                 // If enough tets, parallelize using a parallel for
                 FmTaskDataUpdateTetState* taskData = new FmTaskDataUpdateTetState(
-                    scene, tetMesh, centerOfMass, numTets, numUpdateTetTasks, runFracture, updatePlasticity, meshSupportsPlasticity, computingStrainMag);
+                    scene, tetMesh, numTets, numUpdateTetTasks, runFracture, updatePlasticity, meshSupportsPlasticity, computingStrainMag);
 
-                taskData->progress.Init(numUpdateTetTasks, FmTaskFuncFinishUpdateTetsAndFracture, taskData);
-                taskData->parentTaskData = parentTaskData;
+                taskData->updateIslandsProgress = updateIslandsProgress;
 
-                // Using runLoop=true since this is reached within a loop over meshes and is not a tail call
-                FmParallelForAsync("UpdateTetsState", FM_TASK_AND_WRAPPED_TASK_ARGS(FmTaskFuncUpdateTetsBatch), NULL, taskData, numUpdateTetTasks, scene->taskSystemCallbacks.SubmitAsyncTask, scene->params.numThreads, true);
+                TLTask followTask(FmTaskFuncFinishUpdateTetsAndFracture, taskData);
+
+                TLParallelForAsync(FmTaskFuncUpdateTetsBatch, taskData, 0, numUpdateTetTasks, TLParallelForOptions::GrainSize(1), followTask, false);
+                TLFlushTaskQueue();
             }
             else
             {
@@ -1494,7 +1240,7 @@ namespace AMD
                 bool removedKinematicFlag;
                 uint maxUnconstrainedSolveIterations;
 
-                FmUpdateTetsRange(&removedKinematicFlag, &maxUnconstrainedSolveIterations, tetMesh, 0, numTets, centerOfMass, runFracture, updatePlasticity, meshSupportsPlasticity, computingStrainMag);
+                FmUpdateTetsRange(&removedKinematicFlag, &maxUnconstrainedSolveIterations, tetMesh, 0, numTets, runFracture, updatePlasticity, meshSupportsPlasticity, computingStrainMag);
 
                 if (removedKinematicFlag)
                 {
@@ -1509,16 +1255,18 @@ namespace AMD
                     FmFractureMesh(scene, tetMesh);
                 }
 
-                parentTaskData->progress.TaskIsFinished(parentTaskData);
+                updateIslandsProgress->WorkItemFinished(updateIslandsProgress);
             }
         }
         else
 #endif
         {
+            (void)updateIslandsProgress;
+
             bool removedKinematicFlag;
             uint maxUnconstrainedSolveIterations;
 
-            FmUpdateTetsRange(&removedKinematicFlag, &maxUnconstrainedSolveIterations, tetMesh, 0, numTets, centerOfMass, runFracture, updatePlasticity, meshSupportsPlasticity, computingStrainMag);
+            FmUpdateTetsRange(&removedKinematicFlag, &maxUnconstrainedSolveIterations, tetMesh, 0, numTets, runFracture, updatePlasticity, meshSupportsPlasticity, computingStrainMag);
 
             if (removedKinematicFlag)
             {

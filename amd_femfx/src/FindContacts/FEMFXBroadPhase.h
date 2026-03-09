@@ -29,7 +29,6 @@ THE SOFTWARE.
 #pragma once
 
 #include "FEMFXBvh.h"
-#include "FEMFXTaskSystemInterface.h"
 #include "FEMFXFindContacts.h"
 
 #define FM_BROAD_PHASE_COLLIDE_OBJECTS_BATCH_SIZE 64
@@ -44,9 +43,9 @@ namespace AMD
     // Object pair found in broad phase
     struct FmBroadPhasePair
     {
-        uint objectIdA;
-        uint objectIdB;
-        uint weight;     // weigh by estimated cost for prioritizing
+        uint objectIdA = FM_INVALID_ID;
+        uint objectIdB = FM_INVALID_ID;
+        uint weight = 0;     // weigh by estimated cost for prioritizing
     };
 
     void FmBuildBroadPhaseBvh(
@@ -55,5 +54,5 @@ namespace AMD
 
     void FmCollideBroadPhaseBvhPairCallback(void* userData, uint primIdA, uint primIdB);
 
-    void FmBroadPhase(FmTaskDataFindContacts* findContactsData, FmTaskFuncCallback followTaskFunc, void* followTaskData);
+    void FmBroadPhase(FmTaskDataFindContacts* findContactsData, TLTaskFuncCallback postBroadPhaseTaskFunc, void* postBroadPhaseTaskData);
 }

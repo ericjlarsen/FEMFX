@@ -206,7 +206,7 @@ namespace AMD
 
         if (workspaceNumBytes > maxFreeBytes)
         {
-            return NULL;
+            return nullptr;
         }
 
         uint8_t* workspaceStart = pBuffer;
@@ -271,7 +271,7 @@ namespace AMD
 
         if (numBytes > maxFreeBytes)
         {
-            return NULL;
+            return nullptr;
         }
 
         FmMeshCollisionTriPair* pMeshCollisionTriPairs = (FmMeshCollisionTriPair*)pBuffer;
@@ -292,7 +292,7 @@ namespace AMD
 
         if (workspaceNumBytes > maxFreeBytes)
         {
-            return NULL;
+            return nullptr;
         }
 
         uint8_t* workspaceStart = pBuffer;
@@ -342,7 +342,8 @@ namespace AMD
             return false;
         }
 
-        temps->volContactWorkspace = FmAllocVolumeContactWorkspace(pBuffer, (size_t)(pBufferEnd - pBuffer), numVertsA, numVertsB, numFacesA
+        bool allocVolumeContactWorkspace = numVertsA > 0 && numVertsB > 0;
+        temps->volContactWorkspace = !allocVolumeContactWorkspace? nullptr : FmAllocVolumeContactWorkspace(pBuffer, (size_t)(pBufferEnd - pBuffer), numVertsA, numVertsB, numFacesA
 #if FM_SURFACE_INTERSECTION_CONTACTS
             , maxSurfaceIntersectionPairs
 #endif
@@ -360,8 +361,10 @@ namespace AMD
         }
         else
         {
-            temps->contactReductionWorkspace = NULL;
+            temps->contactReductionWorkspace = nullptr;
         }
+#else
+        (void)allocContactReductionWorkspace;
 #endif
 
         temps->distanceContactPairInfoBuffer = FmAllocFromBuffer<FmDistanceContactPairInfo>(&pBuffer, FM_MAX_TEMP_DISTANCE_CONTACTS, pBufferEnd);
@@ -370,16 +373,16 @@ namespace AMD
         temps->numDistanceContacts = 0;
         temps->numDistanceContactsNonzeroRefCount = 0;
 
-        if (temps->volContactWorkspace == NULL
+        if ((allocVolumeContactWorkspace && temps->volContactWorkspace == nullptr)
 #if FM_SOA_TRI_INTERSECTION
-            || temps->meshCollisionTriPairs == NULL
+            || temps->meshCollisionTriPairs == nullptr
 #endif
 #if FM_CONTACT_REDUCTION
-            || (allocContactReductionWorkspace && temps->contactReductionWorkspace == NULL)
+            || (allocContactReductionWorkspace && temps->contactReductionWorkspace == nullptr)
 #endif
-            || temps->distanceContactPairInfoBuffer == NULL
-            || temps->distanceContactBuffer == NULL
-            || temps->distanceContactTetVertIds == NULL
+            || temps->distanceContactPairInfoBuffer == nullptr
+            || temps->distanceContactBuffer == nullptr
+            || temps->distanceContactTetVertIds == nullptr
             )
         {
             return false;
@@ -388,21 +391,21 @@ namespace AMD
         return true;
     }
 
-    // Get constraint pointer by id; returns NULL if not found.
+    // Get constraint pointer by id; returns nullptr if not found.
     FmGlueConstraint* FmGetGlueConstraint(const FmScene& scene, uint glueConstraintId)
     {
         const FmConstraintsBuffer* constraintsBuffer = scene.constraintsBuffer;
 
         if (glueConstraintId >= constraintsBuffer->numGlueConstraints)
         {
-            return NULL;
+            return nullptr;
         }
 
         const FmGlueConstraint& glueConstraint = constraintsBuffer->glueConstraints[glueConstraintId];
 
         if (FM_IS_SET(glueConstraint.flags, FM_CONSTRAINT_FLAG_DELETED))
         {
-            return NULL;
+            return nullptr;
         }
 
         return &constraintsBuffer->glueConstraints[glueConstraintId];
@@ -414,14 +417,14 @@ namespace AMD
 
         if (planeConstraintId >= constraintsBuffer->numPlaneConstraints)
         {
-            return NULL;
+            return nullptr;
         }
 
         const FmPlaneConstraint& planeConstraint = constraintsBuffer->planeConstraints[planeConstraintId];
 
         if (FM_IS_SET(planeConstraint.flags, FM_CONSTRAINT_FLAG_DELETED))
         {
-            return NULL;
+            return nullptr;
         }
 
         return &constraintsBuffer->planeConstraints[planeConstraintId];
@@ -433,14 +436,14 @@ namespace AMD
 
         if (rigidBodyAngleConstraintId >= constraintsBuffer->numRigidBodyAngleConstraints)
         {
-            return NULL;
+            return nullptr;
         }
 
         const FmRigidBodyAngleConstraint& rigidBodyAngleConstraint = constraintsBuffer->rigidBodyAngleConstraints[rigidBodyAngleConstraintId];
 
         if (FM_IS_SET(rigidBodyAngleConstraint.flags, FM_CONSTRAINT_FLAG_DELETED))
         {
-            return NULL;
+            return nullptr;
         }
 
         return &constraintsBuffer->rigidBodyAngleConstraints[rigidBodyAngleConstraintId];
@@ -785,10 +788,10 @@ namespace AMD
 
         if (glueConstraint)
         {
-            return FmInitVector3(glueConstraint->lambdaX, glueConstraint->lambdaY, glueConstraint->lambdaZ);
+            return FmVector3(glueConstraint->lambdaX, glueConstraint->lambdaY, glueConstraint->lambdaZ);
         }
 
-        return FmInitVector3(0.0f);
+        return FmVector3(0.0f);
     }
 
     void FmEnableGlueConstraint(FmScene* scene, uint glueConstraintId, bool enabled)
@@ -846,7 +849,7 @@ namespace AMD
     {
         FmGlueConstraint* glueConstraint = FmGetGlueConstraint(scene, glueConstraintId);
 
-        if (glueConstraint == NULL)
+        if (glueConstraint == nullptr)
         {
             return false;
         }
@@ -860,7 +863,7 @@ namespace AMD
     {
         FmPlaneConstraint* planeConstraint = FmGetPlaneConstraint(scene, planeConstraintId);
 
-        if (planeConstraint == NULL)
+        if (planeConstraint == nullptr)
         {
             return false;
         }
@@ -874,7 +877,7 @@ namespace AMD
     {
         FmRigidBodyAngleConstraint* rigidBodyAngleConstraint = FmGetRigidBodyAngleConstraint(scene, rigidBodyAngleConstraintId);
 
-        if (rigidBodyAngleConstraint == NULL)
+        if (rigidBodyAngleConstraint == nullptr)
         {
             return false;
         }

@@ -52,7 +52,7 @@ namespace AMD
         metisMesh.ncon = 0;
         metisMesh.eptr = new idx_t[meshInput.numTets + 1];  // start of node indices of element
         metisMesh.eind = new idx_t[meshInput.numTets*4];    // all element node indices
-        metisMesh.ewgt = NULL;
+        metisMesh.ewgt = nullptr;
 
         uint nodeIdx = 0;
         for (uint elemIdx = 0; elemIdx < meshInput.numTets; elemIdx++)
@@ -91,7 +91,7 @@ namespace AMD
         metisOptions[METIS_OPTION_NUMBERING] = 0;
 
         METIS_PartMeshNodal(&metisMesh.ne, &metisMesh.nn, metisMesh.eptr, metisMesh.eind,
-            NULL, NULL, &metisNumPartitions, NULL, metisOptions, &metisObjVal,
+            nullptr, nullptr, &metisNumPartitions, nullptr, metisOptions, &metisObjVal,
             metisElemPartitions, metisNodePartitions);
 
         // Find size of each partition

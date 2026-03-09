@@ -28,8 +28,7 @@ THE SOFTWARE.
 
 #pragma once
 
-#include "FEMFXTaskGraph.h"
-#include "FEMFXParallelFor.h"
+#include "FEMFXThreading.h"
 
 // Comparison result for x and y to sort in increasing order
 #define FM_QSORT_INCREASING_RETVAL(x, y) (((x) > (y)) - ((x) < (y)))
@@ -49,19 +48,13 @@ qsort_permutation(void *a, int *permutation, size_t n, size_t es,
 
 namespace AMD
 {
-    template<class T>
-    void FmSortTask(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
+    template<class T, class CompareClass>
+    FM_FORCE_INLINE void FmNodeTaskSort(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
 
-    template<class T>
-    void FmSortTaskWrapped(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
+    template<class T, class CompareClass>
+    FM_FORCE_INLINE void FmNodeTaskMerge(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
 
-    template<class T>
-    void FmMergeTask(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
-
-    template<class T>
-    void FmMergeTaskWrapped(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
-
-    class FmSortTaskGraphNode : public FmTaskGraphNode
+    class FmSortTaskGraphNode : public TLTaskGraphNode
     {
     public:
         FM_CLASS_NEW_DELETE(FmSortTaskGraphNode)
@@ -122,22 +115,18 @@ namespace AMD
     // Requires definition of templated class FmSortCompareClass taking void pointer in constructor.
     // TODO: look at incorporating parallel merge; or avoid use of secondary buffer.
     template<class T, class CompareClass>
-    class FmSortTaskGraph : public FmTaskGraph
+    class FmSortTaskGraph : public TLTaskGraph
     {
     public:
         FM_CLASS_NEW_DELETE(FmSortTaskGraph)
 
-        FmSortTaskGraphNode* nodes;
-        uint                 numSortNodes;
-        T*                   pElemsBuffer[2];
-        uint                 numElements;
-        void*                sortClassUserData;
+        FmSortTaskGraphNode* nodes = nullptr;
+        uint                 numSortNodes = 0;
+        T*                   pElemsBuffer[2] = { nullptr, nullptr };
+        uint                 numElements = 0;
+        void*                sortClassUserData = nullptr;
 
-        FmSortTaskGraph() : nodes(NULL), numSortNodes(0), numElements(0), sortClassUserData(NULL) 
-        {
-            pElemsBuffer[0] = NULL;
-            pElemsBuffer[1] = NULL;
-        }
+        FmSortTaskGraph() {}
 
         ~FmSortTaskGraph()
         {
@@ -150,10 +139,10 @@ namespace AMD
             {
                 delete[] nodes;
             }
-            nodes = NULL;
+            nodes = nullptr;
             numSortNodes = 0;
-            pElemsBuffer[0] = NULL;
-            pElemsBuffer[1] = NULL;
+            pElemsBuffer[0] = nullptr;
+            pElemsBuffer[1] = nullptr;
             numElements = 0;
             sortClassUserData = 0;
         }
@@ -161,14 +150,14 @@ namespace AMD
         void CreateAndRunGraph(
             T** outElemsSorted, T* inElemsUnsorted, T* inElemsBuffer, uint inNumElements,
             void* inSortClassUserData, 
-            uint inMaxSortNodes, uint inBatchSize, FmTaskFuncCallback followTask, void* followTaskData)
+            uint inMaxSortNodes, uint inBatchSize, TLTaskFuncCallback followTaskFunc, void* followTaskData)
         {
             (void)inElemsBuffer;
             *outElemsSorted = inElemsUnsorted;
 
             if (inNumElements < 2)
             {
-                FmSetNextTask(followTask, followTaskData, 0, 1);
+                TLSetNextTask(followTaskFunc, followTaskData, 0, 1);
                 return;
             }
 
@@ -191,7 +180,7 @@ namespace AMD
             {
                 // Sort inline
                 FmSort<T, CompareClass>(inElemsUnsorted, numElements, sortClassUserData);
-                FmSetNextTask(followTask, followTaskData, 0, 1);
+                TLSetNextTask(followTaskFunc, followTaskData, 0, 1);
                 return;
             }
 
@@ -202,7 +191,7 @@ namespace AMD
 
             for (uint i = 0; i < numSortNodes; i++)
             {
-                nodes[i].Init("FmSortNode", this, FmSortTask<T, CompareClass>, FmSortTaskWrapped<T, CompareClass>, i);
+                nodes[i].Init(this, TLNodeTaskFunc<FmNodeTaskSort<T, CompareClass>>, nullptr, i);
 
                 uint nodeBeginIndex, nodeEndIndex;
                 FmGetIndexRangeEvenDistribution(&nodeBeginIndex, &nodeEndIndex, i, numSortNodes, numElements);
@@ -216,7 +205,7 @@ namespace AMD
 
             for (uint i = numSortNodes; i < numSortNodes + numMergeNodes; i++)
             {
-                nodes[i].Init("FmMergeNode", this, FmMergeTask<T, CompareClass>, FmMergeTaskWrapped<T, CompareClass>, i);
+                nodes[i].Init(this, TLNodeTaskFunc<FmNodeTaskMerge<T, CompareClass>>, nullptr, i);
             }
 
             uint levelNumNodes = numSortNodes;
@@ -254,7 +243,7 @@ namespace AMD
             *outElemsSorted = pElemsBuffer[0];
 
 #if FM_ASYNC_THREADING
-            StartAsync(followTask, followTaskData);
+            StartAsync(TLTask(followTaskFunc, followTaskData));
 #else
             StartAndWait();
 #endif
@@ -262,49 +251,32 @@ namespace AMD
     };
 
     template<class T, class CompareClass>
-    void FmSortTask(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_FORCE_INLINE void FmNodeTaskSort(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
 
-        FM_TRACE_SCOPED_EVENT(SORT_TASK);
+        FM_TRACE_SCOPED_EVENT("SortTask");
 
         FmSortTaskGraphNode* node = (FmSortTaskGraphNode*)inTaskData;
         FmSortTaskGraph<T, CompareClass>* graph = (FmSortTaskGraph<T, CompareClass>*)node->GetGraph();
 
         T* pElems = graph->pElemsBuffer[0];
         FmSort<T, CompareClass>(pElems + node->beginIndex, node->endIndex - node->beginIndex, graph->sortClassUserData);
-
-        node->TaskIsFinished(0);
     }
 
     template<class T, class CompareClass>
-    void FmSortTaskWrapped(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
-    {
-        FmExecuteTask(FmSortTask<T, CompareClass>, inTaskData, inTaskBeginIndex, inTaskEndIndex);
-    }
-
-    template<class T, class CompareClass>
-    void FmMergeTask(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_FORCE_INLINE void FmNodeTaskMerge(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
 
-        FM_TRACE_SCOPED_EVENT(MERGE_TASK);
+        FM_TRACE_SCOPED_EVENT("MergeTask");
 
         FmSortTaskGraphNode* node = (FmSortTaskGraphNode*)inTaskData;
         FmSortTaskGraph<T, CompareClass>* graph = (FmSortTaskGraph<T, CompareClass>*)node->GetGraph();
 
         T* pElems = graph->pElemsBuffer[0];
         std::inplace_merge(pElems + node->beginIndex, pElems + node->middleIndex, pElems + node->endIndex, CompareClass(graph->sortClassUserData));
-
-        node->TaskIsFinished(0);
     }
-
-    template<class T, class CompareClass>
-    void FmMergeTaskWrapped(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
-    {
-        FmExecuteTask(FmMergeTask<T, CompareClass>, inTaskData, inTaskBeginIndex, inTaskEndIndex);
-    }
-
 }

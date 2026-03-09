@@ -49,7 +49,7 @@ class SimdFloat
     public:
         SIMD_VECTORMATH_FORCE_INLINE SimdFloat(__m128 vec);
 
-        SIMD_VECTORMATH_FORCE_INLINE SimdFloat() {}
+        SIMD_VECTORMATH_FORCE_INLINE SimdFloat() { mData = _mm_setzero_ps(); }
 
         SIMD_VECTORMATH_FORCE_INLINE SimdFloat(const SimdFloat& other);
 

@@ -33,30 +33,37 @@ THE SOFTWARE.
 
 namespace AMD
 {
-    template< class T, int N = 1 >
+    template< class T >
     class FmArray
     {
-        T* pElems;
-        T firstElems[N];
-        uint32_t numElems;
-        uint32_t maxElems;
+        T* pElems = nullptr;
+        uint32_t numElems = 0;
+        uint32_t maxElems = 0;
+
+        inline void Extend(uint32_t inMaxElems)
+        {
+            FM_ASSERT(inMaxElems > numElems);
+            T* pOldElems = pElems;
+            pElems = (T*)FmAlignedMalloc(sizeof(T) * inMaxElems, FM_ALIGN_OF(T));
+            for (uint32_t elemIdx = 0; elemIdx < numElems; elemIdx++)
+            {
+                new (pElems + elemIdx) T(std::move(pOldElems[elemIdx]));
+                pOldElems[elemIdx].~T();
+            }
+            if (pOldElems != nullptr)
+            {
+                FmAlignedFree(pOldElems);
+            }
+            maxElems = inMaxElems;
+        }
 
     public:
         FM_CLASS_NEW_DELETE(FmArray)
 
-        inline FmArray()
-        {
-            FM_STATIC_ASSERT(std::is_trivially_constructible<T>::value && std::is_trivially_destructible<T>::value);
-            pElems = firstElems;
-            numElems = 0;
-            maxElems = N;
-        }
+        inline FmArray() {}
 
         inline FmArray(const FmArray& other)
         {
-            pElems = firstElems;
-            numElems = 0;
-            maxElems = N;
             *this = other;
         }
 
@@ -101,54 +108,33 @@ namespace AMD
         {
             if (numElems >= maxElems)
             {
-                T* pOldElems = pElems;
-                uint32_t newMaxElems = maxElems == 0 ? 1 : maxElems * 2;
-                pElems = (T*)FmAlignedMalloc(sizeof(T)*newMaxElems, FM_ALIGN_OF(T));
-                for (uint32_t elemIdx = 0; elemIdx < numElems; elemIdx++)
-                {
-                    pElems[elemIdx] = pOldElems[elemIdx];
-                }
-                if (pOldElems != firstElems)
-                {
-                    FmAlignedFree(pOldElems);
-                }
-                maxElems = newMaxElems;
+                Extend(maxElems == 0 ? 1 : maxElems * 2);
             }
             pElems[numElems] = inElem;
             numElems++;
         }
 
-        inline void Reserve(uint totalNumElems)
+        inline void Reserve(uint inMaxElems)
         {
-            if (totalNumElems > maxElems)
+            if (inMaxElems > maxElems)
             {
-                T* pOldElems = pElems;
-                uint32_t newMaxElems = totalNumElems;
-                pElems = (T*)FmAlignedMalloc(sizeof(T) * newMaxElems, FM_ALIGN_OF(T));
-                for (uint32_t elemIdx = 0; elemIdx < numElems; elemIdx++)
-                {
-                    pElems[elemIdx] = pOldElems[elemIdx];
-                }
-                if (pOldElems != firstElems)
-                {
-                    FmAlignedFree(pOldElems);
-                }
-                maxElems = newMaxElems;
+                Extend(inMaxElems);
             }
         }
 
         inline void Clear()
         {
-            if (pElems != firstElems)
+            for (uint32_t i = 0; i < numElems; i++)
+            {
+                pElems[i].~T();
+            }
+            if (pElems != nullptr)
             {
                 FmAlignedFree(pElems);
-                pElems = firstElems;
+                pElems = nullptr;
             }
             numElems = 0;
-            maxElems = N;
+            maxElems = 0;
         }
     };
-
-
-
 }

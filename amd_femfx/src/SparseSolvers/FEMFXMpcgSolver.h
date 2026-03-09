@@ -57,11 +57,11 @@ namespace AMD
     // Temporary data needed during MPCG solve.
     struct FmMpcgSolverDataTemps
     {
-        FmSVector3* solution;       // Solution
-        FmSVector3* r;              // Residual
-        FmSVector3* p;
-        FmSVector3* s;
-        FmSVector3* h;
+        FmSVector3* solution = nullptr;       // Solution
+        FmSVector3* r = nullptr;              // Residual
+        FmSVector3* p = nullptr;
+        FmSVector3* s = nullptr;
+        FmSVector3* h = nullptr;
 
         static size_t GetNumBytes(uint maxVerts)
         {
@@ -85,33 +85,33 @@ namespace AMD
     // Collected data for MPCG solution of A * x = b
     struct FmMpcgSolverData
     {
-        bool*                  kinematicFlags; // Flag storing whether vertex is kinematically driven
-        FmSMatrix3*            PInvDiag;       // Block 3x3 diagonal preconditioner inverse
-        FmSparseMatrixSubmat3  A;              // 3 rows of A per vertex
-        FmSVector3*            b;              // Right-hand-side
+        bool*                  kinematicFlags = nullptr; // Flag storing whether vertex is kinematically driven
+        FmSMatrix3*            PInvDiag = nullptr;       // Block 3x3 diagonal preconditioner inverse
+        FmSparseMatrixSubmat3  A;                        // 3 rows of A per vertex
+        FmSVector3*            b = nullptr;              // Right-hand-side
 
         // Only used in constraint solve
-        float*                 mass;              // Mass of each vertex  
-        FmSolverIterationNorms norms;             // Computed in GS to measure convergence
-        uint                   solverStateOffset; // Starting index of this mesh's verts in FmConstraintSolverData arrays
+        float*                 mass = nullptr;           // Mass of each vertex  
+        FmSolverIterationNorms norms;                    // Computed in GS to measure convergence
+        uint                   solverStateOffset = 0;    // Starting index of this mesh's verts in FmConstraintSolverData arrays
 
-        uint numVertAdjacentVerts;
-        uint maxVertAdjacentVerts;   // Bound on total number of adjacent verts ("adjacent" here including self); bounds memory needed for stiffness matrix
+        uint numVertAdjacentVerts = 0;
+        uint maxVertAdjacentVerts = 0;   // Bound on total number of adjacent verts ("adjacent" here including self); bounds memory needed for stiffness matrix
 
-        bool hasKinematicVerts;
+        bool hasKinematicVerts = false;
     };
 
     // Init empty MPCG solver data
     static inline void FmInitMpcgSolverData(FmMpcgSolverData* solverData)
     {
-        solverData->kinematicFlags = NULL;
-        solverData->PInvDiag = NULL;
-        solverData->A.submats = NULL;
-        solverData->A.indices = NULL;
-        solverData->A.rowStarts = NULL;
+        solverData->kinematicFlags = nullptr;
+        solverData->PInvDiag = nullptr;
+        solverData->A.submats = nullptr;
+        solverData->A.indices = nullptr;
+        solverData->A.rowStarts = nullptr;
         solverData->A.numRows = 0;
-        solverData->b = NULL;
-        solverData->mass = NULL;
+        solverData->b = nullptr;
+        solverData->mass = nullptr;
         solverData->norms.Zero();
         solverData->solverStateOffset = FM_INVALID_ID;
 

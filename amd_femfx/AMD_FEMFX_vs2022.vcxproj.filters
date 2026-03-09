@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="inc">
@@ -34,9 +34,6 @@
     <Filter Include="src\SparseSolvers">
       <UniqueIdentifier>{98E021E9-04F7-1F7F-4D6E-ABA0B9C3F006}</UniqueIdentifier>
     </Filter>
-    <Filter Include="src\Threading">
-      <UniqueIdentifier>{B27D869F-1E3E-02D6-E778-4B5353F846B2}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="inc\AMD_FEMFX.h">
@@ -54,13 +51,13 @@
     <ClInclude Include="inc\FEMFXSerialize.h">
       <Filter>inc</Filter>
     </ClInclude>
-    <ClInclude Include="inc\FEMFXTaskSystemInterface.h">
-      <Filter>inc</Filter>
-    </ClInclude>
     <ClInclude Include="inc\FEMFXTetMaterialParams.h">
       <Filter>inc</Filter>
     </ClInclude>
     <ClInclude Include="inc\FEMFXTetMeshConnectivity.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\FEMFXTrace.h">
       <Filter>inc</Filter>
     </ClInclude>
     <ClInclude Include="inc\FEMFXTypes.h">
@@ -177,6 +174,9 @@
     <ClInclude Include="src\Common\FEMFXTetMath.h">
       <Filter>src\Common</Filter>
     </ClInclude>
+    <ClInclude Include="src\Common\FEMFXThreading.h">
+      <Filter>src\Common</Filter>
+    </ClInclude>
     <ClInclude Include="src\ConstraintSolver\FEMFXConstraintIslands.h">
       <Filter>src\ConstraintSolver</Filter>
     </ClInclude>
@@ -272,15 +272,6 @@
     </ClInclude>
     <ClInclude Include="src\SparseSolvers\FEMFXSolverMath.h">
       <Filter>src\SparseSolvers</Filter>
-    </ClInclude>
-    <ClInclude Include="src\Threading\FEMFXAsyncThreading.h">
-      <Filter>src\Threading</Filter>
-    </ClInclude>
-    <ClInclude Include="src\Threading\FEMFXParallelFor.h">
-      <Filter>src\Threading</Filter>
-    </ClInclude>
-    <ClInclude Include="src\Threading\FEMFXTaskGraph.h">
-      <Filter>src\Threading</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -400,9 +391,6 @@
     </ClCompile>
     <ClCompile Include="src\SparseSolvers\FEMFXMpcgSolverSetup.cpp">
       <Filter>src\SparseSolvers</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Threading\FEMFXParallelFor.cpp">
-      <Filter>src\Threading</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

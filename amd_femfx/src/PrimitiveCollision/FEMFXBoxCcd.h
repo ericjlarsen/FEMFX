@@ -39,14 +39,14 @@ namespace AMD
     struct FmBox
     {
         FmRigidBodyState state;
-        float            halfWidths[3];
+        float            halfWidths[3] = { 0.0f, 0.0f, 0.0f };
     };
 
     struct FmBoxFeature
     {
-        uint signBits; // zyx signs
-        uint axisMask; // 3 bits set = point, 2 set = edge, 1 set = face
-        uint dim;      // dimension of face or edge feature
+        uint signBits = 0; // zyx signs
+        uint axisMask = 0; // 3 bits set = point, 2 set = edge, 1 set = face
+        uint dim = 0;      // dimension of face or edge feature
 
         inline void SetPoint(bool posX, bool posY, bool posZ)
         {

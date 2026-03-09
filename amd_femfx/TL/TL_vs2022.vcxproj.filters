@@ -1,0 +1,57 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="inc">
+      <UniqueIdentifier>{1F80880B-8B89-887C-1405-9F7C800D947C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{2DAB880B-99B4-887C-2230-9F7C8E38947C}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="inc\TL.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\TLArray.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\TLAsyncThreading.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\TLCommon.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\TLCounter.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\TLParallelFor.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\TLTaskGraph.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\TLTaskQueue.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\TLTaskSystem.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\TLTaskSystemInterface.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\TLBackend.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TLGetProcessorInfo.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TLParallelFor.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\TLTaskSystem.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

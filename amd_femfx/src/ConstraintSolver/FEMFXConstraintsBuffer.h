@@ -41,14 +41,14 @@ namespace AMD
 
     struct FmGluedObjectPairKey
     {
-        uint objectIdA;
-        uint objectIdB;
+        uint objectIdA = FM_INVALID_ID;
+        uint objectIdB = FM_INVALID_ID;
     };
 
     struct FmGluedObjectPairElement
     {
         FmGluedObjectPairKey key;
-        uint glueCount;
+        uint glueCount = 0;
     };
 
     struct FmGluedObjectPairSetFuncs
@@ -94,16 +94,16 @@ namespace AMD
         FmAtomicUint numBroadPhasePairs;
         FmAtomicUint numRigidBodyBroadPhasePairs;
 
-        size_t bufferNumBytes;
+        size_t bufferNumBytes = 0;
 
-        FmDistanceContactPairInfo*   distanceContactsPairInfo;
-        FmDistanceContact*           distanceContacts;
-        FmVolumeContact*             volumeContacts;
-        FmVolumeContactVert*         volumeContactVerts;
-        FmDeformationConstraint*     deformationConstraints;
-        FmGlueConstraint*            glueConstraints;
-        FmPlaneConstraint*           planeConstraints;
-        FmRigidBodyAngleConstraint*  rigidBodyAngleConstraints;
+        FmDistanceContactPairInfo*   distanceContactsPairInfo = nullptr;
+        FmDistanceContact*           distanceContacts = nullptr;
+        FmVolumeContact*             volumeContacts = nullptr;
+        FmVolumeContactVert*         volumeContactVerts = nullptr;
+        FmDeformationConstraint*     deformationConstraints = nullptr;
+        FmGlueConstraint*            glueConstraints = nullptr;
+        FmPlaneConstraint*           planeConstraints = nullptr;
+        FmRigidBodyAngleConstraint*  rigidBodyAngleConstraints = nullptr;
 
         FmGluedObjectPairSet         gluedObjectPairs;
 
@@ -111,90 +111,74 @@ namespace AMD
         FmFreeIds                    freePlaneConstraintIds;
         FmFreeIds                    freeRigidBodyAngleConstraintIds;
 
-        FmCCNode*                    islandObjectNodes;
+        FmCCNode*                    islandObjectNodes = nullptr;
 
-        FmConstraintReference*       allIslandConstraints;          // Buffer for the constraints for all islands
-        uint*                        allIslandTetMeshIds;           // Buffer for the tet mesh ids for all islands
-        uint*                        allIslandRigidBodyIds;         // Buffer for the rigid body ids for all islands
-        uint*                        allUserRigidBodyIslandIndices; // Each FEM island will have an array of rigid body islands; arrays will share this buffer
-        FmConstraintIsland*          constraintIslands;             // Arrays of constraints and objects for each island, regenerated each simulation step
+        FmConstraintReference*       allIslandConstraints = nullptr;          // Buffer for the constraints for all islands
+        uint*                        allIslandTetMeshIds = nullptr;           // Buffer for the tet mesh ids for all islands
+        uint*                        allIslandRigidBodyIds = nullptr;         // Buffer for the rigid body ids for all islands
+        uint*                        allUserRigidBodyIslandIndices = nullptr; // Each FEM island will have an array of rigid body islands; arrays will share this buffer
+        FmConstraintIsland*          constraintIslands = nullptr;             // Arrays of constraints and objects for each island, regenerated each simulation step
 
-        FmSleepingConstraintIsland*  sleepingConstraintIslands;     // Saves island that has been put to sleep; woken after collision or other change to object
-        uint*                        allSleepingIslandTetMeshIds;   // Buffer for the tet mesh ids for all sleeping islands
-        uint*                        allSleepingIslandRigidBodyIds; // Buffer for the rigid body ids for all sleeping islands
+        FmSleepingConstraintIsland*  sleepingConstraintIslands = nullptr;     // Saves island that has been put to sleep; woken after collision or other change to object
+        uint*                        allSleepingIslandTetMeshIds = nullptr;   // Buffer for the tet mesh ids for all sleeping islands
+        uint*                        allSleepingIslandRigidBodyIds = nullptr; // Buffer for the rigid body ids for all sleeping islands
         FmFreeIds                    freeSleepingIslandIds;
-        uint*                        sleepingIslandIdToArrayIdx;
+        uint*                        sleepingIslandIdToArrayIdx = nullptr;
 
-        uint                         islandRandomSeed;              // Deterministic seed value for random numbers in constraint island solve
+        uint                         islandRandomSeed = 0;              // Deterministic seed value for random numbers in constraint island solve
 
         FmBvh                        broadPhaseHierarchy;
         FmBvh                        sleepingBroadPhaseHierarchy;   // Can use portions of arrays in broadPhaseHierarchy
 
-        FmBroadPhasePair*            broadPhasePairs;
-        FmBroadPhasePair*            rigidBodyBroadPhasePairs;      // Pairs containing rigid bodies are output to this list when FmSceneControlParams::rigidBodiesExternal true
+        FmBroadPhasePair*            broadPhasePairs = nullptr;
+        FmBroadPhasePair*            rigidBodyBroadPhasePairs = nullptr;      // Pairs containing rigid bodies are output to this list when FmSceneControlParams::rigidBodiesExternal true
 
         FmVector3                    worldMinPosition;
         FmVector3                    worldMaxPosition;
 
         FmCollisionGroupPairFlags    collisionGroupPairs;
 
-        FmCallbackConstraintSolveInnerIteration  innerIterationCallback;
-        FmCallbackConstraintSolveIslandCompleted islandCompletedCallback;
-        void* userData;
+        FmCallbackConstraintSolveInnerIteration  innerIterationCallback = nullptr;
+        FmCallbackConstraintSolveIslandCompleted islandCompletedCallback = nullptr;
+        void* userData = nullptr;
 
-        uint numGlueConstraints;
-        uint numPlaneConstraints;
-        uint numRigidBodyAngleConstraints;
-        uint numConstraintIslands;
-        uint numUserRigidBodyIslands;
+        uint numGlueConstraints = 0;
+        uint numPlaneConstraints = 0;
+        uint numRigidBodyAngleConstraints = 0;
+        uint numConstraintIslands = 0;
+        uint numUserRigidBodyIslands = 0;
 
-        uint numSleepingConstraintIslands;
-        uint numSleepingIslandTetMeshes;
-        uint numSleepingIslandRigidBodies;
+        uint numSleepingConstraintIslands = 0;
+        uint numSleepingIslandTetMeshes = 0;
+        uint numSleepingIslandRigidBodies = 0;
 
-        uint maxDistanceContacts;
-        uint maxVolumeContacts;
-        uint maxVolumeContactVerts;
-        uint maxDeformationConstraints;
-        uint maxGlueConstraints;
-        uint maxPlaneConstraints;
-        uint maxRigidBodyAngleConstraints;
-        uint maxConstraintIslands;
-        uint maxBroadPhasePairs;
-        uint maxRigidBodyBroadPhasePairs;
+        uint maxDistanceContacts = 0;
+        uint maxVolumeContacts = 0;
+        uint maxVolumeContactVerts = 0;
+        uint maxDeformationConstraints = 0;
+        uint maxGlueConstraints = 0;
+        uint maxPlaneConstraints = 0;
+        uint maxRigidBodyAngleConstraints = 0;
+        uint maxConstraintIslands = 0;
+        uint maxBroadPhasePairs = 0;
+        uint maxRigidBodyBroadPhasePairs = 0;
     };
 
     // Parameters needed to allocate constraints data
     struct FmConstraintsBufferSetupParams
     {
-        uint maxTetMeshes;             // Limit on total tet meshes
-        uint maxRigidBodies;           // Limit on total rigid bodies
-        uint maxDistanceContacts;
-        uint maxFractureContacts;
-        uint maxVolumeContacts;
-        uint maxVolumeContactVerts;
-        uint maxDeformationConstraints;
-        uint maxGlueConstraints;
-        uint maxPlaneConstraints;
-        uint maxRigidBodyAngleConstraints;
-        uint maxBroadPhasePairs;
-        uint maxRigidBodyBroadPhasePairs;
-
-        inline FmConstraintsBufferSetupParams()
-        {
-            maxTetMeshes = 0;
-            maxRigidBodies = 0;
-            maxDistanceContacts = 0;
-            maxFractureContacts = 0;
-            maxVolumeContacts = 0;
-            maxVolumeContactVerts = 0;
-            maxDeformationConstraints = 0;
-            maxGlueConstraints = 0;
-            maxPlaneConstraints = 0;
-            maxRigidBodyAngleConstraints = 0;
-            maxBroadPhasePairs = 0;
-            maxRigidBodyBroadPhasePairs = 0;
-        }
+        uint maxTetMeshes = 0;             // Limit on total tet meshes
+        uint maxRigidBodies = 0;           // Limit on total rigid bodies
+        uint maxDistanceContacts = 0;
+        uint maxFractureContacts = 0;
+        uint maxVolumeContacts = 0;
+        uint maxVolumeContactVerts = 0;
+        uint maxDeformationConstraints = 0;
+        uint maxGlueConstraints = 0;
+        uint maxPlaneConstraints = 0;
+        uint maxRigidBodyAngleConstraints = 0;
+        uint maxBroadPhasePairs = 0;
+        uint maxRigidBodyBroadPhasePairs = 0;
     };
 
     static inline void FmInitCollisionGroupPairFlags(FmCollisionGroupPairFlags* pairFlags)
@@ -209,47 +193,47 @@ namespace AMD
     static inline void FmInitConstraintsBuffer(FmConstraintsBuffer* constraintsBuffer)
     {
         constraintsBuffer->bufferNumBytes = 0;
-        constraintsBuffer->distanceContactsPairInfo = NULL;
-        constraintsBuffer->distanceContacts = NULL;
-        constraintsBuffer->volumeContacts = NULL;
-        constraintsBuffer->volumeContactVerts = NULL;
-        constraintsBuffer->deformationConstraints = NULL;
-        constraintsBuffer->glueConstraints = NULL;
-        constraintsBuffer->planeConstraints = NULL;
-        constraintsBuffer->rigidBodyAngleConstraints = NULL;
-        constraintsBuffer->gluedObjectPairs.elements = NULL;
+        constraintsBuffer->distanceContactsPairInfo = nullptr;
+        constraintsBuffer->distanceContacts = nullptr;
+        constraintsBuffer->volumeContacts = nullptr;
+        constraintsBuffer->volumeContactVerts = nullptr;
+        constraintsBuffer->deformationConstraints = nullptr;
+        constraintsBuffer->glueConstraints = nullptr;
+        constraintsBuffer->planeConstraints = nullptr;
+        constraintsBuffer->rigidBodyAngleConstraints = nullptr;
+        constraintsBuffer->gluedObjectPairs.elements = nullptr;
         constraintsBuffer->gluedObjectPairs.numElements = 0;
         constraintsBuffer->gluedObjectPairs.maxElements = 0;
         FmInitFreeIds(&constraintsBuffer->freeGlueConstraintIds);
         FmInitFreeIds(&constraintsBuffer->freePlaneConstraintIds);
         FmInitFreeIds(&constraintsBuffer->freeRigidBodyAngleConstraintIds);
-        constraintsBuffer->islandObjectNodes = NULL;
-        constraintsBuffer->allIslandConstraints = NULL;
-        constraintsBuffer->allIslandTetMeshIds = NULL;
-        constraintsBuffer->allIslandRigidBodyIds = NULL;
-        constraintsBuffer->allUserRigidBodyIslandIndices = NULL;
-        constraintsBuffer->sleepingConstraintIslands = NULL;
-        constraintsBuffer->allSleepingIslandTetMeshIds = NULL;
-        constraintsBuffer->allSleepingIslandRigidBodyIds = NULL;
+        constraintsBuffer->islandObjectNodes = nullptr;
+        constraintsBuffer->allIslandConstraints = nullptr;
+        constraintsBuffer->allIslandTetMeshIds = nullptr;
+        constraintsBuffer->allIslandRigidBodyIds = nullptr;
+        constraintsBuffer->allUserRigidBodyIslandIndices = nullptr;
+        constraintsBuffer->sleepingConstraintIslands = nullptr;
+        constraintsBuffer->allSleepingIslandTetMeshIds = nullptr;
+        constraintsBuffer->allSleepingIslandRigidBodyIds = nullptr;
         FmInitFreeIds(&constraintsBuffer->freeSleepingIslandIds);
-        constraintsBuffer->sleepingIslandIdToArrayIdx = NULL;
-        constraintsBuffer->constraintIslands = NULL;
+        constraintsBuffer->sleepingIslandIdToArrayIdx = nullptr;
+        constraintsBuffer->constraintIslands = nullptr;
         constraintsBuffer->islandRandomSeed = 0;
         FmInitBvh(&constraintsBuffer->broadPhaseHierarchy);
         FmInitBvh(&constraintsBuffer->sleepingBroadPhaseHierarchy);
-        constraintsBuffer->broadPhasePairs = NULL;
-        constraintsBuffer->rigidBodyBroadPhasePairs = NULL;
-        constraintsBuffer->worldMinPosition = FmInitVector3(-1e6f);
-        constraintsBuffer->worldMaxPosition = FmInitVector3(1e6f);
+        constraintsBuffer->broadPhasePairs = nullptr;
+        constraintsBuffer->rigidBodyBroadPhasePairs = nullptr;
+        constraintsBuffer->worldMinPosition = FmVector3(-1e6f);
+        constraintsBuffer->worldMaxPosition = FmVector3(1e6f);
         FmInitCollisionGroupPairFlags(&constraintsBuffer->collisionGroupPairs);
-        constraintsBuffer->innerIterationCallback = NULL;
-        constraintsBuffer->islandCompletedCallback = NULL;
-        constraintsBuffer->userData = NULL;
-        FmAtomicWrite(&constraintsBuffer->foundContacts.val, 0);
-        FmAtomicWrite(&constraintsBuffer->numDistanceContacts.val, 0);
-        FmAtomicWrite(&constraintsBuffer->numVolumeContacts.val, 0);
-        FmAtomicWrite(&constraintsBuffer->numVolumeContactVerts.val, 0);
-        FmAtomicWrite(&constraintsBuffer->numDeformationConstraints.val, 0);
+        constraintsBuffer->innerIterationCallback = nullptr;
+        constraintsBuffer->islandCompletedCallback = nullptr;
+        constraintsBuffer->userData = nullptr;
+        constraintsBuffer->foundContacts.val = 0;
+        constraintsBuffer->numDistanceContacts.val = 0;
+        constraintsBuffer->numVolumeContacts.val = 0;
+        constraintsBuffer->numVolumeContactVerts.val = 0;
+        constraintsBuffer->numDeformationConstraints.val = 0;
         constraintsBuffer->numGlueConstraints = 0;
         constraintsBuffer->numPlaneConstraints = 0;
         constraintsBuffer->numRigidBodyAngleConstraints = 0;

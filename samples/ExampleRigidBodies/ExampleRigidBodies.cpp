@@ -23,8 +23,7 @@ THE SOFTWARE.
 */
 
 #include "ExampleRigidBodies.h"
-#include "SampleTaskSystem.h"
-#include <vector>
+#include "TLTaskSystemInterface.h"
 
 using namespace AMD;
 
@@ -62,23 +61,6 @@ namespace AMD
         sceneParams.maxConstraintSolverDataSize = FmEstimateSceneConstraintSolverDataSize(sceneParams);
 
         scene = FmCreateScene(sceneParams);
-
-        scene->taskSystemCallbacks.SetCallbacks(
-            SampleGetTaskSystemNumThreads,
-            SampleGetTaskSystemWorkerIndex,
-            SampleAsyncTask,
-            SampleCreateSyncEvent,
-            SampleDestroySyncEvent,
-            SampleWaitForSyncEvent,
-            SampleTriggerSyncEvent
-#if !FM_ASYNC_THREADING
-            , SampleCreateTaskWaitCounter,
-            SampleWaitForTaskWaitCounter,
-            SampleDestroyTaskWaitCounter,
-            SampleSubmitTask,
-            SampleParallelFor
-#endif
-        );
 
         scene->params.rigidBodiesExternal = true;
 
@@ -172,7 +154,7 @@ namespace AMD
         // Get rigid body to delete tet mesh buffer used for collision detection
         FmRigidBody* rigidBody = FmGetRigidBody(*rbScene->scene, rigidBodyId);
 
-        if (rigidBody == NULL)
+        if (rigidBody == nullptr)
         {
             return;
         }
@@ -242,19 +224,19 @@ namespace AMD
 
         // Find contacts for rigid bodies
         FmConstraintsBuffer* rigidFEMConstraintsBuffer = rbScene->rigidFEMConstraints;
-        FmAtomicWrite(&rigidFEMConstraintsBuffer->numDistanceContacts.val, 0);
-        FmAtomicWrite(&rigidFEMConstraintsBuffer->numVolumeContacts.val, 0);
-        FmAtomicWrite(&rigidFEMConstraintsBuffer->numVolumeContactVerts.val, 0);
-        FmAtomicWrite(&rigidFEMConstraintsBuffer->numDeformationConstraints.val, 0);
+        rigidFEMConstraintsBuffer->numDistanceContacts.val = 0;
+        rigidFEMConstraintsBuffer->numVolumeContacts.val = 0;
+        rigidFEMConstraintsBuffer->numVolumeContactVerts.val = 0;
+        rigidFEMConstraintsBuffer->numDeformationConstraints.val = 0;
         rigidFEMConstraintsBuffer->numGlueConstraints = 0;
         rigidFEMConstraintsBuffer->numPlaneConstraints = 0;
         rigidFEMConstraintsBuffer->numRigidBodyAngleConstraints = 0;
 
         FmConstraintsBuffer* rigidRigidConstraintsBuffer = rbFemScene->constraintsBuffer;
-        FmAtomicWrite(&rigidRigidConstraintsBuffer->numDistanceContacts.val, 0);
-        FmAtomicWrite(&rigidRigidConstraintsBuffer->numVolumeContacts.val, 0);
-        FmAtomicWrite(&rigidRigidConstraintsBuffer->numVolumeContactVerts.val, 0);
-        FmAtomicWrite(&rigidRigidConstraintsBuffer->numDeformationConstraints.val, 0);
+        rigidRigidConstraintsBuffer->numDistanceContacts.val = 0;
+        rigidRigidConstraintsBuffer->numVolumeContacts.val = 0;
+        rigidRigidConstraintsBuffer->numVolumeContactVerts.val = 0;
+        rigidRigidConstraintsBuffer->numDeformationConstraints.val = 0;
         rigidRigidConstraintsBuffer->numGlueConstraints = 0;
         rigidRigidConstraintsBuffer->numPlaneConstraints = 0;
         rigidRigidConstraintsBuffer->numRigidBodyAngleConstraints = 0;
@@ -281,17 +263,17 @@ namespace AMD
 
             FmCollidedObjectPair objectPair;
             objectPair.objectA = pRigidBody;
-            objectPair.objectB = NULL;
-            objectPair.tetMeshA = NULL;
-            objectPair.tetMeshB = NULL;
+            objectPair.objectB = nullptr;
+            objectPair.tetMeshA = nullptr;
+            objectPair.tetMeshB = nullptr;
             objectPair.objectAId = pRigidBody->objectId;
             objectPair.objectBId = FM_INVALID_ID;
-            objectPair.objectAHierarchy = NULL;
-            objectPair.objectBHierarchy = NULL;
-            objectPair.objectAMinPosition = FmInitVector3(0.0f);
-            objectPair.objectAMaxPosition = FmInitVector3(0.0f);
-            objectPair.objectBMinPosition = FmInitVector3(0.0f);
-            objectPair.objectBMaxPosition = FmInitVector3(0.0f);
+            objectPair.objectAHierarchy = nullptr;
+            objectPair.objectBHierarchy = nullptr;
+            objectPair.objectAMinPosition = FmVector3(0.0f);
+            objectPair.objectAMaxPosition = FmVector3(0.0f);
+            objectPair.objectBMinPosition = FmVector3(0.0f);
+            objectPair.objectBMaxPosition = FmVector3(0.0f);
             objectPair.constraintsBuffer = constraintsBuffer;
             objectPair.timestep = timestep;
             objectPair.distContactBias = distContactBias;
@@ -300,10 +282,10 @@ namespace AMD
             objectPair.volContactThreshold = 0.0f;
             objectPair.numDistanceContacts = 0;
             objectPair.numVolumeContacts = 0;
-            objectPair.volContactCenter = FmInitVector3(0.0f);
-            objectPair.volContactObjectACenterPos = FmInitVector3(0.0f);
-            objectPair.volContactObjectBCenterPos = FmInitVector3(0.0f);
-            objectPair.volContactNormal = FmInitVector3(0.0f);
+            objectPair.volContactCenter = FmVector3(0.0f);
+            objectPair.volContactObjectACenterPos = FmVector3(0.0f);
+            objectPair.volContactObjectBCenterPos = FmVector3(0.0f);
+            objectPair.volContactNormal = FmVector3(0.0f);
             objectPair.volContactV = 0.0f;
             objectPair.collisionReport = &rbFemScene->collisionReport;
             objectPair.numDistanceContactReports = 0;
@@ -360,13 +342,13 @@ namespace AMD
 
             FmRigidBody* rigidBodyB = GetRigidBody(*rbScene, pair.objectIdB);
 
-            FM_ASSERT(rigidBodyB != NULL);
+            FM_ASSERT(rigidBodyB != nullptr);
 
             if (pair.objectIdA & FM_RB_FLAG)
             {
                 FmRigidBody* rigidBodyA = GetRigidBody(*rbScene, pair.objectIdA);
 
-                FM_ASSERT(rigidBodyA != NULL);
+                FM_ASSERT(rigidBodyA != nullptr);
 
                 uint collisionGroupA = rigidBodyA->collisionGroup;
                 uint collisionGroupB = rigidBodyB->collisionGroup;
@@ -414,7 +396,7 @@ namespace AMD
                 objectPair.volContactObjectACenterPos = objectACenterPos - objectPair.volContactCenter;
                 objectPair.volContactObjectBCenterPos = objectBCenterPos - objectPair.volContactCenter;
 
-                objectPair.volContactNormal = FmInitVector3(0.0f);
+                objectPair.volContactNormal = FmVector3(0.0f);
                 objectPair.volContactV = 0.0f;
                 objectPair.collisionReport = &scene->collisionReport;
                 objectPair.numDistanceContactReports = 0;
@@ -433,7 +415,7 @@ namespace AMD
                 }
 
                 FmBoxBoxCcdTemps* ccdTemps = FmAllocBoxCcdTemps(pTempMemBuffer, (size_t)(pTempMemBufferEnd - pTempMemBuffer));
-                if (ccdTemps == NULL)
+                if (ccdTemps == nullptr)
                 {
                     return foundContacts;
                 }
@@ -493,7 +475,7 @@ namespace AMD
                 objectPair.volContactObjectACenterPos = objectACenterPos - objectPair.volContactCenter;
                 objectPair.volContactObjectBCenterPos = objectBCenterPos - objectPair.volContactCenter;
 
-                objectPair.volContactNormal = FmInitVector3(0.0f);
+                objectPair.volContactNormal = FmVector3(0.0f);
                 objectPair.volContactV = 0.0f;
                 objectPair.collisionReport = &scene->collisionReport;
                 objectPair.numDistanceContactReports = 0;
@@ -531,7 +513,7 @@ namespace AMD
 
     bool FindContacts(ExampleRigidBodiesScene* rbScene, FmScene* scene)
     {
-        FM_TRACE_SCOPED_EVENT(FIND_CONTACTS);
+        FM_TRACE_SCOPED_EVENT("FindContacts");
 
         FmScene& rbFemScene = *rbScene->scene;
 
@@ -542,7 +524,7 @@ namespace AMD
 
     bool WakeCollidedIslandsAndFindContacts(ExampleRigidBodiesScene* rbScene, FmScene* scene)
     {
-        FM_TRACE_SCOPED_EVENT(WAKE_COLLIDED_FIND_CONTACTS);
+        FM_TRACE_SCOPED_EVENT("WakeCollidedFindContacts");
 
         FmScene& rbFemScene = *rbScene->scene;
 
@@ -720,10 +702,10 @@ namespace AMD
             FmRigidBody& rigidBody = *GetRigidBody(*rbScene, rbId);
 
             rigidBody.state = femRigidBody.state;
-            rigidBody.deltaVel = FmInitVector3(0.0f);
-            rigidBody.deltaAngVel = FmInitVector3(0.0f);
-            rigidBody.deltaPos = FmInitVector3(0.0f);
-            rigidBody.deltaAngPos = FmInitVector3(0.0f);
+            rigidBody.deltaVel = FmVector3(0.0f);
+            rigidBody.deltaAngVel = FmVector3(0.0f);
+            rigidBody.deltaPos = FmVector3(0.0f);
+            rigidBody.deltaAngPos = FmVector3(0.0f);
         }
 
         // Update all the rigid bodies contained in the connected rigid body islands
@@ -752,8 +734,8 @@ namespace AMD
                 rigidBody.state.pos = rigidBody.state.pos + deltaPos;
                 rigidBody.state.quat = FmIntegrateQuat(rigidBody.state.quat, deltaAngPos, 1.0f);
 
-                rigidBody.deltaPos = FmInitVector3(0.0f);
-                rigidBody.deltaAngPos = FmInitVector3(0.0f);
+                rigidBody.deltaPos = FmVector3(0.0f);
+                rigidBody.deltaAngPos = FmVector3(0.0f);
 
                 FmVector3 deltaVel = rigidBody.deltaVel;
                 FmVector3 deltaAngVel = rigidBody.deltaAngVel;
@@ -761,8 +743,8 @@ namespace AMD
                 rigidBody.state.vel = rigidBody.state.vel + deltaVel;
                 rigidBody.state.angVel = rigidBody.state.angVel + deltaAngVel;
 
-                rigidBody.deltaVel = FmInitVector3(0.0f);
-                rigidBody.deltaAngVel = FmInitVector3(0.0f);
+                rigidBody.deltaVel = FmVector3(0.0f);
+                rigidBody.deltaAngVel = FmVector3(0.0f);
             }
         }
 
@@ -786,7 +768,7 @@ namespace AMD
         ExampleRigidBodiesScene* rbScene = (ExampleRigidBodiesScene*)userData;
         FmScene* rbFemScene = rbScene->scene;
 
-        FmCreateSleepingIsland(rbFemScene, NULL, 0, rigidBodyIds, numRigidBodies);
+        FmCreateSleepingIsland(rbFemScene, nullptr, 0, rigidBodyIds, numRigidBodies);
     }
 
     void ExampleNotifyIslandWakingCB(FmScene* scene, void* userData, uint* rigidBodyIds, uint numRigidBodies)
@@ -867,7 +849,7 @@ namespace AMD
 
             if (FM_IS_SET(constraintIsland.flags, FM_ISLAND_FLAG_MARKED_FOR_SLEEPING))
             {
-                FmPutConstraintIslandToSleep(rbFemScene, constraintIsland, true, NULL);
+                FmPutConstraintIslandToSleep(rbFemScene, constraintIsland, true, nullptr);
 
                 FmNotifyRigidBodiesSleeping(scene, constraintIsland.rigidBodyIds, constraintIsland.numRigidBodiesConnected);
 
@@ -884,7 +866,7 @@ namespace AMD
         UpdateSceneRb_Async(rbScene, scene, timestep);
 #else
         FM_TRACE_START_FRAME();
-        FM_TRACE_START_EVENT(SCENE_UPDATE);
+        FM_TRACE_START_EVENT("SceneUpdate");
 
         double t0;
         FM_GET_TIME(t0);
@@ -901,10 +883,10 @@ namespace AMD
         // Wake FEM scene islands and calls ExampleNotifyIslandWakingCB on connected rigid bodies.
         // ExampleRigidBodiesScene will mark islands for the following call.
         // Assuming that changes to ExampleRigidBodiesScene objects were communicated to FEM lib already through UpdateRigidBodyState or NotifyRigidBodyWaking
-        FmUpdateUnconstrained(scene, timestep, NULL, NULL);
+        FmUpdateUnconstrained(scene, timestep, nullptr, nullptr);
 
         // Integrate rigid bodies and update collision structures
-        FmUpdateUnconstrained(rbFemScene, timestep, NULL, NULL);
+        FmUpdateUnconstrained(rbFemScene, timestep, nullptr, nullptr);
 
         uint numRigidBodies = rbFemScene->numAwakeRigidBodies;
 
@@ -934,7 +916,7 @@ namespace AMD
             FmVector3 boxPos = rigidBody.state.pos;
             FmVector3 boxVel = rigidBody.state.vel;
             FmVector3 boxAngVel = rigidBody.state.angVel;
-            FmMatrix3 boxRot = FmInitMatrix3(rigidBody.state.quat);
+            FmMatrix3 boxRot = FmMatrix3(rigidBody.state.quat);
             float boxHalfX = rigidBody.dims[0];
             float boxHalfY = rigidBody.dims[1];
             float boxHalfZ = rigidBody.dims[2];
@@ -969,10 +951,10 @@ namespace AMD
             FmBuildHierarchy(&rbTetMesh, timestep, aabbPadding);
 
             // Reset the delta state values which are used in the constraint solve
-            rigidBody.deltaVel = FmInitVector3(0.0f);
-            rigidBody.deltaAngVel = FmInitVector3(0.0f);
-            rigidBody.deltaPos = FmInitVector3(0.0f);
-            rigidBody.deltaAngPos = FmInitVector3(0.0f);
+            rigidBody.deltaVel = FmVector3(0.0f);
+            rigidBody.deltaAngVel = FmVector3(0.0f);
+            rigidBody.deltaPos = FmVector3(0.0f);
+            rigidBody.deltaAngPos = FmVector3(0.0f);
 
             FmSetAabb(FmGetRigidBody(*scene, rigidBody.objectId), rigidBody.aabb);
             FmSetState(scene, FmGetRigidBody(*scene, rigidBody.objectId), rigidBody.state);
@@ -983,13 +965,13 @@ namespace AMD
         // Find contacts between active objects, and between active and sleeping objects.
 
         // Find FEM only contacts. On contact with sleeping object, mark FEM island for waking.
-        FmFindContacts(scene, NULL, NULL);
+        FmFindContacts(scene, nullptr, nullptr);
 
         // Find FEM/RB and RB/RB contacts. On contact RB scene will mark its islands for waking, and notify FEM scene to mark its islands.
         FindContacts(rbScene, scene);
 
         // Wake FEM islands and find new contacts.  Calls FmNotifyIslandWaking for RB scene to mark its islands connected to FEM islands.
-        FmWakeCollidedIslandsAndFindContacts(scene, NULL, NULL);
+        FmWakeCollidedIslandsAndFindContacts(scene, nullptr, nullptr);
 
         WakeCollidedIslandsAndFindContacts(rbScene, scene);
 
@@ -999,9 +981,9 @@ namespace AMD
             FmFreeTetMeshData(&gFEMFXPreConstraintSolveMeshes[meshIdx]);
         }
         delete[] gFEMFXPreConstraintSolveMeshes;
-        gFEMFXPreConstraintSolveMeshes = NULL;
+        gFEMFXPreConstraintSolveMeshes = nullptr;
         delete[] gFEMFXPreConstraintSolveRigidBodies;
-        gFEMFXPreConstraintSolveRigidBodies = NULL;
+        gFEMFXPreConstraintSolveRigidBodies = nullptr;
 
         uint numSceneTetMeshes = GetNumEnabledTetMeshes(*scene);
         uint numSceneRigidBodies = GetNumEnabledRigidBodies(*scene);
@@ -1041,7 +1023,7 @@ namespace AMD
         userConstraints.numVolumeContactVerts = rbScene->rigidFEMConstraints->numVolumeContactVerts.val;
         userConstraints.numIslands = numRigidBodyConstraintIslands;
 #if EXAMPLE_RB_ALL_CONSTRAINTS_IN_FEM_LIB
-        userConstraints.innerIterationCallback = NULL;
+        userConstraints.innerIterationCallback = nullptr;
 #else
         userConstraints.innerIterationCallback = ExampleInnerSolveCB;
 #endif
@@ -1050,7 +1032,7 @@ namespace AMD
 
         FmFindConstraintIslands(scene, &userConstraints);
 
-        FmSceneConstraintSolve(scene, NULL, NULL);
+        FmSceneConstraintSolve(scene, nullptr, nullptr);
 
         SolveRemainingRbIslands(rbScene, scene);
 
@@ -1065,7 +1047,7 @@ namespace AMD
             }
         }
 
-        FM_TRACE_STOP_EVENT(SCENE_UPDATE);
+        FM_TRACE_STOP_EVENT("SceneUpdate");
         FM_TRACE_STOP_FRAME();
         FM_DISABLE_TRACE();
 
@@ -1078,7 +1060,7 @@ namespace AMD
 #if FM_ASYNC_THREADING
     void TaskFuncUpdateSceneRbPart2(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
 
-    void TaskFuncUpdateSceneRbStartAux(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    void TaskFuncUpdateSceneRbStart(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
@@ -1092,19 +1074,11 @@ namespace AMD
         scene->islandWakingCallback = ExampleNotifyIslandWakingCB;
         scene->rigidBodiesUserData = rbScene;
 
-        FmSceneControlParams& sceneParams = scene->params;
-        FmVector3 sceneGravityDeltaVel = sceneParams.gravityVector * timestep;
-
         // Wake FEM scene islands and calls ExampleNotifyIslandWakingCB on connected rigid bodies.
         // ExampleRigidBodiesScene will mark islands for the following call.
         // Assuming that changes to ExampleRigidBodiesScene objects were communicated to FEM lib already through UpdateRigidBodyState or NotifyRigidBodyWaking
 
         FmUpdateUnconstrained(scene, timestep, TaskFuncUpdateSceneRbPart2, taskData);
-    }
-
-    void TaskFuncUpdateSceneRbStart(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
-    {
-        FmExecuteTask(TaskFuncUpdateSceneRbStartAux, inTaskData, inTaskBeginIndex, inTaskEndIndex);
     }
 
     void TaskFuncUpdateSceneRbPart3(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex);
@@ -1128,7 +1102,7 @@ namespace AMD
         float aabbPadding = sceneParams.distContactThreshold * 0.5f;
 
         // Integrate rigid bodies and update collision structures
-        FmUpdateUnconstrained(rbFemScene, timestep, NULL, NULL);
+        FmUpdateUnconstrained(rbFemScene, timestep, nullptr, nullptr);
 
         uint numRigidBodies = rbFemScene->numAwakeRigidBodies;
 
@@ -1136,7 +1110,7 @@ namespace AMD
         {
             FmRigidBody* pRigidBody = FmGetRigidBodyPtrById(*rbFemScene, rbFemScene->awakeRigidBodyIds[rbIdx]);
 
-            FM_ASSERT(pRigidBody != NULL);
+            FM_ASSERT(pRigidBody != nullptr);
 
             FmRigidBody& rigidBody = *pRigidBody;
 
@@ -1162,7 +1136,7 @@ namespace AMD
             FmVector3 boxPos = rigidBody.state.pos;
             FmVector3 boxVel = rigidBody.state.vel;
             FmVector3 boxAngVel = rigidBody.state.angVel;
-            FmMatrix3 boxRot = FmInitMatrix3(rigidBody.state.quat);
+            FmMatrix3 boxRot = FmMatrix3(rigidBody.state.quat);
 
             if (rigidBody.collisionObj)
             {
@@ -1170,7 +1144,7 @@ namespace AMD
                 uint numVerts = rbTetMesh.numVerts;
                 for (uint vId = 0; vId < numVerts; vId++)
                 {
-                    rbTetMesh.vertsPos[vId] = mul(boxRot, rbTetMesh.vertsRestPos[vId]) + boxPos;
+                    rbTetMesh.vertsPos[vId] = boxRot * rbTetMesh.vertsRestPos[vId] + boxPos;
                     rbTetMesh.vertsVel[vId] = boxVel + cross(boxAngVel, rbTetMesh.vertsPos[vId]);
                     if (isKinematic)
                     {
@@ -1190,10 +1164,10 @@ namespace AMD
             }
 
             // Reset the delta state values which are used in the constraint solve
-            rigidBody.deltaVel = FmInitVector3(0.0f);
-            rigidBody.deltaAngVel = FmInitVector3(0.0f);
-            rigidBody.deltaPos = FmInitVector3(0.0f);
-            rigidBody.deltaAngPos = FmInitVector3(0.0f);
+            rigidBody.deltaVel = FmVector3(0.0f);
+            rigidBody.deltaAngVel = FmVector3(0.0f);
+            rigidBody.deltaPos = FmVector3(0.0f);
+            rigidBody.deltaAngPos = FmVector3(0.0f);
 
             FmSetAabb(FmGetRigidBody(*scene, rigidBody.objectId), rigidBody.aabb);
             FmSetState(scene, FmGetRigidBody(*scene, rigidBody.objectId), rigidBody.state);
@@ -1247,9 +1221,9 @@ namespace AMD
             FmFreeTetMeshData(&gFEMFXPreConstraintSolveMeshes[meshIdx]);
         }
         delete[] gFEMFXPreConstraintSolveMeshes;
-        gFEMFXPreConstraintSolveMeshes = NULL;
+        gFEMFXPreConstraintSolveMeshes = nullptr;
         delete[] gFEMFXPreConstraintSolveRigidBodies;
-        gFEMFXPreConstraintSolveRigidBodies = NULL;
+        gFEMFXPreConstraintSolveRigidBodies = nullptr;
 
         uint numSceneTetMeshes = GetNumEnabledTetMeshes(*scene);
         uint numSceneRigidBodies = GetNumEnabledRigidBodies(*scene);
@@ -1289,7 +1263,7 @@ namespace AMD
         userConstraints.numVolumeContactVerts = FmAtomicRead(&rbScene->rigidFEMConstraints->numVolumeContactVerts.val);
         userConstraints.numIslands = numRigidBodyConstraintIslands;
 #if EXAMPLE_RB_ALL_CONSTRAINTS_IN_FEM_LIB
-        userConstraints.innerIterationCallback = NULL;
+        userConstraints.innerIterationCallback = nullptr;
 #else
         userConstraints.innerIterationCallback = ExampleInnerSolveCB;
 #endif
@@ -1337,10 +1311,10 @@ namespace AMD
 
     struct UpdateSceneRbFinishedData
     {
-        FmSyncEvent* taskEvent;
+        TLSyncEvent* taskEvent;
         FmScene* scene;
 
-        UpdateSceneRbFinishedData(FmSyncEvent* inTaskEvent, FmScene* inScene)
+        UpdateSceneRbFinishedData(TLSyncEvent* inTaskEvent, FmScene* inScene)
         {
             taskEvent = inTaskEvent;
             scene = inScene;
@@ -1352,15 +1326,15 @@ namespace AMD
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
         UpdateSceneRbFinishedData* taskData = (UpdateSceneRbFinishedData*)inTaskData;
-        taskData->scene->taskSystemCallbacks.TriggerSyncEvent(taskData->taskEvent);
+        TLTriggerSyncEvent(taskData->taskEvent);
     }
 
     void UpdateSceneRb_Async(ExampleRigidBodiesScene* rbScene, FmScene* scene, float timestep)
     {
-        FmSyncEvent* updateSceneFinishedEvent = scene->taskSystemCallbacks.CreateSyncEvent();
+        TLSyncEvent* updateSceneFinishedEvent = TLCreateSyncEvent();
 
         FM_TRACE_START_FRAME();
-        FM_TRACE_START_EVENT(SCENE_UPDATE);
+        FM_TRACE_START_EVENT("SceneUpdate");
 
         double t0;
         FM_GET_TIME(t0);
@@ -1371,13 +1345,13 @@ namespace AMD
 
         TaskDataUpdateSceneRb* taskData = new TaskDataUpdateSceneRb(rbScene, scene, timestep);
 
-        scene->taskSystemCallbacks.SubmitAsyncTask("TaskFuncUpdateSceneRbStart", TaskFuncUpdateSceneRbStart, taskData, 0, 1);
+        TLSubmitAsyncTask(TaskFuncUpdateSceneRbStart, taskData, 0, 1);
 
-        scene->taskSystemCallbacks.WaitForSyncEvent(updateSceneFinishedEvent);
+        TLWaitForSyncEvent(updateSceneFinishedEvent);
 
-        scene->taskSystemCallbacks.DestroySyncEvent(updateSceneFinishedEvent);
+        TLDestroySyncEvent(updateSceneFinishedEvent);
 
-        FM_TRACE_STOP_EVENT(SCENE_UPDATE);
+        FM_TRACE_STOP_EVENT("SceneUpdate");
         FM_TRACE_STOP_FRAME();
         FM_DISABLE_TRACE();
 

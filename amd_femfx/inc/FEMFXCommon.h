@@ -113,33 +113,45 @@ namespace AMD
 }
 #endif
 
+#define FM_USE_TRACE 0
+#if FM_USE_TRACE
+#include "FEMFXTrace.h"
+#else
+#define FM_INIT_TRACE()
+#define FM_SHUTDOWN_TRACE()
+#define FM_ENABLE_TRACE()
+#define FM_DISABLE_TRACE()
+#define FM_TRACE_START_EVENT(name)
+#define FM_TRACE_STOP_EVENT(name)
+#define FM_TRACE_SCOPED_EVENT(name)
+#define FM_TRACE_START_FRAME()
+#define FM_TRACE_STOP_FRAME()
+#endif
+
 // Code path options to configure library
+
+// Async threading dispatches work that detects completion and submits follow-up tasks.
+// Avoids possibility that waiting thread will stall execution.
+#define FM_ASYNC_THREADING                    1
 
 // Run a separate stabilization solve to correct constraint error.
 #define FM_CONSTRAINT_STABILIZATION_SOLVE     1
-
-// Option to solve for delta velocity in implicit solve
-#define FM_SOLVE_DELTAV                       0
 
 // Option to assemble system matrix by iterating over tets to compute and add stiffness submats into matrix.
 // Otherwise will iterate over verts, applying submats from incident tets list.
 #define FM_MATRIX_ASSEMBLY_BY_TETS            1
 
-// Compute a relative rotation for plastically deformed rest positions, in order to compute an "elastic-only" tet rotation for computing elastic stress.
-// In practice this seems to have a small effect, so may be possible to disable for CPU and mem savings.
-#define FM_COMPUTE_PLASTIC_REL_ROTATION       0
-
 // Option to sort adjacent vertices by id in each row of implicit solve system matrix.
 #define FM_SORT_MATRIX_ROW_VERTS              0
 
 // Use structure-of-arrays style SIMD to run multiple triangle-pair intersections in parallel.
-#define FM_SOA_TRI_INTERSECTION               1
+#define FM_SOA_TRI_INTERSECTION               FM_SIMD_ENABLED
 
 // Use SoA implementations of CCD functions.
-#define FM_SOA_TRI_CCD                        (1 && FM_SOA_TRI_INTERSECTION)
+#define FM_SOA_TRI_CCD                        (FM_SIMD_ENABLED && FM_SOA_TRI_INTERSECTION)
 
 // Use SoA implementation to compute tet matrices.
-#define FM_SOA_TET_MATH                       1
+#define FM_SOA_TET_MATH                       FM_SIMD_ENABLED
 
 // Create distance contacts on intersection of tet mesh surfaces.
 // Contacts are placed at intersecting triangles, and normals are derived from the volume contact gradients.

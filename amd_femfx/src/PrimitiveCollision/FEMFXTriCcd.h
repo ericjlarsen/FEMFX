@@ -48,9 +48,7 @@ namespace AMD
         FmVector3 vel0;
         FmVector3 vel1;
         FmVector3 vel2;
-        uint id;
-
-        FmTri() : id(0x3f) {}
+        uint id = 0x3f;
 
         const FmVector3& Pos(uint i) const { return *(&pos0 + i); }
         const FmVector3& Vel(uint i) const { return *(&vel0 + i); }
@@ -95,23 +93,21 @@ namespace AMD
         FmVector3     direction;   // Direction pointing from i to j
         FmVector3     posi;
         FmVector3     posj;
-        float            distance;
-        float            time;
-        uint             numIterations;
+        float         distance = 0.0f;
+        float         time = 0.0f;
+        uint          numIterations = 0;
         FmFeaturePair featurePair;
-        FmCcdReturn   retVal;
+        FmCcdReturn   retVal = FM_CCD_RET_NO_IMPACT;
     };
 
     struct FmCcdTerminationConditions
     {
-        float impactGap;          // Distance between tris at time of impact.  impactGap may be the sum of triangle thicknesses.
-        float contactGap;         // Distance defining contact condition at beginning of timestep.  Assumed to be greater than impactGap.
-        float impactGapAbsError;  // Search terminates if distance within this absolute error of impact gap.
-        float impactGapRelError;  // Search terminates if distance within this relative error of impact gap.
-        float minTimeStep;        // Search terminates if time step of next iteration is less than this minimum.
-        uint  maxIterations;      // Search terminates if maximum iterations reached.
-
-        FmCcdTerminationConditions() : impactGap(0.0f), contactGap(0.0f), impactGapAbsError(FLT_EPSILON), impactGapRelError(FLT_EPSILON), minTimeStep(FLT_EPSILON), maxIterations(FM_DEFAULT_MAX_CCD_ITERATIONS) {}
+        float impactGap = 0.0f;                              // Distance between tris at time of impact.  impactGap may be the sum of triangle thicknesses.
+        float contactGap = 0.0f;                             // Distance defining contact condition at beginning of timestep.  Assumed to be greater than impactGap.
+        float impactGapAbsError = FLT_EPSILON;               // Search terminates if distance within this absolute error of impact gap.
+        float impactGapRelError = FLT_EPSILON;               // Search terminates if distance within this relative error of impact gap.
+        float minTimeStep = FLT_EPSILON;                     // Search terminates if time step of next iteration is less than this minimum.
+        uint  maxIterations = FM_DEFAULT_MAX_CCD_ITERATIONS; // Search terminates if maximum iterations reached.
     };
 
     struct FmEdgeEdgePairData
@@ -120,8 +116,8 @@ namespace AMD
         FmVector3 eAvel[2];
         FmVector3 eBpos[2];
         FmVector3 eBvel[2];
-        uint i;                // Triangle corner indices of edge start verts
-        uint j;
+        uint i = 0;                // Triangle corner indices of edge start verts
+        uint j = 0;
     };
 
     struct FmVertexFacePairData
@@ -130,7 +126,7 @@ namespace AMD
         FmVector3 vAvel;
         FmVector3 fBpos[3];
         FmVector3 fBvel[3];
-        uint i;                // Triangle corner index of vA
+        uint i = 0;                // Triangle corner index of vA
     };
 
     struct FmFaceVertexPairData
@@ -139,7 +135,7 @@ namespace AMD
         FmVector3 fAvel[3];
         FmVector3 vBpos;
         FmVector3 vBvel;
-        uint j;                // Triangle corner index of vB
+        uint j = 0;                // Triangle corner index of vB
     };
 
     // CCD test of two edges whose vertices move linearly during deltaTime
@@ -182,7 +178,7 @@ namespace AMD
     // Compute an AABB with velocity that bounds a triangle in motion
     static FM_FORCE_INLINE FmAabb FmComputeTriAabb(const FmTri& tri, float deltaTime, float padding)
     {
-        FmVector3 vpadding = FmInitVector3(padding);
+        FmVector3 vpadding = FmVector3(padding);
 
         FmAabb aabb;
         aabb.pmin = min(tri.pos0, min(tri.pos1, tri.pos2)) - vpadding;

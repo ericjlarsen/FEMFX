@@ -31,7 +31,7 @@ THE SOFTWARE.
 #include "AMD_FEMFX.h"
 #include "FEMFXCommonInternal.h"
 #include "FEMFXAtomicOps.h"
-#include "FEMFXAsyncThreading.h"
+#include "FEMFXThreading.h"
 #include "FEMFXGraphColoring.h"
 #include "FEMFXMpcgSolver.h"
 #include "FEMFXConstraints.h"

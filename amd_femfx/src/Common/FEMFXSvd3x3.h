@@ -33,7 +33,7 @@ THE SOFTWARE.
 namespace AMD
 {
     // Compute eigenvectors and values for symmetric matrix, using Jacobi iteration with fixed cycle of (row, col) pairs
-    void FmEigenSymm3x3CyclicJacobi(FmVector3* eigenvals, FmMatrix3* eigenvectors, const FmMatrix3& symmMat);
+    void FmEigenSym3x3(FmVector3* eigenvals, FmMatrix3* eigenvectors, const FmMatrix3& symMat);
 
     // SVD(mat) = U * Sigma * V^T
     // Reference: McAdams et al., "Computing the Singular Value Decomposition of 3 x 3 matrices with minimal branching and elementary floating point operations"

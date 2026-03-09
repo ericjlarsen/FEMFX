@@ -31,7 +31,7 @@ THE SOFTWARE.
 #include "FEMFXBvhCollision.h"
 #include "FEMFXScene.h"
 #include "FEMFXRigidBody.h"
-#include "FEMFXParallelFor.h"
+#include "FEMFXThreading.h"
 #include "FEMFXSort.h"
 
 namespace AMD
@@ -143,8 +143,8 @@ namespace AMD
         constraintsBuffer.broadPhaseHierarchy.numPrims = 0;
         constraintsBuffer.sleepingBroadPhaseHierarchy.numPrims = 0;
 
-        FmVector3 minPosition = FmInitVector3(0.0f);
-        FmVector3 maxPosition = FmInitVector3(0.0f);
+        FmVector3 minPosition = FmVector3(0.0f);
+        FmVector3 maxPosition = FmVector3(0.0f);
 
         uint numAwakeObjects = numTetMeshes;
         if (includeRigidBodiesInBroadPhase)
@@ -274,7 +274,7 @@ namespace AMD
         FmAddBroadPhasePair(scene, objectIdA, objectIdB);
     }
 
-    class FmTaskDataBroadPhaseCollideObjects : public FmAsyncTaskData
+    class FmTaskDataBroadPhaseCollideObjects : public TLTaskDataBase
     {
     public:
         FM_CLASS_NEW_DELETE(FmTaskDataBroadPhaseCollideObjects)
@@ -286,6 +286,7 @@ namespace AMD
         const FmBvh* broadPhaseHierarchy;
         const FmBvh* sleepingBroadPhaseHierarchy;
         bool testWithSleepingObjects;
+        TLTask postBroadPhaseTask;
 
         FmTaskDataBroadPhaseCollideObjects(
             uint inNumTasks,
@@ -341,10 +342,10 @@ namespace AMD
     };
 
 #if FM_PARALLEL_BROAD_PHASE_TRAVERSAL
-    FM_WRAPPED_TASK_FUNC(FmTaskFuncBroadPhaseCollideObjects)
+    void FmTaskFuncBroadPhaseCollideObjects(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(BROAD_PHASE);
+        FM_TRACE_SCOPED_EVENT("BroadPhase");
 
         FmTaskDataBroadPhaseCollideObjects* taskData = (FmTaskDataBroadPhaseCollideObjects *)inTaskData;
 
@@ -353,6 +354,9 @@ namespace AMD
 
         const FmBvh& broadPhaseHierarchy = *taskData->broadPhaseHierarchy;
         const FmBvh& sleepingBroadPhaseHierarchy = *taskData->sleepingBroadPhaseHierarchy;
+
+        if (broadPhaseHierarchy.numPrims == 0)
+            return;
 
         bool testWithSleepingObjects = taskData->testWithSleepingObjects;
 
@@ -370,11 +374,9 @@ namespace AMD
                 FmObjectBvhCcd(FmCollideBroadPhaseObjectSleepingBvhCallback, scene, objectNode.box, objectId, sleepingBroadPhaseHierarchy, timestep);
             }
         }
-
-        taskData->progress.TaskIsFinished();  // Task data not deleted until later stage
     }
 
-    void FmTaskFuncFinishBroadPhase(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK(FmTaskFuncFinishBroadPhase)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
@@ -386,19 +388,19 @@ namespace AMD
 
         // Sort broad phase pairs by estimated cost
         uint numBroadPhasePairs = FmAtomicRead(&scene->constraintsBuffer->numBroadPhasePairs.val);
-        FmSort<FmBroadPhasePair, FmCompareBroadPhasePairSize>(scene->constraintsBuffer->broadPhasePairs, numBroadPhasePairs, NULL);
+        FmSort<FmBroadPhasePair, FmCompareBroadPhasePairSize>(scene->constraintsBuffer->broadPhasePairs, numBroadPhasePairs, nullptr);
 
         FM_ADD_BROAD_PHASE_TIME();
 
-        FmSetNextTask(taskData->followTask.func, taskData->followTask.data, 0, 1);
+        TLSetNextTask(taskData->postBroadPhaseTask.func, taskData->postBroadPhaseTask.data, 0, 1);
 
         delete taskData;
     }
 #endif
 
-    void FmBroadPhase(FmTaskDataFindContacts* findContactsData, FmTaskFuncCallback followTaskFunc, void* followTaskData)
+    void FmBroadPhase(FmTaskDataFindContacts* findContactsData, TLTaskFuncCallback postBroadPhaseTaskFunc, void* postBroadPhaseTaskData)
     {
-        FM_TRACE_SCOPED_EVENT(BROAD_PHASE);
+        FM_TRACE_SCOPED_EVENT("BroadPhase");
 
         FM_SET_START_TIME();
 
@@ -411,8 +413,8 @@ namespace AMD
 
         // Zero pairs
         FmConstraintsBuffer& constraintsBuffer = *scene->constraintsBuffer;
-        FmAtomicWrite(&constraintsBuffer.numBroadPhasePairs.val, 0);
-        FmAtomicWrite(&constraintsBuffer.numRigidBodyBroadPhasePairs.val, 0);
+        constraintsBuffer.numBroadPhasePairs.val = 0;
+        constraintsBuffer.numRigidBodyBroadPhasePairs.val = 0;
 
 #if FM_PARALLEL_BROAD_PHASE_TRAVERSAL
         if (constraintsBuffer.broadPhaseHierarchy.numPrims > 0)
@@ -420,24 +422,25 @@ namespace AMD
             // Create task data and start hierarchy collisions, followed by sorting
 
             // Set num tasks to multiple of threads
-            uint numTasks = FmNextPowerOf2(scene->params.numThreads) * 8;
+            uint numTasks = TLMinInt(constraintsBuffer.broadPhaseHierarchy.numPrims, FmNextPowerOf2(scene->params.numThreads) * 8);
 
             FmTaskDataBroadPhaseCollideObjects* taskData = new FmTaskDataBroadPhaseCollideObjects(numTasks, scene, timestep,
                 &constraintsBuffer.broadPhaseHierarchy, &constraintsBuffer.sleepingBroadPhaseHierarchy, testWithSleepingObjects);
 
-            taskData->progress.Init(numTasks, FmTaskFuncFinishBroadPhase, taskData);
-            taskData->followTask.func = followTaskFunc;
-            taskData->followTask.data = followTaskData;
+            taskData->postBroadPhaseTask.func = postBroadPhaseTaskFunc;
+            taskData->postBroadPhaseTask.data = postBroadPhaseTaskData;
 
-            FmParallelForAsync("CollideBroadPhase", FM_TASK_AND_WRAPPED_TASK_ARGS(FmTaskFuncBroadPhaseCollideObjects), NULL, taskData, numTasks, scene->taskSystemCallbacks.SubmitAsyncTask, scene->params.numThreads);
+            TLTask followTask(FmTaskFuncFinishBroadPhase, taskData);
+
+            TLParallelForAsync(FmTaskFuncBroadPhaseCollideObjects, taskData, 0, numTasks, TLParallelForOptions::GrainSize(1), followTask, false);
         }
         else
         {
-            FmSetNextTask(followTaskFunc, followTaskData, 0, 1);
+            TLSetNextTask(postBroadPhaseTaskFunc, postBroadPhaseTaskData, 0, 1);
         }
 #else
-        (void)followTaskFunc;
-        (void)followTaskData;
+        (void)postBroadPhaseTaskFunc;
+        (void)postBroadPhaseTaskData;
 
         // Awake tet meshes vs. awake tet meshes
         FmBvhSelfCcd(FmCollideBroadPhaseBvhPairCallback, scene, constraintsBuffer.broadPhaseHierarchy, timestep);
@@ -452,7 +455,7 @@ namespace AMD
         FmSetBroadPhaseWarnings(scene);
 
         // Sort broad phase pairs by estimated cost
-        FmSort<FmBroadPhasePair, FmCompareBroadPhasePairSize>(scene->constraintsBuffer->broadPhasePairs, scene->constraintsBuffer->numBroadPhasePairs.val, NULL);
+        FmSort<FmBroadPhasePair, FmCompareBroadPhasePairSize>(scene->constraintsBuffer->broadPhasePairs, scene->constraintsBuffer->numBroadPhasePairs.val, nullptr);
 
         FM_ADD_BROAD_PHASE_TIME();
 #endif

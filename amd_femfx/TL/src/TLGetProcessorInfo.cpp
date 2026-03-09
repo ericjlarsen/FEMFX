@@ -24,7 +24,7 @@ THE SOFTWARE.
 
 #include "TLCommon.h"
 
-#ifdef WIN32
+#if defined(_MSC_VER)
 #include <stdio.h>
 #include <intrin.h>
 #include <windows.h>
@@ -32,7 +32,7 @@ THE SOFTWARE.
 
 namespace AMD
 {
-#ifdef WIN32
+#if defined(_MSC_VER)
 // Based on: https://github.com/GPUOpen-LibrariesAndSDKs/cpu-core-counts/blob/master/windows/ThreadCount-Win7.cpp
 /**********************************************************************
 MIT License
@@ -70,7 +70,7 @@ SOFTWARE.
 
     void getProcessorCount(DWORD& cores, DWORD& logical) {
         cores = logical = 0;
-        char* buffer = NULL;
+        char* buffer = nullptr;
         DWORD len = 0;
         if (FALSE == GetLogicalProcessorInformationEx(RelationAll, (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX)buffer, &len)) {
             if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
@@ -132,7 +132,6 @@ SOFTWARE.
         }
         return count;
     }
-#endif
 
     int32_t TLGetProcessorInfo(int32_t* pNumPhysicalCores, int32_t* pNumLogicalCores)
     {
@@ -144,4 +143,13 @@ SOFTWARE.
 
         return 0;
     }
+#else
+    // TODO
+    int32_t TLGetProcessorInfo(int32_t* pNumPhysicalCores, int32_t* pNumLogicalCores)
+    {
+        *pNumPhysicalCores = 1;
+        *pNumLogicalCores = 1;
+        return 0;
+    }
+#endif
 }

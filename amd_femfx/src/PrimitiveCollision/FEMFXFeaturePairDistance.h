@@ -41,13 +41,16 @@ namespace AMD
 
     struct FmFeaturePair
     {
-        FM_FEATURE_TYPE itype;
-        FM_FEATURE_TYPE jtype;
-        uint i0, i1, i2;
-        uint j0, j1, j2;
-        float t, u;
-
-        FmFeaturePair() : itype(FM_FEATURE_TYPE_VERTEX), jtype(FM_FEATURE_TYPE_VERTEX), i0(0), i1(0), i2(0), j0(0), j1(0), j2(0), t(0.0f), u(0.0f) {}
+        FM_FEATURE_TYPE itype = FM_FEATURE_TYPE_VERTEX;
+        FM_FEATURE_TYPE jtype = FM_FEATURE_TYPE_VERTEX;
+        uint i0 = 0;
+        uint i1 = 0;
+        uint i2 = 0;
+        uint j0 = 0;
+        uint j1 = 0;
+        uint j2 = 0;
+        float t = 0.0f;
+        float u = 0.0f;
     };
 
     struct FmDistanceResult
@@ -55,7 +58,7 @@ namespace AMD
         FmVector3     direction;  // direction pointing from i to j
         FmVector3     posi;
         FmVector3     posj;
-        float         distance;
+        float         distance = 0.0f;
         FmFeaturePair featurePair;
     };
 
@@ -131,7 +134,7 @@ namespace AMD
         normal = FmNormalize(&lenSqr, vecABClosest);
         if (lenSqr < lenSqrTol)
         {
-            normal = FmInitVector3(0.0f);
+            normal = FmVector3(0.0f);
             distance = 0.0f;
         }
 
@@ -188,7 +191,7 @@ namespace AMD
         normal = FmNormalize(&lenSqr, vecABClosest);
         if (lenSqr < lenSqrTol)
         {
-            normal = FmInitVector3(0.0f);
+            normal = FmVector3(0.0f);
             distance = 0.0f;
         }
 

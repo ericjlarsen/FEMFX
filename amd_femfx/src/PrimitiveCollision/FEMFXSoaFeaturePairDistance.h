@@ -35,13 +35,16 @@ namespace AMD
     template<class T>
     struct FmSoaFeaturePair
     {
-        typename T::SoaUint  itype;
-        typename T::SoaUint  jtype;
-        typename T::SoaUint  i0, i1, i2;
-        typename T::SoaUint  j0, j1, j2;
-        typename T::SoaFloat t, u;
-
-        FmSoaFeaturePair() : itype(0), jtype(0), i0(0), i1(0), i2(0), j0(0), j1(0), j2(0), t(0.0f), u(0.0f) {}
+        typename T::SoaUint  itype = 0;
+        typename T::SoaUint  jtype = 0;
+        typename T::SoaUint  i0 = 0;
+        typename T::SoaUint  i1 = 0;
+        typename T::SoaUint  i2 = 0;
+        typename T::SoaUint  j0 = 0;
+        typename T::SoaUint  j1 = 0;
+        typename T::SoaUint  j2 = 0;
+        typename T::SoaFloat t = 0.0f;
+        typename T::SoaFloat u = 0.0f;
     };
 
     template<class T>
@@ -50,7 +53,7 @@ namespace AMD
         typename T::SoaVector3 direction;  // direction pointing from i to j
         typename T::SoaVector3 posi;
         typename T::SoaVector3 posj;
-        typename T::SoaFloat   distance;
+        typename T::SoaFloat   distance = 0.0f;
         FmSoaFeaturePair<T>    featurePair;
     };
 

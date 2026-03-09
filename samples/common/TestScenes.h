@@ -25,34 +25,21 @@ THE SOFTWARE.
 #pragma once
 
 #include "AMD_FEMFX.h"
-#include "FEMFXArray.h"
 
 // Scene options - select only one
 
 #ifndef FEMFX_VIEWER_ENV_SET
-// Three wood panels fractured by projectile ('f' or 'h')
-#define WOOD_PANELS_SCENE        0
+// Sends a car through wood panels and stacks of tractor tires
+#define CARS_SCENE               1
 
 // Pile of softbody blocks
 #define BLOCKS_SCENE             0
 
-// Sends a car through wood panels and stacks of tractor tires
-#define CARS_PANELS_TIRES_SCENE  1
-
-// Pile of softbody ducks
-#define DUCKS_SCENE              0
-
-// Rectangular panel with adjustable material parameters (FmDemo only)
-#define MATERIAL_DEMO_SCENE      0
+// Test stack of FEM and rigid bodies
+#define RIGIDBODY_TEST_SCENE     0
 
 // Load object from .FEM file
 #define LOAD_FEM_ASSET           0
-
-// Load serialized scene
-#define LOAD_SERIALIZED_SCENE    0
-
-// Test stack of FEM and rigid bodies
-#define RIGIDBODY_TEST_SCENE     0
 #endif
 
 // Other options
@@ -77,11 +64,7 @@ THE SOFTWARE.
 // Run the same simulation repeatedly, instead of randomizing initial setup.
 #define FIX_INITIAL_CONDITIONS   (0 || PERF_TEST)
 
-// Set demo constants
-#define CARS_IN_SCENE        (CARS_SCENE || CARS_PANELS_TIRES_SCENE)
-#define WOOD_PANELS_IN_SCENE (WOOD_PANELS_SCENE || CARS_PANELS_TIRES_SCENE)
-#define TIRES_IN_SCENE       (CARS_PANELS_TIRES_SCENE)
-#define PROJECTILE_IN_SCENE  (CARS_SCENE || CARS_PANELS_TIRES_SCENE || WOOD_PANELS_SCENE || MATERIAL_DEMO_SCENE || LOAD_FEM_ASSET || LOAD_SERIALIZED_SCENE)
+#define PROJECTILE_IN_SCENE  (CARS_SCENE || LOAD_FEM_ASSET)
 
 #if EXTERNAL_RIGIDBODIES
 #include "ExampleRigidBodies.h"
@@ -106,13 +89,13 @@ struct TetMeshBufferTemplate
 
     TetMeshBufferTemplate()
     {
-        vertRestPositions = NULL;
-        tetVertIds = NULL;
-        vertIncidentTets = NULL;
-        tetsBvh = NULL;
-        fractureGroupCounts = NULL;
-        tetFractureGroupIds = NULL;
-        tetFlags = NULL;
+        vertRestPositions = nullptr;
+        tetVertIds = nullptr;
+        vertIncidentTets = nullptr;
+        tetsBvh = nullptr;
+        fractureGroupCounts = nullptr;
+        tetFractureGroupIds = nullptr;
+        tetFlags = nullptr;
     }
 
     void Destroy()
@@ -127,36 +110,23 @@ struct TetMeshBufferTemplate
     }
 };
 
-#if CARS_PANELS_TIRES_SCENE
-#define NUM_INSTANCES 3
+#if CARS_SCENE
+#define NUM_INSTANCES 6
 #define NUM_CARS_PER_INSTANCE 1
 #define NUM_WOOD_PANELS_PER_INSTANCE 3
-#else
-#define NUM_CARS 16
-#define NUM_WOOD_PANELS_PER_ROW 5
-#define NUM_WOOD_PANELS_ROWS    4
-#define NUM_WOOD_PANELS (NUM_WOOD_PANELS_PER_ROW*NUM_WOOD_PANELS_ROWS)
-#endif
 
-#if WOOD_PANELS_IN_SCENE
 #define PANEL_HEIGHT 3.0f
 #define PANEL_WIDTH 3.0f
 #define PANEL_DEPTH 0.1f
 extern TetMeshBufferTemplate* gWoodPanelBufferTemplate;
-#endif
 
-#if CARS_IN_SCENE
 #define NUM_CAR_TEMPLATES 8
 extern TetMeshBufferTemplate* gCarTemplates[NUM_CAR_TEMPLATES];
-#endif
 
-#if TIRES_IN_SCENE
 #define TRACTOR_TIRE_RADIUS 0.88f
 #define TRACTOR_TIRE_HALF_DEPTH 0.34f
 extern TetMeshBufferTemplate* gTractorTireBufferTemplate;
-#endif
 
-#if CARS_PANELS_TIRES_SCENE
 #define NUM_TRACTOR_TIRE_STACKS 2
 #define TRACTOR_TIRE_STACK_BASE 3
 #define TRACTOR_TIRE_STACK_NUM_TIRES (2 * (TRACTOR_TIRE_STACK_BASE*(TRACTOR_TIRE_STACK_BASE + 1))/2)
@@ -211,5 +181,3 @@ extern bool gFired;
 extern void FreeScene();
 extern void InitScene(const char* modelsPath, const char* timingsPath, int numThreads, int randomSeed);
 extern void FireProjectile(const AMD::FmMatrix3& viewRotation, const AMD::FmVector3& viewPosition, float speed, bool fixedPosForWoodPanels = false);
-
-extern void TestSerialization();

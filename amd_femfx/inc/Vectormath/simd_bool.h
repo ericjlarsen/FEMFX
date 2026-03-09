@@ -47,7 +47,7 @@ class SimdBool
 
         SIMD_VECTORMATH_FORCE_INLINE SimdBool(__m128 vec);
     public:
-        SIMD_VECTORMATH_FORCE_INLINE SimdBool() {}
+        SIMD_VECTORMATH_FORCE_INLINE SimdBool() { mData = _mm_setzero_ps(); }
 
         SIMD_VECTORMATH_FORCE_INLINE SimdBool(const SimdBool& other);
 
@@ -150,7 +150,7 @@ union SimdBool_converter
     int i;
     SimdBool_converter(int i) : i(i) {}
     SimdBool_converter(__m128 m128) : m128(m128) {}
-    SimdBool_converter() {}
+    SimdBool_converter() { m128 = _mm_setzero_ps(); }
 };
 
 SIMD_VECTORMATH_FORCE_INLINE

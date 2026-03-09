@@ -41,13 +41,13 @@ namespace AMD
     template<class T>
     void FmConvertPtrToOffset(T*& ptr, uint8_t* basePtr)
     {
-        ptr = (ptr == NULL) ? reinterpret_cast<T*>(0xFFFFFFFFFFFFFFFF) : reinterpret_cast<T*>((uint8_t*)ptr - basePtr);
+        ptr = (ptr == nullptr) ? reinterpret_cast<T*>(0xFFFFFFFFFFFFFFFF) : reinterpret_cast<T*>((uint8_t*)ptr - basePtr);
     }
 
     template<class T>
     void FmConvertOffsetToPtr(T*& offset, uint8_t* basePtr)
     {
-        offset = (offset == reinterpret_cast<T*>(0xFFFFFFFFFFFFFFFF)) ? NULL : (T*)(basePtr + reinterpret_cast<uintptr_t>(offset));
+        offset = (offset == reinterpret_cast<T*>(0xFFFFFFFFFFFFFFFF)) ? nullptr : (T*)(basePtr + reinterpret_cast<uintptr_t>(offset));
     }
 
     void FmConvertTetMeshPtrsToOffsets(FmTetMesh* tetMesh, uint8_t* pBufferBase)
@@ -371,10 +371,11 @@ namespace AMD
     // Deserialize a serialized rigid body for addition to a FmScene.
     void FmDeserializeRigidBody(FmRigidBody* dstRigidBody, const uint8_t* srcBuffer, size_t srcBufferNumBytes)
     {
+        (void)srcBufferNumBytes;
         FM_ASSERT(sizeof(FmRigidBody) == srcBufferNumBytes);
 
         // Copy buffer
-        memcpy(dstRigidBody, srcBuffer, srcBufferNumBytes);
+        *dstRigidBody = *reinterpret_cast<const FmRigidBody*>(srcBuffer);
     }
 
     size_t FmGetSceneSerializedRigidBodiesSize(const FmScene& scene)

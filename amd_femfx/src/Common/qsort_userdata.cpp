@@ -42,19 +42,19 @@ __RCSID("$NetBSD: qsort.c,v 1.20 2009/06/01 06:37:40 yamt Exp $");
 #include <errno.h>
 #include <stdlib.h>
 
-//static inline char    *med3 __P((char *, char *, char *,
+//static inline char    *med3 QS__P((char *, char *, char *,
 //    int (*)(const void *, const void *)));
-//static inline void     swapfunc __P((char *, char *, size_t, int));
+//static inline void     swapfunc QS__P((char *, char *, size_t, int));
 
-#define min(a, b)    (a) < (b) ? a : b
+#define QS_MIN(a, b)    (a) < (b) ? a : b
 
-#define __P(x) x
-#define _DIAGASSERT assert
+#define QS__P(x) x
+#define QS_DIAGASSERT assert
 
 /*
  * Qsort routine from Bentley & McIlroy's "Engineering a Sort Function".
  */
-#define swapcode(TYPE, parmi, parmj, n) {         \
+#define QS_SWAPCODE(TYPE, parmi, parmj, n) {         \
     size_t i = (n) / sizeof (TYPE);         \
     TYPE *pi = (TYPE *)(void *)(parmi);         \
     TYPE *pj = (TYPE *)(void *)(parmj);         \
@@ -65,7 +65,7 @@ __RCSID("$NetBSD: qsort.c,v 1.20 2009/06/01 06:37:40 yamt Exp $");
         } while (--i > 0);                \
 }
 
-#define SWAPINIT(a, es) swaptype = ((char *)a - (char *)0) % sizeof(long) || \
+#define QS_SWAPINIT(a, es) swaptype = ((char *)a - (char *)0) % sizeof(long) || \
     es % sizeof(long) ? 2 : es == sizeof(long)? 0 : 1;
 
 static inline void
@@ -73,12 +73,12 @@ swapfunc(char *a, char *b, size_t n, int swaptype)
 {
 
     if (swaptype <= 1) 
-        swapcode(long, a, b, n)
+        QS_SWAPCODE(long, a, b, n)
     else
-        swapcode(char, a, b, n)
+        QS_SWAPCODE(char, a, b, n)
 }
 
-#define swap(a, b)                        \
+#define QS_SWAP(a, b)                        \
     if (swaptype == 0) {                    \
         long t = *(long *)(void *)(a);            \
         *(long *)(void *)(a) = *(long *)(void *)(b);    \
@@ -86,11 +86,11 @@ swapfunc(char *a, char *b, size_t n, int swaptype)
     } else                            \
         swapfunc(a, b, es, swaptype)
 
-#define vecswap(a, b, n) if ((n) > 0) swapfunc((a), (b), (size_t)(n), swaptype)
+#define QS_VECSWAP(a, b, n) if ((n) > 0) swapfunc((a), (b), (size_t)(n), swaptype)
 
 static inline char *
 med3(char *a, char *b, char *c, void *userdata,
-    int (*cmp) __P((const void *, const void *, void *)))
+    int (*cmp) QS__P((const void *, const void *, void *)))
 {
 
     return cmp(a, b, userdata) < 0 ?
@@ -100,21 +100,21 @@ med3(char *a, char *b, char *c, void *userdata,
 
 void
 qsort_userdata(void *a, void *userdata, size_t n, size_t es,
-    int (*cmp) __P((const void *, const void *, void *)))
+    int (*cmp) QS__P((const void *, const void *, void *)))
 {
     char *pa, *pb, *pc, *pd, *pl, *pm, *pn;
     size_t d, r;
     int swaptype, cmp_result;
 
-    _DIAGASSERT(a != NULL);
-    _DIAGASSERT(cmp != NULL);
+    QS_DIAGASSERT(a != nullptr);
+    QS_DIAGASSERT(cmp != nullptr);
 
-loop:    SWAPINIT(a, es);
+loop:    QS_SWAPINIT(a, es);
     if (n < 7) {
         for (pm = (char *) a + es; pm < (char *) a + n * es; pm += es)
             for (pl = pm; pl > (char *) a && cmp(pl - es, pl, userdata) > 0;
                  pl -= es)
-                swap(pl, pl - es);
+                QS_SWAP(pl, pl - es);
         return;
     }
     pm = (char *) a + (n / 2) * es;
@@ -129,37 +129,37 @@ loop:    SWAPINIT(a, es);
         }
         pm = med3(pl, pm, pn, userdata, cmp);
     }
-    swap((char*)a, pm);
+    QS_SWAP((char*)a, pm);
     pa = pb = (char *) a + es;
 
     pc = pd = (char *) a + (n - 1) * es;
     for (;;) {
         while (pb <= pc && (cmp_result = cmp(pb, a, userdata)) <= 0) {
             if (cmp_result == 0) {
-                swap(pa, pb);
+                QS_SWAP(pa, pb);
                 pa += es;
             }
             pb += es;
         }
         while (pb <= pc && (cmp_result = cmp(pc, a, userdata)) >= 0) {
             if (cmp_result == 0) {
-                swap(pc, pd);
+                QS_SWAP(pc, pd);
                 pd -= es;
             }
             pc -= es;
         }
         if (pb > pc)
             break;
-        swap(pb, pc);
+        QS_SWAP(pb, pc);
         pb += es;
         pc -= es;
     }
 
     pn = (char *) a + n * es;
-    r = min(pa - (char *) a, pb - pa);
-    vecswap((char*)a, pb - r, r);
-    r = min((size_t)(pd - pc), pn - pd - es);
-    vecswap(pb, pn - r, r);
+    r = QS_MIN(pa - (char *) a, pb - pa);
+    QS_VECSWAP((char*)a, pb - r, r);
+    r = QS_MIN((size_t)(pd - pc), pn - pd - es);
+    QS_VECSWAP(pb, pn - r, r);
     if ((r = pb - pa) > es)
         qsort_userdata(a, userdata, r / es, es, cmp);
     if ((r = pd - pc) > es) { 

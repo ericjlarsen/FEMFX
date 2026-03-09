@@ -256,35 +256,32 @@ namespace FmVectormath {
             return *this;
         }
 
+        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE SoaMatrix3<SoaNFloat>& SoaMatrix3<SoaNFloat>::operator*=( const SoaMatrix3& mat )
+        {
+            *this = *this * mat;
+            return *this;
+        }
+
         template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaMatrix3<SoaNFloat> operator *(SoaNFloat scalar, const SoaMatrix3<SoaNFloat> & mat)
         {
             return mat * scalar;
         }
 
-        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaVector3<SoaNFloat> mul(const SoaMatrix3<SoaNFloat>& mat, const SoaVector3<SoaNFloat> & vec)
+        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaVector3<SoaNFloat> SoaMatrix3<SoaNFloat>::operator *(const SoaVector3<SoaNFloat> & vec) const
         {
             return SoaVector3<SoaNFloat>(
-                (((mat.col0.getX() * vec.getX()) + (mat.col1.getX() * vec.getY())) + (mat.col2.getX() * vec.getZ())),
-                (((mat.col0.getY() * vec.getX()) + (mat.col1.getY() * vec.getY())) + (mat.col2.getY() * vec.getZ())),
-                (((mat.col0.getZ() * vec.getX()) + (mat.col1.getZ() * vec.getY())) + (mat.col2.getZ() * vec.getZ()))
+                (((col0.getX() * vec.getX()) + (col1.getX() * vec.getY())) + (col2.getX() * vec.getZ())),
+                (((col0.getY() * vec.getX()) + (col1.getY() * vec.getY())) + (col2.getY() * vec.getZ())),
+                (((col0.getZ() * vec.getX()) + (col1.getZ() * vec.getY())) + (col2.getZ() * vec.getZ()))
                 );
         }
 
-        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaMatrix3<SoaNFloat> mul(const SoaMatrix3<SoaNFloat>& mat0, const SoaMatrix3<SoaNFloat> & mat1)
+        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaMatrix3<SoaNFloat> SoaMatrix3<SoaNFloat>::operator *(const SoaMatrix3<SoaNFloat> & mat) const
         {
             return SoaMatrix3<SoaNFloat>(
-                mul(mat0, mat1.col0),
-                mul(mat0, mat1.col1),
-                mul(mat0, mat1.col2)
-                );
-        }
-
-        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaMatrix3<SoaNFloat> mulPerElem(const SoaMatrix3<SoaNFloat> & mat0, const SoaMatrix3<SoaNFloat> & mat1)
-        {
-            return SoaMatrix3<SoaNFloat>(
-                mat0.getCol0() * mat1.getCol0(),
-                mat0.getCol1() * mat1.getCol1(),
-                mat0.getCol2() * mat1.getCol2()
+                *this * mat.col0,
+                *this * mat.col1,
+                *this * mat.col2
                 );
         }
 
@@ -762,58 +759,70 @@ namespace FmVectormath {
             return *this;
         }
 
+        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE SoaMatrix4<SoaNFloat> & SoaMatrix4<SoaNFloat>::operator*=( const SoaMatrix4<SoaNFloat>& mat )
+        {
+            *this = *this * mat;
+            return *this;
+        }
+
+        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE SoaMatrix4<SoaNFloat> & SoaMatrix4<SoaNFloat>::operator*=( const SoaTransform3<SoaNFloat>& tfrm )
+        {
+            *this = *this * tfrm;
+            return *this;
+        }
+
         template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaMatrix4<SoaNFloat> operator *(SoaNFloat scalar, const SoaMatrix4<SoaNFloat> & mat)
         {
             return mat * scalar;
         }
 
-        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaVector4<SoaNFloat> mul(const SoaMatrix4<SoaNFloat>& mat, const SoaVector4<SoaNFloat> & vec)
+        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaVector4<SoaNFloat> SoaMatrix4<SoaNFloat>::operator *( const SoaVector4<SoaNFloat> & vec ) const
         {
             return SoaVector4<SoaNFloat>(
-                ((((mat.col0.getX() * vec.getX()) + (mat.col1.getX() * vec.getY())) + (mat.col2.getX() * vec.getZ())) + (mat.col3.getX() * vec.getW())),
-                ((((mat.col0.getY() * vec.getX()) + (mat.col1.getY() * vec.getY())) + (mat.col2.getY() * vec.getZ())) + (mat.col3.getY() * vec.getW())),
-                ((((mat.col0.getZ() * vec.getX()) + (mat.col1.getZ() * vec.getY())) + (mat.col2.getZ() * vec.getZ())) + (mat.col3.getZ() * vec.getW())),
-                ((((mat.col0.getW() * vec.getX()) + (mat.col1.getW() * vec.getY())) + (mat.col2.getW() * vec.getZ())) + (mat.col3.getW() * vec.getW()))
+                ((((col0.getX() * vec.getX()) + (col1.getX() * vec.getY())) + (col2.getX() * vec.getZ())) + (col3.getX() * vec.getW())),
+                ((((col0.getY() * vec.getX()) + (col1.getY() * vec.getY())) + (col2.getY() * vec.getZ())) + (col3.getY() * vec.getW())),
+                ((((col0.getZ() * vec.getX()) + (col1.getZ() * vec.getY())) + (col2.getZ() * vec.getZ())) + (col3.getZ() * vec.getW())),
+                ((((col0.getW() * vec.getX()) + (col1.getW() * vec.getY())) + (col2.getW() * vec.getZ())) + (col3.getW() * vec.getW()))
                 );
         }
 
-        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaVector4<SoaNFloat> mul(const SoaMatrix4<SoaNFloat>& mat, const SoaVector3<SoaNFloat> & vec)
+        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaVector4<SoaNFloat> SoaMatrix4<SoaNFloat>::operator *( const SoaVector3<SoaNFloat> & vec ) const
         {
             return SoaVector4<SoaNFloat>(
-                (((mat.col0.getX() * vec.getX()) + (mat.col1.getX() * vec.getY())) + (mat.col2.getX() * vec.getZ())),
-                (((mat.col0.getY() * vec.getX()) + (mat.col1.getY() * vec.getY())) + (mat.col2.getY() * vec.getZ())),
-                (((mat.col0.getZ() * vec.getX()) + (mat.col1.getZ() * vec.getY())) + (mat.col2.getZ() * vec.getZ())),
-                (((mat.col0.getW() * vec.getX()) + (mat.col1.getW() * vec.getY())) + (mat.col2.getW() * vec.getZ()))
+                (((col0.getX() * vec.getX()) + (col1.getX() * vec.getY())) + (col2.getX() * vec.getZ())),
+                (((col0.getY() * vec.getX()) + (col1.getY() * vec.getY())) + (col2.getY() * vec.getZ())),
+                (((col0.getZ() * vec.getX()) + (col1.getZ() * vec.getY())) + (col2.getZ() * vec.getZ())),
+                (((col0.getW() * vec.getX()) + (col1.getW() * vec.getY())) + (col2.getW() * vec.getZ()))
                 );
         }
 
-        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaVector4<SoaNFloat> mul(const SoaMatrix4<SoaNFloat>& mat, const SoaPoint3<SoaNFloat> & pnt)
+        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaVector4<SoaNFloat> SoaMatrix4<SoaNFloat>::operator *( const SoaPoint3<SoaNFloat> & pnt ) const
         {
             return SoaVector4<SoaNFloat>(
-                ((((mat.col0.getX() * pnt.getX()) + (mat.col1.getX() * pnt.getY())) + (mat.col2.getX() * pnt.getZ())) + mat.col3.getX()),
-                ((((mat.col0.getY() * pnt.getX()) + (mat.col1.getY() * pnt.getY())) + (mat.col2.getY() * pnt.getZ())) + mat.col3.getY()),
-                ((((mat.col0.getZ() * pnt.getX()) + (mat.col1.getZ() * pnt.getY())) + (mat.col2.getZ() * pnt.getZ())) + mat.col3.getZ()),
-                ((((mat.col0.getW() * pnt.getX()) + (mat.col1.getW() * pnt.getY())) + (mat.col2.getW() * pnt.getZ())) + mat.col3.getW())
+                ((((col0.getX() * pnt.getX()) + (col1.getX() * pnt.getY())) + (col2.getX() * pnt.getZ())) + col3.getX()),
+                ((((col0.getY() * pnt.getX()) + (col1.getY() * pnt.getY())) + (col2.getY() * pnt.getZ())) + col3.getY()),
+                ((((col0.getZ() * pnt.getX()) + (col1.getZ() * pnt.getY())) + (col2.getZ() * pnt.getZ())) + col3.getZ()),
+                ((((col0.getW() * pnt.getX()) + (col1.getW() * pnt.getY())) + (col2.getW() * pnt.getZ())) + col3.getW())
                 );
         }
 
-        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaMatrix4<SoaNFloat> mul(const SoaMatrix4<SoaNFloat>& mat, const SoaTransform3<SoaNFloat> & tfrm)
+        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaMatrix4<SoaNFloat> SoaMatrix4<SoaNFloat>::operator *( const SoaTransform3<SoaNFloat> & tfrm ) const
         {
             return SoaMatrix4<SoaNFloat>(
-                mul(mat, tfrm.getCol0()),
-                mul(mat, tfrm.getCol1()),
-                mul(mat, tfrm.getCol2()),
-                mul(mat, SoaPoint3<SoaNFloat>(tfrm.getCol3()))
+                *this * tfrm.getCol0(),
+                *this * tfrm.getCol1(),
+                *this * tfrm.getCol2(),
+                *this * SoaPoint3<SoaNFloat>(tfrm.getCol3())
                 );
         }
 
-        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaMatrix4<SoaNFloat> mul(const SoaMatrix4<SoaNFloat>& mat0, const SoaMatrix4<SoaNFloat> & mat1)
+        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaMatrix4<SoaNFloat> SoaMatrix4<SoaNFloat>::operator *( const SoaMatrix4<SoaNFloat> & mat ) const
         {
             return SoaMatrix4<SoaNFloat>(
-                mul(mat0, mat1.col0),
-                mul(mat0, mat1.col1),
-                mul(mat0, mat1.col2),
-                mul(mat0, mat1.col3)
+                *this * mat.col0,
+                *this * mat.col1,
+                *this * mat.col2,
+                *this * mat.col3
                 );
         }
 
@@ -1234,42 +1243,38 @@ namespace FmVectormath {
                 );
         }
 
-        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaVector3<SoaNFloat> mul(const SoaTransform3<SoaNFloat>& tfrm, const SoaVector3<SoaNFloat> & vec)
+        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaVector3<SoaNFloat> SoaTransform3<SoaNFloat>::operator *( const SoaVector3<SoaNFloat> & vec ) const
         {
             return SoaVector3<SoaNFloat>(
-                (((tfrm.col0.getX() * vec.getX()) + (tfrm.col1.getX() * vec.getY())) + (tfrm.col2.getX() * vec.getZ())),
-                (((tfrm.col0.getY() * vec.getX()) + (tfrm.col1.getY() * vec.getY())) + (tfrm.col2.getY() * vec.getZ())),
-                (((tfrm.col0.getZ() * vec.getX()) + (tfrm.col1.getZ() * vec.getY())) + (tfrm.col2.getZ() * vec.getZ()))
+                (((col0.getX() * vec.getX()) + (col1.getX() * vec.getY())) + (col2.getX() * vec.getZ())),
+                (((col0.getY() * vec.getX()) + (col1.getY() * vec.getY())) + (col2.getY() * vec.getZ())),
+                (((col0.getZ() * vec.getX()) + (col1.getZ() * vec.getY())) + (col2.getZ() * vec.getZ()))
                 );
         }
 
-        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaPoint3<SoaNFloat> mul(const SoaTransform3<SoaNFloat>& tfrm, const SoaPoint3<SoaNFloat> & pnt)
+        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaPoint3<SoaNFloat> SoaTransform3<SoaNFloat>::operator *( const SoaPoint3<SoaNFloat> & pnt ) const
         {
             return SoaPoint3<SoaNFloat>(
-                ((((tfrm.col0.getX() * pnt.getX()) + (tfrm.col1.getX() * pnt.getY())) + (tfrm.col2.getX() * pnt.getZ())) + tfrm.col3.getX()),
-                ((((tfrm.col0.getY() * pnt.getX()) + (tfrm.col1.getY() * pnt.getY())) + (tfrm.col2.getY() * pnt.getZ())) + tfrm.col3.getY()),
-                ((((tfrm.col0.getZ() * pnt.getX()) + (tfrm.col1.getZ() * pnt.getY())) + (tfrm.col2.getZ() * pnt.getZ())) + tfrm.col3.getZ())
+                ((((col0.getX() * pnt.getX()) + (col1.getX() * pnt.getY())) + (col2.getX() * pnt.getZ())) + col3.getX()),
+                ((((col0.getY() * pnt.getX()) + (col1.getY() * pnt.getY())) + (col2.getY() * pnt.getZ())) + col3.getY()),
+                ((((col0.getZ() * pnt.getX()) + (col1.getZ() * pnt.getY())) + (col2.getZ() * pnt.getZ())) + col3.getZ())
                 );
         }
 
-        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaTransform3<SoaNFloat> mul(const SoaTransform3<SoaNFloat> & tfrm0, const SoaTransform3<SoaNFloat> & tfrm1)
+        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaTransform3<SoaNFloat> SoaTransform3<SoaNFloat>::operator *( const SoaTransform3<SoaNFloat> & tfrm ) const
         {
             return SoaTransform3<SoaNFloat>(
-                mul(tfrm0, tfrm1.col0),
-                mul(tfrm0, tfrm1.col1),
-                mul(tfrm0, tfrm1.col2),
-                SoaVector3<SoaNFloat>(mul(tfrm0, SoaPoint3<SoaNFloat>(tfrm1.col3)))
+                *this * tfrm.col0,
+                *this * tfrm.col1,
+                *this * tfrm.col2,
+                SoaVector3<SoaNFloat>(*this * SoaPoint3<SoaNFloat>(tfrm.col3))
                 );
         }
 
-        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaTransform3<SoaNFloat> mulPerElem(const SoaTransform3<SoaNFloat> & tfrm0, const SoaTransform3<SoaNFloat> & tfrm1)
+        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE SoaTransform3<SoaNFloat>& SoaTransform3<SoaNFloat>::operator *=(const SoaTransform3<SoaNFloat>& tfrm)
         {
-            return SoaTransform3<SoaNFloat>(
-                tfrm0.getCol0() * tfrm1.getCol0(),
-                tfrm0.getCol1() * tfrm1.getCol1(),
-                tfrm0.getCol2() * tfrm1.getCol2(),
-                tfrm0.getCol3() * tfrm1.getCol3()
-                );
+            *this = *this * tfrm;
+            return *this;
         }
 
         template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaTransform3<SoaNFloat> SoaTransform3<SoaNFloat>::identity()
@@ -1438,8 +1443,8 @@ namespace FmVectormath {
         template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE SoaQuat<SoaNFloat>::SoaQuat(const SoaMatrix3<SoaNFloat> & tfrm)
         {
             SoaNFloat trace, radicand, scale, xx, yx, zx, xy, yy, zy, xz, yz, zz, tmpx, tmpy, tmpz, tmpw, qx, qy, qz, qw;
-            SoaNFloat::SoaBool negTrace, ZgtX, ZgtY, YgtX;
-            SoaNFloat::SoaBool largestXorY, largestYorZ, largestZorX;
+            typename SoaNFloat::SoaBool negTrace, ZgtX, ZgtY, YgtX;
+            typename SoaNFloat::SoaBool largestXorY, largestYorZ, largestZorX;
 
             xx = tfrm.getCol0().getX();
             yx = tfrm.getCol0().getY();
@@ -1557,7 +1562,7 @@ namespace FmVectormath {
                 );
         }
 
-        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaVector3<SoaNFloat> mul(const SoaVector3<SoaNFloat> & vec, const SoaMatrix3<SoaNFloat> & mat)
+        template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaVector3<SoaNFloat> operator *(const SoaVector3<SoaNFloat> & vec, const SoaMatrix3<SoaNFloat> & mat)
         {
             return SoaVector3<SoaNFloat>(
                 (((vec.getX() * mat.getCol0().getX()) + (vec.getY() * mat.getCol0().getY())) + (vec.getZ() * mat.getCol0().getZ())),

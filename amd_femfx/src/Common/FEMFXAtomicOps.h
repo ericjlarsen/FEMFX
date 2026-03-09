@@ -30,7 +30,7 @@ THE SOFTWARE.
 
 #include "FEMFXCommon.h"
 
-#ifdef WIN32
+#if defined(_MSC_VER)
 #include <Windows.h>
 #endif
 
@@ -38,7 +38,7 @@ namespace AMD
 {
     // Atomic operation interface
 
-#ifdef WIN32
+#if defined(_MSC_VER)
     // Atomically increment and return new value
     static FM_FORCE_INLINE uint FmAtomicIncrement(uint* pValue)
     {
@@ -75,7 +75,7 @@ namespace AMD
         return InterlockedCompareExchange((volatile unsigned long *)pValue, newValue, compareValue);
     }
 
-    // Atomically read current *pValue
+    // Read current *pValue, with load fence
     static FM_FORCE_INLINE uint FmAtomicRead(uint* pValue)
     {
         uint value = *(volatile unsigned long*)pValue;
@@ -90,6 +90,59 @@ namespace AMD
     static FM_FORCE_INLINE uint FmAtomicWrite(uint* pValue, uint newValue)
     {
         return InterlockedExchange((volatile unsigned long *)pValue, newValue);
+    }
+#elif defined(__GNUC__)
+    // Atomically increment and return new value
+    static FM_FORCE_INLINE uint FmAtomicIncrement(uint* pValue)
+    {
+        return __sync_fetch_and_add((volatile uint *)pValue, 1) + 1;
+    }
+
+    // Atomically decrement and return new value
+    static FM_FORCE_INLINE uint FmAtomicDecrement(uint* pValue)
+    {
+        return __sync_fetch_and_sub((volatile uint *)pValue, 1) - 1;
+    }
+
+    // Atomically add to *pValue and return result
+    static FM_FORCE_INLINE uint FmAtomicAdd(uint* pValue, uint addedValue)
+    {
+        return __sync_fetch_and_add((volatile uint *)pValue, addedValue) + addedValue;
+    }
+
+    // Atomically subtract from *pValue and return result
+    static FM_FORCE_INLINE uint FmAtomicSub(uint* pValue, uint subtractedValue)
+    {
+        return __sync_fetch_and_sub((volatile uint *)pValue, subtractedValue) - subtractedValue;
+    }
+
+    // Atomically OR with *pValue and return result
+    static FM_FORCE_INLINE uint FmAtomicOr(uint* pValue, uint orValue)
+    {
+        return __sync_fetch_and_or((volatile uint *)pValue, orValue) | orValue;
+    }
+
+    // Atomically replace *pValue with newValue if currently equal to compareValue, and return the initial value
+    static FM_FORCE_INLINE uint FmAtomicCompareExchange(uint* pValue, uint newValue, uint compareValue)
+    {
+        return __sync_val_compare_and_swap((volatile uint *)pValue, compareValue, newValue);
+    }
+
+    // Read current *pValue, with load fence
+    static FM_FORCE_INLINE uint FmAtomicRead(uint* pValue)
+    {
+        uint value = *(volatile uint*)pValue;
+
+        // Ensure subsequent loads ordered after read of value
+        __sync_synchronize();
+
+        return value;
+    }
+
+    // Atomically write to *pValue
+    static FM_FORCE_INLINE uint FmAtomicWrite(uint* pValue, uint newValue)
+    {
+        return __sync_lock_test_and_set((volatile uint *)pValue, newValue);
     }
 #endif
 

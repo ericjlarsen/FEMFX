@@ -57,46 +57,24 @@ namespace AMD
     // Structure for passing user constraints and callbacks into FmFindConstraintIslands
     struct FmUserConstraints
     {
-        FmDistanceContactPairInfo*    distanceContactsPairInfo;
-        FmDistanceContact*            distanceContacts;
-        FmVolumeContact*              volumeContacts;
-        FmVolumeContactVert*          volumeContactVerts;
-        FmGlueConstraint*             glueConstraints;
-        FmPlaneConstraint*            planeConstraints;
-        FmRigidBodyAngleConstraint*   rigidBodyAngleConstraints;
-        uint                          numDistanceContacts;
-        uint                          numVolumeContacts;
-        uint                          numVolumeContactVerts;
-        uint                          numGlueConstraints;
-        uint                          numPlaneConstraints;
-        uint                          numRigidBodyAngleConstraints;
-        uint                          numIslands; // Number of islands found by rigid body system; the rigid body rbIslandId values are expected to be in range 0..numIslands-1.
+        FmDistanceContactPairInfo*    distanceContactsPairInfo = nullptr;
+        FmDistanceContact*            distanceContacts = nullptr;
+        FmVolumeContact*              volumeContacts = nullptr;
+        FmVolumeContactVert*          volumeContactVerts = nullptr;
+        FmGlueConstraint*             glueConstraints = nullptr;
+        FmPlaneConstraint*            planeConstraints = nullptr;
+        FmRigidBodyAngleConstraint*   rigidBodyAngleConstraints = nullptr;
+        uint                          numDistanceContacts = 0;
+        uint                          numVolumeContacts = 0;
+        uint                          numVolumeContactVerts = 0;
+        uint                          numGlueConstraints = 0;
+        uint                          numPlaneConstraints = 0;
+        uint                          numRigidBodyAngleConstraints = 0;
+        uint                          numIslands = 0; // Number of islands found by rigid body system; the rigid body rbIslandId values are expected to be in range 0..numIslands-1.
 
-        FmCallbackConstraintSolveInnerIteration  innerIterationCallback;
-        FmCallbackConstraintSolveIslandCompleted islandCompletedCallback;
-        void* userData;
-
-        FmUserConstraints()
-        {
-            distanceContactsPairInfo = NULL;
-            distanceContacts = NULL;
-            volumeContacts = NULL;
-            volumeContactVerts = NULL;
-            glueConstraints = NULL;
-            planeConstraints = NULL;
-            rigidBodyAngleConstraints = NULL;
-            numDistanceContacts = 0;
-            numVolumeContacts = 0;
-            numVolumeContactVerts = 0;
-            numGlueConstraints = 0;
-            numPlaneConstraints = 0;
-            numRigidBodyAngleConstraints = 0;
-            numIslands = 0;
-
-            innerIterationCallback = NULL;
-            islandCompletedCallback = NULL;
-            userData = NULL;
-        }
+        FmCallbackConstraintSolveInnerIteration  innerIterationCallback = nullptr;
+        FmCallbackConstraintSolveIslandCompleted islandCompletedCallback = nullptr;
+        void* userData = nullptr;
     };
 
 }

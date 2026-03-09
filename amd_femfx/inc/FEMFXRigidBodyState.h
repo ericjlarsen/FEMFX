@@ -28,7 +28,7 @@ THE SOFTWARE.
 
 #pragma once
 
-#include "FEMFXVectormath.h"
+#include "FEMFXVectorMath.h"
 
 namespace AMD
 {
@@ -39,14 +39,6 @@ namespace AMD
         FmQuat    quat;
         FmVector3 vel;
         FmVector3 angVel;
-
-        FmRigidBodyState()
-        {
-            pos = FmInitVector3(0.0f);
-            quat = FmInitQuat(0.0f, 0.0f, 0.0f, 1.0f);
-            vel = FmInitVector3(0.0f);
-            angVel = FmInitVector3(0.0f);
-        }
     };
 
     // Set mass and body-relative inertial tensor for uniform density box
@@ -61,9 +53,9 @@ namespace AMD
         float dxSqr = dx * dx;
         float dySqr = dy * dy;
         float dzSqr = dz * dz;
-        bodyInertiaTensor.col0 = FmInitVector3(massDiv12 * (dySqr + dzSqr), 0.0f, 0.0f);
-        bodyInertiaTensor.col1 = FmInitVector3(0.0f, massDiv12 * (dzSqr + dxSqr), 0.0f);
-        bodyInertiaTensor.col2 = FmInitVector3(0.0f, 0.0f, massDiv12 * (dxSqr + dySqr));
+        bodyInertiaTensor.col0 = FmVector3(massDiv12 * (dySqr + dzSqr), 0.0f, 0.0f);
+        bodyInertiaTensor.col1 = FmVector3(0.0f, massDiv12 * (dzSqr + dxSqr), 0.0f);
+        bodyInertiaTensor.col2 = FmVector3(0.0f, 0.0f, massDiv12 * (dxSqr + dySqr));
 
         return bodyInertiaTensor;
     }

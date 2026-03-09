@@ -124,10 +124,10 @@ namespace AMD
 
                 // Deformation is measured as singular values of deformation gradient.
                 // Singular value = 1.0 => no deformation (and product of singular values = 1.0 => volume preserved).
-                FmMatrix3 volumeMatrix = FmComputeTetVolumeMatrix(position0, position1, position2, position3);
-                FmMatrix3 restVolumeMatrixInv = inverse(FmComputeTetVolumeMatrix(tetRestPosition0, tetRestPosition1, tetRestPosition2, tetRestPosition3));
+                FmMatrix3 deformedShapeMatrix = FmComputeTetShapeMatrix(position0, position1, position2, position3);
+                FmMatrix3 restShapeMatrixInv = inverse(FmComputeTetShapeMatrix(tetRestPosition0, tetRestPosition1, tetRestPosition2, tetRestPosition3));
 
-                FmMatrix3 deformationGradient = mul(volumeMatrix, restVolumeMatrixInv);
+                FmMatrix3 deformationGradient = deformedShapeMatrix * restShapeMatrixInv;
 
                 FmMatrix3 U, V;
                 FmVector3 sigma;
@@ -200,10 +200,10 @@ namespace AMD
                         movingFlags |= FmIsZero(tetMesh->vertsVel[vId3]) ? 0 : 0x8;
 
                         // Compute jacobian submatrices corresponding to each of the tet vertices
-                        FmVector3 X0InvRow0 = restVolumeMatrixInv.getRow(0);
-                        FmVector3 X0InvRow1 = restVolumeMatrixInv.getRow(1);
-                        FmVector3 X0InvRow2 = restVolumeMatrixInv.getRow(2);
-                        FmVector3 X0InvRow3 = -X0InvRow0 - X0InvRow1 - X0InvRow2;
+                        FmVector3 X0InvRow1 = restShapeMatrixInv.getRow(0);
+                        FmVector3 X0InvRow2 = restShapeMatrixInv.getRow(1);
+                        FmVector3 X0InvRow3 = restShapeMatrixInv.getRow(2);
+                        FmVector3 X0InvRow0 = -X0InvRow1 - X0InvRow2 - X0InvRow3;
 
                         FmMatrix3 jacobian0, jacobian1, jacobian2, jacobian3;
                         FmSetDeformationConstraintJacobians(jacobian0, jacobian1, jacobian2, jacobian3, X0InvRow0, X0InvRow1, X0InvRow2, X0InvRow3, U, V, signs);

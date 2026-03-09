@@ -59,8 +59,8 @@ namespace AMD
 {
     typedef struct int2
     {
-        int x;
-        int y;
+        int x = 0;
+        int y = 0;
     } int2;
 
     void FmCalcMortonCode(

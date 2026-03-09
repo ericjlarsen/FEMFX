@@ -36,11 +36,11 @@
 #include <stdio.h>
 #endif
 
-#if (defined (_WIN32) && (_MSC_VER) && _MSC_VER >= 1400)
+#if defined(_MSC_VER)
 #define SOA_VECTORMATH_FORCE_INLINE __forceinline
 #else
 #define SOA_VECTORMATH_FORCE_INLINE inline
-#endif//_WIN32
+#endif
 
 namespace FmVectormath {
 
@@ -66,7 +66,7 @@ public:
     SoaNFloat y;
     SoaNFloat z;
 
-    // Default constructor; does no initialization
+    // Default constructor
     // 
     SOA_VECTORMATH_FORCE_INLINE SoaVector3( ) { };
 
@@ -180,16 +180,6 @@ public:
 // 
 template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaVector3<SoaNFloat> operator *( SoaNFloat scalar, const SoaVector3<SoaNFloat> & vec );
 
-// Multiply two 3-D vectors per element
-// 
-template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaVector3<SoaNFloat> operator *( const SoaVector3<SoaNFloat> & vec0, const SoaVector3<SoaNFloat> & vec1 );
-
-// Divide two 3-D vectors per element
-// NOTE: 
-// Floating-point behavior matches standard library function divf4.
-// 
-template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaVector3<SoaNFloat> operator /( const SoaVector3<SoaNFloat> & vec0, const SoaVector3<SoaNFloat> & vec1 );
-
 // Compute the reciprocal of a 3-D vector per element
 // NOTE: 
 // Floating-point behavior matches standard library function _mm_rcp_ps.
@@ -264,7 +254,7 @@ template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaMatrix3<SoaNFlo
 
 // Pre-multiply a row vector by a 3x3 matrix
 // 
-template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaVector3<SoaNFloat> mul( const SoaVector3<SoaNFloat> & vec, const SoaMatrix3<SoaNFloat> & mat );
+template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaVector3<SoaNFloat> operator *( const SoaVector3<SoaNFloat> & vec, const SoaMatrix3<SoaNFloat> & mat );
 
 // Cross-product matrix of a 3-D vector
 // 
@@ -320,7 +310,7 @@ public:
     SoaNFloat z;
     SoaNFloat w;
 
-    // Default constructor; does no initialization
+    // Default constructor
     // 
     SOA_VECTORMATH_FORCE_INLINE SoaVector4( ) { };
 
@@ -464,16 +454,6 @@ public:
 // 
 template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaVector4<SoaNFloat> operator *( SoaNFloat scalar, const SoaVector4<SoaNFloat> & vec );
 
-// Multiply two 4-D vectors per element
-// 
-template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaVector4<SoaNFloat> operator *( const SoaVector4<SoaNFloat> & vec0, const SoaVector4<SoaNFloat> & vec1 );
-
-// Divide two 4-D vectors per element
-// NOTE: 
-// Floating-point behavior matches standard library function divf4.
-// 
-template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaVector4<SoaNFloat> operator /( const SoaVector4<SoaNFloat> & vec0, const SoaVector4<SoaNFloat> & vec1 );
-
 // Compute the reciprocal of a 4-D vector per element
 // NOTE: 
 // Floating-point behavior matches standard library function _mm_rcp_ps.
@@ -585,7 +565,7 @@ public:
     SoaNFloat y;
     SoaNFloat z;
 
-    // Default constructor; does no initialization
+    // Default constructor
     // 
     SOA_VECTORMATH_FORCE_INLINE SoaPoint3( ) { };
 
@@ -662,16 +642,6 @@ public:
     SOA_VECTORMATH_FORCE_INLINE SoaPoint3 & operator -=( const SoaVector3<SoaNFloat> & vec );
 
 };
-
-// Multiply two 3-D points per element
-// 
-template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaPoint3<SoaNFloat> operator *( const SoaPoint3<SoaNFloat> & pnt0, const SoaPoint3<SoaNFloat> & pnt1 );
-
-// Divide two 3-D points per element
-// NOTE: 
-// Floating-point behavior matches standard library function divf4.
-// 
-template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaPoint3<SoaNFloat> operator /( const SoaPoint3<SoaNFloat> & pnt0, const SoaPoint3<SoaNFloat> & pnt1 );
 
 // Compute the reciprocal of a 3-D point per element
 // NOTE: 
@@ -779,12 +749,12 @@ template< class SoaNFloat >
 class SoaQuat
 {
 public:
-    SoaNFloat x;
-    SoaNFloat y;
-    SoaNFloat z;
-    SoaNFloat w;
+    SoaNFloat x = 0.0f;
+    SoaNFloat y = 0.0f;
+    SoaNFloat z = 0.0f;
+    SoaNFloat w = 1.0f;
 
-    // Default constructor; does no initialization
+    // Default constructor
     // 
     SOA_VECTORMATH_FORCE_INLINE SoaQuat( ) { };
 
@@ -874,6 +844,10 @@ public:
     // 
     SOA_VECTORMATH_FORCE_INLINE const SoaQuat operator -( const SoaQuat & quat ) const;
 
+    // Multiply two quaternions
+    // 
+    SOA_VECTORMATH_FORCE_INLINE const SoaQuat operator *( const SoaQuat & quat ) const;
+
     // Multiply a quaternion by a scalar
     // 
     SOA_VECTORMATH_FORCE_INLINE const SoaQuat operator *( SoaNFloat scalar ) const;
@@ -889,6 +863,10 @@ public:
     // Perform compound assignment and subtraction by a quaternion
     // 
     SOA_VECTORMATH_FORCE_INLINE SoaQuat & operator -=( const SoaQuat & quat );
+
+    // Perform compound assignment and multiplication by a quaternion
+    // 
+    SOA_VECTORMATH_FORCE_INLINE SoaQuat & operator *=( const SoaQuat & quat );
 
     // Perform compound assignment and multiplication by a scalar
     // 
@@ -929,10 +907,6 @@ public:
     static SOA_VECTORMATH_FORCE_INLINE const SoaQuat rotationZ( SoaNFloat radians );
 
 };
-
-// Multiply two quaternions
-// 
-template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaQuat<SoaNFloat> mul(const SoaQuat<SoaNFloat> & q0, const SoaQuat<SoaNFloat> & q1);
 
 // Multiply a quaternion by a scalar
 // 
@@ -1011,7 +985,7 @@ public:
     SoaVector3<SoaNFloat> col1;
     SoaVector3<SoaNFloat> col2;
 
-    // Default constructor; does no initialization
+    // Default constructor
     // 
     SOA_VECTORMATH_FORCE_INLINE SoaMatrix3( ) { };
 
@@ -1099,6 +1073,14 @@ public:
     // 
     SOA_VECTORMATH_FORCE_INLINE const SoaMatrix3 operator *( SoaNFloat scalar ) const;
 
+    // Multiply a 3x3 matrix by a 3-D vector
+    // 
+    SOA_VECTORMATH_FORCE_INLINE const SoaVector3<SoaNFloat> operator *( const SoaVector3<SoaNFloat>& vec ) const;
+
+    // Multiply two 3x3 matrices
+    // 
+    SOA_VECTORMATH_FORCE_INLINE const SoaMatrix3 operator *( const SoaMatrix3 & mat ) const;
+
     // Perform compound assignment and addition with a 3x3 matrix
     // 
     SOA_VECTORMATH_FORCE_INLINE SoaMatrix3 & operator +=( const SoaMatrix3 & mat );
@@ -1110,6 +1092,10 @@ public:
     // Perform compound assignment and multiplication by a scalar
     // 
     SOA_VECTORMATH_FORCE_INLINE SoaMatrix3 & operator *=( SoaNFloat scalar );
+
+    // Perform compound assignment and multiplication by a 3x3 matrix
+    // 
+    SOA_VECTORMATH_FORCE_INLINE SoaMatrix3 & operator *=( const SoaMatrix3 & mat );
 
     // Construct an identity 3x3 matrix
     // 
@@ -1144,14 +1130,6 @@ public:
     static SOA_VECTORMATH_FORCE_INLINE const SoaMatrix3 scale( const SoaVector3<SoaNFloat> & scaleVec );
 
 };
-
-// Multiply a 3x3 matrix by a 3-D vector
-// 
-template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaVector3<SoaNFloat> mul(const SoaMatrix3<SoaNFloat> & mat, const SoaVector3<SoaNFloat> & vec);
-
-// Multiply two 3x3 matrices
-// 
-template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaMatrix3<SoaNFloat> mul(const SoaMatrix3<SoaNFloat> & mat0, const SoaMatrix3<SoaNFloat> & mat1);
 
 // Multiply a 3x3 matrix by a scalar
 // 
@@ -1218,7 +1196,7 @@ public:
     SoaVector4<SoaNFloat> col2;
     SoaVector4<SoaNFloat> col3;
 
-    // Default constructor; does no initialization
+    // Default constructor
     // 
     SOA_VECTORMATH_FORCE_INLINE SoaMatrix4( ) { };
 
@@ -1342,6 +1320,26 @@ public:
     // 
     SOA_VECTORMATH_FORCE_INLINE const SoaMatrix4 operator *( SoaNFloat scalar ) const;
 
+    // Multiply a 4x4 matrix by a 4-D vector
+    // 
+    SOA_VECTORMATH_FORCE_INLINE const SoaVector4<SoaNFloat> operator *( const SoaVector4<SoaNFloat>& vec ) const;
+
+    // Multiply a 4x4 matrix by a 3-D vector
+    // 
+    SOA_VECTORMATH_FORCE_INLINE const SoaVector4<SoaNFloat> operator *( const SoaVector3<SoaNFloat>& vec ) const;
+
+    // Multiply a 4x4 matrix by a 3-D point
+    // 
+    SOA_VECTORMATH_FORCE_INLINE const SoaVector4<SoaNFloat> operator *( const SoaPoint3<SoaNFloat>& pnt ) const;
+
+    // Multiply two 4x4 matrices
+    // 
+    SOA_VECTORMATH_FORCE_INLINE const SoaMatrix4 operator *( const SoaMatrix4 & mat ) const;
+
+    // Multiply a 4x4 matrix by a 3x4 transformation matrix
+    // 
+    SOA_VECTORMATH_FORCE_INLINE const SoaMatrix4 operator *( const SoaTransform3<SoaNFloat>& tfrm ) const;
+
     // Perform compound assignment and addition with a 4x4 matrix
     // 
     SOA_VECTORMATH_FORCE_INLINE SoaMatrix4 & operator +=( const SoaMatrix4 & mat );
@@ -1353,6 +1351,14 @@ public:
     // Perform compound assignment and multiplication by a scalar
     // 
     SOA_VECTORMATH_FORCE_INLINE SoaMatrix4 & operator *=( SoaNFloat scalar );
+
+    // Perform compound assignment and multiplication by a 4x4 matrix
+    // 
+    SOA_VECTORMATH_FORCE_INLINE SoaMatrix4 & operator *=( const SoaMatrix4 & mat );
+
+    // Perform compound assignment and multiplication by a 3x4 transformation matrix
+    // 
+    SOA_VECTORMATH_FORCE_INLINE SoaMatrix4 & operator *=( const SoaTransform3<SoaNFloat>& tfrm );
 
     // Construct an identity 4x4 matrix
     // 
@@ -1407,26 +1413,6 @@ public:
     static SOA_VECTORMATH_FORCE_INLINE const SoaMatrix4 orthographic( SoaNFloat left, SoaNFloat right, SoaNFloat bottom, SoaNFloat top, SoaNFloat zNear, SoaNFloat zFar );
 
 };
-
-// Multiply a 4x4 matrix by a 4-D vector
-// 
-template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaVector4<SoaNFloat> mul(const SoaMatrix4<SoaNFloat>& mat, const SoaVector4<SoaNFloat> & vec);
-
-// Multiply a 4x4 matrix by a 3-D vector
-// 
-template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaVector4<SoaNFloat> mul(const SoaMatrix4<SoaNFloat>& mat, const SoaVector3<SoaNFloat> & vec);
-
-// Multiply a 4x4 matrix by a 3-D point
-// 
-template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaVector4<SoaNFloat> mul(const SoaMatrix4<SoaNFloat>& mat, const SoaPoint3<SoaNFloat> & pnt);
-
-// Multiply two 4x4 matrices
-// 
-template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaMatrix4<SoaNFloat> mul(const SoaMatrix4<SoaNFloat>& mat0, const SoaMatrix4<SoaNFloat> & mat1);
-
-// Multiply a 4x4 matrix by a 3x4 transformation matrix
-// 
-template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaMatrix4<SoaNFloat> mul(const SoaMatrix4<SoaNFloat>& mat, const SoaTransform3<SoaNFloat> & tfrm);
 
 // Multiply a 4x4 matrix by a scalar
 // 
@@ -1505,7 +1491,7 @@ public:
     SoaVector3<SoaNFloat> col2;
     SoaVector3<SoaNFloat> col3;
 
-    // Default constructor; does no initialization
+    // Default constructor
     // 
     SOA_VECTORMATH_FORCE_INLINE SoaTransform3( ) { };
 
@@ -1605,6 +1591,22 @@ public:
     // 
     SOA_VECTORMATH_FORCE_INLINE SoaNFloat getElem( int col, int row ) const;
 
+    // Multiply a 3x4 transformation matrix by a 3-D vector
+    // 
+    SOA_VECTORMATH_FORCE_INLINE const SoaVector3<SoaNFloat> operator *( const SoaVector3<SoaNFloat>& vec ) const;
+
+    // Multiply a 3x4 transformation matrix by a 3-D point
+    // 
+    SOA_VECTORMATH_FORCE_INLINE const SoaPoint3<SoaNFloat> operator *( const SoaPoint3<SoaNFloat>& pnt ) const;
+
+    // Multiply two 3x4 transformation matrices
+    // 
+    SOA_VECTORMATH_FORCE_INLINE const SoaTransform3 operator *( const SoaTransform3 & tfrm ) const;
+
+    // Perform compound assignment and multiplication by a 3x4 transformation matrix
+    // 
+    SOA_VECTORMATH_FORCE_INLINE SoaTransform3 & operator *=( const SoaTransform3 & tfrm );
+
     // Construct an identity 3x4 transformation matrix
     // 
     static SOA_VECTORMATH_FORCE_INLINE const SoaTransform3 identity( );
@@ -1643,18 +1645,6 @@ public:
 
 };
 
-// Multiply a 3x4 transformation matrix by a 3-D vector
-// 
-template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaVector3<SoaNFloat> mul(const SoaTransform3<SoaNFloat> & tfrm, const SoaVector3<SoaNFloat> & vec);
-
-// Multiply a 3x4 transformation matrix by a 3-D point
-// 
-template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaPoint3<SoaNFloat> mul(const SoaTransform3<SoaNFloat> & tfrm, const SoaPoint3<SoaNFloat> & pnt);
-
-// Multiply two 3x4 transformation matrices
-// 
-template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaTransform3<SoaNFloat> mul(const SoaTransform3<SoaNFloat> & tfrm0, const SoaTransform3<SoaNFloat> & tfrm1);
-
 // Append (post-multiply) a scale transformation to a 3x4 transformation matrix
 // NOTE: 
 // Faster than creating and multiplying a scale transformation matrix.
@@ -1666,10 +1656,6 @@ template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaTransform3<SoaN
 // Faster than creating and multiplying a scale transformation matrix.
 // 
 template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaTransform3<SoaNFloat> prependScale( const SoaVector3<SoaNFloat> & scaleVec, const SoaTransform3<SoaNFloat> & tfrm );
-
-// Multiply two 3x4 transformation matrices per element
-// 
-template< class SoaNFloat > SOA_VECTORMATH_FORCE_INLINE const SoaTransform3<SoaNFloat> operator *( const SoaTransform3<SoaNFloat> & tfrm0, const SoaTransform3<SoaNFloat> & tfrm1 );
 
 // Compute the absolute value of a 3x4 transformation matrix per element
 // 

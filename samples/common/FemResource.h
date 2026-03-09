@@ -38,11 +38,11 @@ namespace AMD
 {
     struct FVector
     {
-        float X, Y, Z;
+        float X = 0.0f;
+        float Y = 0.0f;
+        float Z = 0.0f;
 
-        FVector()
-        {
-        }
+        FVector() {}
         FVector(float inX, float inY, float inZ)
         {
             X = inX;
@@ -53,11 +53,12 @@ namespace AMD
 
     struct FVector4
     {
-        float X, Y, Z, W;
+        float X = 0.0f;
+        float Y = 0.0f;
+        float Z = 0.0f;
+        float W = 0.0f;
 
-        FVector4()
-        {
-        }
+        FVector4() {}
         FVector4(float inX, float inY, float inZ, float inW)
         {
             X = inX;
@@ -72,38 +73,33 @@ namespace AMD
     */
     struct FTet
     {
-        int TetIndex;
+        int TetIndex = 0;
         std::vector<int> Indices;
     };
 
 
     struct FNodeResource
     {
-        bool IsBoundaryMarker;
-        int NumAttributes;
-        int NumDimensions;
-        int NumPoints;
+        bool IsBoundaryMarker = false;
+        int NumAttributes = 0;
+        int NumDimensions = 0;
+        int NumPoints = 0;
         std::vector<float> Data;
     };
 
     struct FEleResource
     {
-        bool IsRegionAttribute;
-        int NumNodesPerTets;
-        int NumTetrahedra;
+        bool IsRegionAttribute = false;
+        int NumNodesPerTets = 0;
+        int NumTetrahedra = 0;
         std::vector<FTet> Data;
     };
 
     struct FNameIndexMap
     {
-        std::string Name;
+        std::string Name = "";
         std::vector<uint32_t> TetIds;
         std::vector<uint32_t> NoFractureFaces;
-
-        FNameIndexMap()
-        {
-            Name = "";
-        }
     };
 
     struct FRigidBody
@@ -112,15 +108,15 @@ namespace AMD
         FVector Position;
         FVector Dimensions;
         FVector4 Rotation;
-        float mass;
+        float mass = 0.0f;
         std::vector<float> BodyInertiaTensor;
     };
 
     struct FAngleConstraint
     {
         std::string Name;
-        unsigned int BodyA;
-        unsigned int BodyB;
+        unsigned int BodyA = 0;
+        unsigned int BodyB = 0;
         FVector AxisBodySpaceA;
         FVector AxisBodySpaceB;
     };
@@ -128,45 +124,45 @@ namespace AMD
     struct FGlueConstraint
     {
         std::string Name;
-        unsigned int BodyA;
-        bool IsRigidBodyA;
-        unsigned int BodyB;
-        bool IsRigidBodyB;
+        unsigned int BodyA = 0;
+        bool IsRigidBodyA = false;
+        unsigned int BodyB = 0;
+        bool IsRigidBodyB = false;
         FVector4 PosBodySpaceA;
         FVector4 PosBodySpaceB;
-        unsigned int TetIdA;
-        unsigned int TetIdB;
-        float BreakThreshold;
-        unsigned int MinGlueConstraints;
+        unsigned int TetIdA = 0;
+        unsigned int TetIdB = 0;
+        float BreakThreshold = 0.0f;
+        unsigned int MinGlueConstraints = 0;
     };
 
     struct FFEMPlane
     {
-        float Bias;
-        bool NonNegative;
+        float Bias = 0.0f;
+        bool NonNegative = false;
         FVector PlaneNormal;
     };
 
     struct FPlaneConstraint : public FGlueConstraint
     {
-        int NumberOfPlanes;
+        int NumberOfPlanes = 0;
         std::vector<FFEMPlane> Planes;
     };
 
 
     struct FComponent
     {
-        int32_t NumberOfCornersPerShard;
+        int32_t NumberOfCornersPerShard = 0;
         std::string Name;
-        bool IsFracturable;
-        int CollisionGroup;
-        int NumTags;
+        bool IsFracturable = false;
+        int CollisionGroup = 0;
+        int NumTags = 0;
         std::vector<FNameIndexMap> Tags;
-        int NumMaterials;
+        int NumMaterials = 0;
         std::vector<FNameIndexMap> Materials;
         FEleResource EleFile;
         FNodeResource NodeFile;
-        int NumFBXFiles;
+        int NumFBXFiles = 0;
         std::vector<std::string> FBXFiles;
         std::vector<int> AssignedTetFace;
         std::vector<float> Barycentrics;
@@ -180,42 +176,31 @@ namespace AMD
         std::vector<int32_t> ShardIds;
         std::vector<int32_t> Triangles;
         std::vector<float> Centroids;
-        int32_t NumberOfShards;
+        int32_t NumberOfShards = 0;
     };
 
     struct FTetVertIds
     {
-        unsigned int Ids[4];
+        unsigned int Ids[4] = { 0, 0, 0, 0 };
     };
 
     struct FTetIdxToMaterial
     {
-        unsigned int tetIndex;
-
+        unsigned int tetIndex = 0;
     };
 
     struct FBVSizes
     {
-        int totalSize;
-        int nodeSize;
-        int primBoxesSize;
-        int boxesSize;
-        int mortonCodesSize;
-        int mortonCodesSortedSize;
-        int primIndicesSortedSize;
-        int numPrimsSize;
+        int totalSize = 0;
+        int nodeSize = 0;
+        int primBoxesSize = 0;
+        int boxesSize = 0;
+        int mortonCodesSize = 0;
+        int mortonCodesSortedSize = 0;
+        int primIndicesSortedSize = 0;
+        int numPrimsSize = sizeof(unsigned int);
 
-        FBVSizes()
-        {
-            totalSize = 0;
-            nodeSize = 0;
-            primBoxesSize = 0;
-            boxesSize = 0;
-            mortonCodesSize = 0;
-            mortonCodesSortedSize = 0;
-            primIndicesSortedSize = 0;
-            numPrimsSize = sizeof(unsigned int);
-        }
+        FBVSizes() {}
 
         void CalculateTotalSize()
         {
@@ -231,29 +216,29 @@ namespace AMD
 
     struct FTetMeshBufferInfo
     {
-        uint32_t pBufferOffset;
-        uint32_t tetMeshOffset;
-        uint32_t solverDataOffset;
-        uint32_t tetMeshVertOffsetsOffset;
-        uint32_t vertReferenceOffset;
-        uint32_t tetReferenceOffset;
+        uint32_t pBufferOffset = 0;
+        uint32_t tetMeshOffset = 0;
+        uint32_t solverDataOffset = 0;
+        uint32_t tetMeshVertOffsetsOffset = 0;
+        uint32_t vertReferenceOffset = 0;
+        uint32_t tetReferenceOffset = 0;
     };
 
     struct FComponentResources
     {
-        int32_t NumberOfCornersPerShard;
+        int32_t NumberOfCornersPerShard = 0;
         std::string Name;
-        int CollisionGroup;
+        int CollisionGroup = 0;
         std::vector<FNameIndexMap> Tags;
         std::vector<FNameIndexMap> Materials;
         std::vector<std::string> FBXFiles;
-        int NumVerts;
-        int NumTets;
-        float RestVolume;
+        int NumVerts = 0;
+        int NumTets = 0;
+        float RestVolume = 0.0f;
         FVector minPos;
         FVector maxPos;
-        int MaxVerts;
-        std::vector<uint8_t> restPositions;
+        int MaxVerts = 0;
+        std::vector<uint8_t> restPositions; // 3 * NumVerts floats
         std::vector<uint8_t> tetVertIds;
         std::vector<unsigned int> vertIncidentTets;
         std::vector<int> VertexIndices;
@@ -269,9 +254,9 @@ namespace AMD
         std::vector<int> ShardIds;
         std::vector<int> Triangles;
         std::vector<float> Centroids;
-        AMD::FmArray<unsigned int> VertPermutation;
-        AMD::FmArray<unsigned int> TetPermutation;
-        int32_t NumberOfShards;
+        std::vector<unsigned int> VertPermutation;
+        std::vector<unsigned int> TetPermutation;
+        int32_t NumberOfShards = 0;
     };
 
     struct FActorResource

@@ -30,6 +30,7 @@ THE SOFTWARE.
 #include "FEMFXAtomicOps.h"
 #include "FEMFXScene.h"
 #include "FEMFXMpcgSolver.h"
+#include "FEMFXThreading.h"
 #include "FEMFXThreadTempMemory.h"
 
 namespace AMD
@@ -37,11 +38,11 @@ namespace AMD
     // Vertex data collected for partitioning data after fracture
     struct FmCCVertData
     {
-        uint            vertId;
+        uint            vertId = FM_INVALID_ID;
         FmVertNeighbors vertNeighbors;
-        float           vertMass;
-        uint16_t        vertFlags;
-        uint            vertIndex0;
+        float           vertMass = 0.0f;
+        uint16_t        vertFlags = 0;
+        uint            vertIndex0 = 0;
         FmVector3       vertRestPos;
         FmVector3       vertPos;
         FmVector3       vertVel;
@@ -52,27 +53,25 @@ namespace AMD
     // Tet data collected for partitioning data after fracture
     struct FmCCTetData
     {
-        float                   tetMass;
-        float                   tetFrictionCoeff;
-        uint16_t                tetFlags;
-        FmTetShapeParams        tetShapeParams;
-        float                          tetRestDensity;
-        uint                           tetMaxUnconstrainedSolveIterations;
+        float                          tetMass = 0.0f;
+        float                          tetFrictionCoeff = 0.0f;
+        uint16_t                       tetFlags = 0;
+        FmTetShapeParams               tetShapeParams;
+        float                          tetRestDensity = 0.0f;
+        uint                           tetMaxUnconstrainedSolveIterations = 0;
         FmTetStressMaterialParams      tetStressMaterialParams;
         FmTetDeformationMaterialParams tetDeformationMaterialParams;
         FmTetPlasticityMaterialParams  tetPlasticityMaterialParams;
         FmTetFractureMaterialParams    tetFractureMaterialParams;
-        float                   tetStrainMag;
-        uint                    tetIndex0;
-        FmMatrix3               tetRotation;
-        FmTetFaceIncidentTetIds tetFaceIncidentTetIds;
-        FmTetVertIds            tetVertIds;
-        FmTetStiffnessState     tetStiffnessState;
-        FmTetPlasticityState    tetPlasticityState;
-        bool                    enablePlasticity;
-        bool                    enableFracture;
-
-        FmCCTetData(): enablePlasticity(false), enableFracture(false) {}
+        float                          tetStrainMag = 0.0f;
+        uint                           tetIndex0 = 0;
+        FmMatrix3                      tetRotation;
+        FmTetFaceIncidentTetIds        tetFaceIncidentTetIds;
+        FmTetVertIds                   tetVertIds;
+        FmTetStiffnessState            tetStiffnessState;
+        FmTetPlasticityState           tetPlasticityState;
+        bool                           enablePlasticity = false;
+        bool                           enableFracture = false;
     };
 
     struct FmCCExteriorFaceData
@@ -125,8 +124,8 @@ namespace AMD
         tetData.tetFaceIncidentTetIds = tetMesh->tetsFaceIncidentTetIds[srcId];
         tetData.tetVertIds = tetMesh->tetsVertIds[srcId];
         tetData.tetStiffnessState = tetMesh->tetsStiffness[srcId];
-        tetData.enablePlasticity = (tetMesh->tetsPlasticity != NULL);
-        tetData.enableFracture = (tetMesh->tetsToFracture != NULL);
+        tetData.enablePlasticity = (tetMesh->tetsPlasticity != nullptr);
+        tetData.enableFracture = (tetMesh->tetsToFracture != nullptr);
         if (tetData.enableFracture)
         {
             tetData.tetFractureMaterialParams = tetMesh->tetsFractureMaterialParams[srcId];
@@ -190,7 +189,7 @@ namespace AMD
         uint numMeshes = tetMeshBuffer.numTetMeshes;
         uint nextFreeMeshIdx = numMeshes;
 
-        int workerIndex = scene->taskSystemCallbacks.GetTaskSystemWorkerIndex();
+        int workerIndex = TLGetTaskSystemThreadIndex();
         uint8_t* pTempBufferStart = scene->threadTempMemoryBuffer->buffers[workerIndex];
         uint8_t* pTempBufferEnd = pTempBufferStart + scene->threadTempMemoryBuffer->numBytesPerBuffer;
 
@@ -241,7 +240,7 @@ namespace AMD
 #endif
 
 #if FM_DEBUG_CHECKS
-                bool* seenFractureGroup = new bool[tetMeshBuffer.maxTetMeshes];
+                bool* seenFractureGroup = FmMallocArray<bool>(tetMeshBuffer.maxTetMeshes);
                 for (uint i = 0; i < tetMeshBuffer.maxTetMeshes; i++)
                 {
                     seenFractureGroup[i] = false;
@@ -266,7 +265,7 @@ namespace AMD
                 {
                     seenFractureGroup[i] = false;
                 }
-                delete [] seenFractureGroup;
+                FmAlignedFree(seenFractureGroup);
 #endif
 
                 // Start with vert 0 on queue, set all other features unvisited.
@@ -474,16 +473,16 @@ namespace AMD
                             newTetMesh.tetsMaxUnconstrainedSolveIterations = tetMesh.tetsMaxUnconstrainedSolveIterations + newMeshTetOffset;
                             newTetMesh.tetsStressMaterialParams = tetMesh.tetsStressMaterialParams + newMeshTetOffset;
                             newTetMesh.tetsDeformationMaterialParams = tetMesh.tetsDeformationMaterialParams + newMeshTetOffset;
-                            newTetMesh.tetsFractureMaterialParams = tetMesh.tetsFractureMaterialParams ? tetMesh.tetsFractureMaterialParams + newMeshTetOffset : NULL;
-                            newTetMesh.tetsPlasticityMaterialParams = tetMesh.tetsPlasticityMaterialParams ? tetMesh.tetsPlasticityMaterialParams + newMeshTetOffset : NULL;
+                            newTetMesh.tetsFractureMaterialParams = tetMesh.tetsFractureMaterialParams ? tetMesh.tetsFractureMaterialParams + newMeshTetOffset : nullptr;
+                            newTetMesh.tetsPlasticityMaterialParams = tetMesh.tetsPlasticityMaterialParams ? tetMesh.tetsPlasticityMaterialParams + newMeshTetOffset : nullptr;
                             newTetMesh.tetsStrainMag = tetMesh.tetsStrainMag + newMeshTetOffset;
                             newTetMesh.tetsIndex0 = tetMesh.tetsIndex0 + newMeshTetOffset;
                             newTetMesh.tetsRotation = tetMesh.tetsRotation + newMeshTetOffset;
                             newTetMesh.tetsFaceIncidentTetIds = tetMesh.tetsFaceIncidentTetIds + newMeshTetOffset;
                             newTetMesh.tetsVertIds = tetMesh.tetsVertIds + newMeshTetOffset;
                             newTetMesh.tetsStiffness = tetMesh.tetsStiffness + newMeshTetOffset;
-                            newTetMesh.tetsToFracture = tetMesh.tetsToFracture ? tetMesh.tetsToFracture + newMeshTetOffset : NULL;
-                            newTetMesh.tetsPlasticity = tetMesh.tetsPlasticity ? tetMesh.tetsPlasticity + newMeshTetOffset : NULL;
+                            newTetMesh.tetsToFracture = tetMesh.tetsToFracture ? tetMesh.tetsToFracture + newMeshTetOffset : nullptr;
+                            newTetMesh.tetsPlasticity = tetMesh.tetsPlasticity ? tetMesh.tetsPlasticity + newMeshTetOffset : nullptr;
 
                             newTetMesh.exteriorFaces = tetMesh.exteriorFaces + newMeshExteriorFaceOffset;
                             newTetMesh.bvh.nodes = tetMesh.bvh.nodes + newMeshBvhNodeOffset;

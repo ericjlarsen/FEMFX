@@ -29,6 +29,7 @@ THE SOFTWARE.
 
 #include "FemResource.h"
 #include "PartitionFemMesh.h"
+#include <cstring>
 
 namespace AMD
 {
@@ -70,7 +71,7 @@ namespace AMD
             AMD::FmTetVertIds* tetVertIds = new AMD::FmTetVertIds[comp.NumTets];
             AMD::FmArray<unsigned int>* vertIncidentTets = new AMD::FmArray<unsigned int>[comp.NumVerts];
 
-            for (int i = 0; i < nodeResource.Data.size(); i += 4)
+            for (int i = 0; i < static_cast<int>(nodeResource.Data.size()); i += 4)
             {
                 // This is part of the code that is hard coded to only support 3 dimensional tets
                 //int numDimensions = nodeResource.NumDimensions;
@@ -123,16 +124,16 @@ namespace AMD
             else
 #endif
             {
-                comp.VertPermutation.Clear();
+                comp.VertPermutation.clear();
                 for (int i = 0; i < comp.NumVerts; i++)
                 {
-                    comp.VertPermutation.Add(i);
+                    comp.VertPermutation.push_back(i);
                 }
 
-                comp.TetPermutation.Clear();
+                comp.TetPermutation.clear();
                 for (int i = 0; i < comp.NumTets; i++)
                 {
-                    comp.TetPermutation.Add(i);
+                    comp.TetPermutation.push_back(i);
                 }
             }
 
@@ -157,13 +158,19 @@ namespace AMD
 
             comp.RestVolume = AMD::FmComputeTetMeshVolume(restPositions, tetVertIds, comp.NumTets);
 
-            int restPosSize = sizeof(AMD::FmVector3) * comp.NumVerts;
+            int restPosSize = sizeof(float) * 3 * comp.NumVerts;
             int tetVertIdsSize = sizeof(AMD::FmTetVertIds) * comp.NumTets;
 
             comp.restPositions.reserve(restPosSize);
             for (int i = 0; i < restPosSize; i++) comp.restPositions.push_back(0);
 
-            memcpy(comp.restPositions.data(), restPositions, restPosSize);
+            for (int i = 0; i < comp.NumVerts; i++)
+            {
+                float* dstPos = reinterpret_cast<float*>(comp.restPositions.data()) + i * 3;
+                dstPos[0] = restPositions[i].x;
+                dstPos[1] = restPositions[i].y;
+                dstPos[2] = restPositions[i].z;
+            }
 
             comp.tetVertIds.reserve(tetVertIdsSize);
             for (int i = 0; i < tetVertIdsSize; i++) comp.tetVertIds.push_back(0);
@@ -222,12 +229,19 @@ namespace AMD
 
         comp.RestVolume = AMD::FmComputeTetMeshVolume(restPositions, tetVertIds, comp.NumTets);
 
-        int restPosSize = sizeof(AMD::FmVector3) * comp.NumVerts;
+        int restPosSize = sizeof(float) * 3 * comp.NumVerts;
         int tetVertIdsSize = sizeof(AMD::FmTetVertIds) * comp.NumTets;
 
         comp.restPositions.reserve(restPosSize);
         for (int i = 0; i < restPosSize; i++) comp.restPositions.push_back(0);
-        memcpy(comp.restPositions.data(), restPositions, restPosSize);
+
+        for (int i = 0; i < comp.NumVerts; i++)
+        {
+            float* dstPos = reinterpret_cast<float*>(comp.restPositions.data()) + i * 3;
+            dstPos[0] = restPositions[i].x;
+            dstPos[1] = restPositions[i].y;
+            dstPos[2] = restPositions[i].z;
+        }
 
         comp.tetVertIds.reserve(tetVertIdsSize);
         for (int i = 0; i < tetVertIdsSize; i++) comp.tetVertIds.push_back(0);
@@ -236,7 +250,7 @@ namespace AMD
         for (int i = 0; i < comp.NumVerts; ++i)
         {
             comp.vertIncidentTets.push_back((uint)vertIncidentTets[i].size());
-            for (int j = 0; j < vertIncidentTets[i].size(); ++j)
+            for (int j = 0; j < static_cast<int>(vertIncidentTets[i].size()); ++j)
             {
                 comp.vertIncidentTets.push_back(vertIncidentTets[i][j]);
             }

@@ -40,7 +40,11 @@ namespace AMD
 
             if (newValue > maxValue)
             {
+#if defined(_MSC_VER)
                 int32_t compareValue = InterlockedCompareExchange(pValue, newValue, initialVal);
+#elif defined(__GNUC__)
+                int32_t compareValue = __sync_val_compare_and_swap((volatile int32_t *)pValue, initialVal, newValue);
+#endif
                 if (compareValue == initialVal)
                 {
                     break;

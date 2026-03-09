@@ -33,7 +33,7 @@ THE SOFTWARE.
 
 #define TL_TASKQ_MAX_TASKS 32768
 
-#define TL_TASKQ_UNINITIALIZED_INDEX 0x80000000
+#define TL_TASKQ_UNINITIALIZED_INDEX static_cast<int32_t>(0x80000000)
 
 #define TL_TASKQ_GET_BOUNDS(bounds, lowIdx, numTasks) \
     lowIdx = (bounds) >> 32; \
@@ -51,25 +51,6 @@ THE SOFTWARE.
 
 namespace AMD
 {
-    typedef void(*TLTaskCallback)(void* taskData, int32_t taskBeginIndex, int32_t taskEndIndex);
-
-    // A task is a function pointer, data, and index.
-    struct TLTask
-    {
-        TLTaskCallback func;       // task function callback
-        void*          data;       // pointer to input data
-        int32_t        beginIndex; // task specific index, TL_TASKQ_UNINITIALIZED_INDEX reserved for uninitialized
-        int32_t        endIndex;   // task specific index
-
-        TLTask()
-        {
-            func = NULL;
-            data = NULL;
-            beginIndex = TL_TASKQ_UNINITIALIZED_INDEX;
-            endIndex = 0;
-        }
-    };
-
     // Single-producer multi-consumer queue for threads to add and claim tasks.
     // Allows one worker thread to append tasks and claim from the 
     // end of queue, while other threads may take tasks from beginning.
@@ -100,17 +81,17 @@ namespace AMD
         inline void Init()
         {
 #if TL_TASKQ_USE_LOCK
-            TLAtomicWrite(&lock.val, 0);
+            lock.val = 0;
 #endif
-            TLAtomicWrite64(&bounds.val, 0);
+            bounds.val = 0;
 
             for (int32_t i = 0; i < TL_TASKQ_MAX_TASKS; i++)
             {
-                tasksBuffer[i] = TLTask();
+                tasksBuffer[i] = TLTask(nullptr, nullptr, TL_TASKQ_UNINITIALIZED_INDEX, 0);
             }
 
-            prev = NULL;
-            next = NULL;
+            prev = nullptr;
+            next = nullptr;
         }
 
         inline TLTaskQueue* GetNextQueue()
@@ -431,7 +412,7 @@ namespace AMD
         {
             // Free all queues
             TLTaskQueue* queue = first;
-            while (queue != NULL)
+            while (queue != nullptr)
             {
                 TLTaskQueue* next = queue->GetNextQueue();
 
@@ -456,7 +437,7 @@ namespace AMD
 
                 queue = queue->GetNextQueue();
 
-            } while (queue != NULL);
+            } while (queue != nullptr);
 
             return false;
 #else
@@ -479,7 +460,7 @@ namespace AMD
 
                 queue = queue->GetPrevQueue();
 
-            } while (queue != NULL);
+            } while (queue != nullptr);
 
             return false;
 #else
@@ -506,7 +487,7 @@ namespace AMD
 
                 queue = queue->GetNextQueue();
 
-            } while (queue != NULL);
+            } while (queue != nullptr);
 
             // Couldn't submit even to last queue, so add queue
             TLTaskQueue* next = new TLTaskQueue();

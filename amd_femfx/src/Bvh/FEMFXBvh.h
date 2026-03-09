@@ -64,15 +64,9 @@ namespace AMD
     {
         FmAabb box;
         //int parent;
-        int left;
-        int right;
+        int left = 0;
+        int right = 0;
         //int next;
-
-        FmBvhNode()
-        {
-            left = 0;
-            right = 0;
-        }
     };
 
     // Bounding volume hierarchy built as binary tree of axis-aligned boxes.
@@ -81,20 +75,11 @@ namespace AMD
     // BVH is rebuilt from scratch each step, using code from RadeonRays library.
     struct FmBvh
     {
-        FmBvhNode* nodes;
-        FmAabb*    primBoxes;
-        int*       mortonCodesSorted;
-        int*       primIndicesSorted;
-        uint       numPrims;
-
-        FmBvh()
-        {
-            nodes = NULL;
-            primBoxes = NULL;
-            mortonCodesSorted = NULL;
-            primIndicesSorted = NULL;
-            numPrims = 0;
-        }
+        FmBvhNode* nodes = nullptr;
+        FmAabb*    primBoxes = nullptr;
+        int*       mortonCodesSorted = nullptr;
+        int*       primIndicesSorted = nullptr;
+        uint       numPrims = 0;
 
         FmBvhNode& GetLeafNode(uint primIdx)
         {
@@ -111,10 +96,10 @@ namespace AMD
 
     static inline void FmInitBvh(FmBvh* bvh)
     {
-        bvh->nodes = NULL;
-        bvh->primBoxes = NULL;
-        bvh->mortonCodesSorted = NULL;
-        bvh->primIndicesSorted = NULL;
+        bvh->nodes = nullptr;
+        bvh->primBoxes = nullptr;
+        bvh->mortonCodesSorted = nullptr;
+        bvh->primIndicesSorted = nullptr;
         bvh->numPrims = 0;
     }
 

@@ -1,12 +1,12 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
-    <ProjectConfiguration Include="Debug|x64">
-      <Configuration>Debug</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
     <ProjectConfiguration Include="Release|x64">
       <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
@@ -16,69 +16,48 @@
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>AMD_FEMFX</RootNamespace>
     <ProjectName>AMD_FEMFX</ProjectName>
-    <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
-    <UseDebugLibraries>true</UseDebugLibraries>
-    <CharacterSet>Unicode</CharacterSet>
-    <PlatformToolset>v141</PlatformToolset>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <CharacterSet>Unicode</CharacterSet>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-  </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <OutDir>lib\</OutDir>
-    <IntDir>obj\vs2017\x86_64\x64\Debug\</IntDir>
-    <TargetName>AMD_FEMFX_d</TargetName>
-    <TargetExt>.lib</TargetExt>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <OutDir>lib\</OutDir>
-    <IntDir>obj\vs2017\x86_64\x64\Release\</IntDir>
+    <OutDir>$(ProjectDir)lib\</OutDir>
+    <IntDir>$(ProjectDir)obj\vs2022\x86_64\x64\Release\</IntDir>
     <TargetName>AMD_FEMFX</TargetName>
     <TargetExt>.lib</TargetExt>
   </PropertyGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <ClCompile>
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <WarningLevel>Level4</WarningLevel>
-      <PreprocessorDefinitions>WIN32;NOMINMAX;_DEBUG;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>inc;inc\Vectormath;..\external\trace;src\Bvh;src\Common;src\ConstraintSolver;src\FindContacts;src\PrimitiveCollision;src\Scene;src\Simulation;src\SparseSolvers;src\Threading;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
-      <Optimization>Disabled</Optimization>
-      <MinimalRebuild>false</MinimalRebuild>
-      <ExceptionHandling>false</ExceptionHandling>
-      <BufferSecurityCheck>false</BufferSecurityCheck>
-      <FloatingPointModel>Fast</FloatingPointModel>
-      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
-    </ClCompile>
-    <Link>
-      <SubSystem>Windows</SubSystem>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
-    </Link>
-  </ItemDefinitionGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <OutDir>$(ProjectDir)lib\</OutDir>
+    <IntDir>$(ProjectDir)obj\vs2022\x86_64\x64\Debug\</IntDir>
+    <TargetName>AMD_FEMFX_d</TargetName>
+    <TargetExt>.lib</TargetExt>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
-      <PreprocessorDefinitions>WIN32;NOMINMAX;NDEBUG;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>inc;inc\Vectormath;..\external\trace;src\Bvh;src\Common;src\ConstraintSolver;src\FindContacts;src\PrimitiveCollision;src\Scene;src\Simulation;src\SparseSolvers;src\Threading;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;NOMINMAX;MTR_ENABLED;NDEBUG;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>inc;inc\Vectormath;TL\inc;src\Bvh;src\Common;src\ConstraintSolver;src\FindContacts;src\PrimitiveCollision;src\Scene;src\Simulation;src\SparseSolvers;..\external\minitrace;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -86,10 +65,9 @@
       <MinimalRebuild>false</MinimalRebuild>
       <StringPooling>true</StringPooling>
       <ExceptionHandling>false</ExceptionHandling>
-      <BufferSecurityCheck>false</BufferSecurityCheck>
       <FloatingPointModel>Fast</FloatingPointModel>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -97,6 +75,28 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
+    <ProjectReference>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level4</WarningLevel>
+      <PreprocessorDefinitions>WIN32;NOMINMAX;MTR_ENABLED;_DEBUG;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>inc;inc\Vectormath;TL\inc;src\Bvh;src\Common;src\ConstraintSolver;src\FindContacts;src\PrimitiveCollision;src\Scene;src\Simulation;src\SparseSolvers;..\external\minitrace;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
+      <Optimization>Disabled</Optimization>
+      <ExceptionHandling>false</ExceptionHandling>
+      <FloatingPointModel>Fast</FloatingPointModel>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+    <ProjectReference>
+    </ProjectReference>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="inc\AMD_FEMFX.h" />
@@ -104,9 +104,9 @@
     <ClInclude Include="inc\FEMFXCommon.h" />
     <ClInclude Include="inc\FEMFXRigidBodyState.h" />
     <ClInclude Include="inc\FEMFXSerialize.h" />
-    <ClInclude Include="inc\FEMFXTaskSystemInterface.h" />
     <ClInclude Include="inc\FEMFXTetMaterialParams.h" />
     <ClInclude Include="inc\FEMFXTetMeshConnectivity.h" />
+    <ClInclude Include="inc\FEMFXTrace.h" />
     <ClInclude Include="inc\FEMFXTypes.h" />
     <ClInclude Include="inc\Vectormath\FEMFXVectorMath.h" />
     <ClInclude Include="inc\Vectormath\avx_mathfun.h" />
@@ -145,6 +145,7 @@
     <ClInclude Include="src\Common\FEMFXSort.h" />
     <ClInclude Include="src\Common\FEMFXSvd3x3.h" />
     <ClInclude Include="src\Common\FEMFXTetMath.h" />
+    <ClInclude Include="src\Common\FEMFXThreading.h" />
     <ClInclude Include="src\ConstraintSolver\FEMFXConstraintIslands.h" />
     <ClInclude Include="src\ConstraintSolver\FEMFXConstraintSolveTaskGraph.h" />
     <ClInclude Include="src\ConstraintSolver\FEMFXConstraintSolver.h" />
@@ -177,9 +178,6 @@
     <ClInclude Include="src\SparseSolvers\FEMFXMpcgSolver.h" />
     <ClInclude Include="src\SparseSolvers\FEMFXMpcgSolverSetup.h" />
     <ClInclude Include="src\SparseSolvers\FEMFXSolverMath.h" />
-    <ClInclude Include="src\Threading\FEMFXAsyncThreading.h" />
-    <ClInclude Include="src\Threading\FEMFXParallelFor.h" />
-    <ClInclude Include="src\Threading\FEMFXTaskGraph.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Bvh\FEMFXBvhBuild.cpp" />
@@ -221,7 +219,11 @@
     <ClCompile Include="src\SparseSolvers\FEMFXGsSolver.cpp" />
     <ClCompile Include="src\SparseSolvers\FEMFXMpcgSolver.cpp" />
     <ClCompile Include="src\SparseSolvers\FEMFXMpcgSolverSetup.cpp" />
-    <ClCompile Include="src\Threading\FEMFXParallelFor.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="TL\TL_vs2022.vcxproj">
+      <Project>{65755900-5101-880B-BAAF-880BA65A880B}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -33,9 +33,9 @@ namespace AMD
     {
         FmRigidBody* rigidBody = (FmRigidBody*)FmAlignedMalloc(sizeof(FmRigidBody), 64);
 
-        if (rigidBody == NULL)
+        if (rigidBody == nullptr)
         {
-            return NULL;
+            return nullptr;
         }
 
         rigidBody->Init();
@@ -98,7 +98,7 @@ namespace AMD
 
     void FmSetPosition(FmScene* scene, FmRigidBody* rigidBody, const FmVector3& position)
     {
-        if (rigidBody == NULL)
+        if (rigidBody == nullptr)
         {
             return;
         }
@@ -113,7 +113,7 @@ namespace AMD
 
     void FmSetVelocity(FmScene* scene, FmRigidBody* rigidBody, const FmVector3& velocity)
     {
-        if (rigidBody == NULL)
+        if (rigidBody == nullptr)
         {
             return;
         }
@@ -128,7 +128,7 @@ namespace AMD
 
     void FmSetRotation(FmScene* scene, FmRigidBody* rigidBody, const FmQuat& rotation)
     {
-        if (rigidBody == NULL)
+        if (rigidBody == nullptr)
         {
             return;
         }
@@ -143,7 +143,7 @@ namespace AMD
 
     void FmSetAngularVelocity(FmScene* scene, FmRigidBody* rigidBody, const FmVector3& angularVelocity)
     {
-        if (rigidBody == NULL)
+        if (rigidBody == nullptr)
         {
             return;
         }
@@ -158,7 +158,7 @@ namespace AMD
 
     void FmSetState(FmScene* scene, FmRigidBody* rigidBody, const FmRigidBodyState& state)
     {
-        if (rigidBody == NULL)
+        if (rigidBody == nullptr)
         {
             return;
         }
@@ -174,7 +174,7 @@ namespace AMD
 
     void FmSetCollisionGroup(FmRigidBody* rigidBody, uint8_t collisionGroup)
     {
-        if (rigidBody == NULL)
+        if (rigidBody == nullptr)
         {
             return;
         }
@@ -184,7 +184,7 @@ namespace AMD
 
     void FmSetGravity(FmRigidBody* rigidBody, const FmVector3& gravityVector)
     {
-        if (rigidBody == NULL)
+        if (rigidBody == nullptr)
         {
             return;
         }

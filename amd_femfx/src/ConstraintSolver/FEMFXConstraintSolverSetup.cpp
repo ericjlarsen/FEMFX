@@ -26,7 +26,7 @@ THE SOFTWARE.
 // Functions that setup the constraint solve for FEMFX objects and constraints
 //---------------------------------------------------------------------------------------
 
-#include "FEMFXParallelFor.h"
+#include "FEMFXThreading.h"
 #include "FEMFXConstraintSolveTaskGraph.h"
 #include "FEMFXConstraintSolver.h"
 #include "FEMFXConstraintIslands.h"
@@ -142,8 +142,8 @@ namespace AMD
         params->type = FM_SOLVER_CONSTRAINT_TYPE_3D_NORMAL2DFRICTION;
         params->flags = 0;
         params->frictionCoeff = 0.0f;
-        params->diagInverse[0] = FmInitSVector3(0.0f);
-        params->diagInverse[1] = FmInitSVector3(0.0f);
+        params->diagInverse[0] = FmSVector3(0.0f);
+        params->diagInverse[1] = FmSVector3(0.0f);
         params->jacobiansNumStates = 0;
         params->jacobianSubmatsOffset = 0;
         params->jacobianIndicesOffset = 0;
@@ -284,9 +284,9 @@ namespace AMD
 
         uint submatOffset = 0;
 
-        FmSVector3 normal = FmInitSVector3(contact.normal);
-        FmSVector3 tangent1 = FmInitSVector3(contact.tangent1);
-        FmSVector3 tangent2 = FmInitSVector3(cross(contact.normal, contact.tangent1));
+        FmSVector3 normal = FmSVector3(contact.normal);
+        FmSVector3 tangent1 = FmSVector3(contact.tangent1);
+        FmSVector3 tangent2 = FmSVector3(cross(contact.normal, contact.tangent1));
 
         FmSMatrix3 submatrix;
         submatrix.setCol0(normal);
@@ -302,9 +302,9 @@ namespace AMD
             submatOffset++;
         }
 
-        FmSVector3 Jvel = mul(submatrix, FmInitSVector3(rigidBody.state.vel));
+        FmSVector3 Jvel = submatrix * FmSVector3(rigidBody.state.vel);
 
-        FmSVector3 comToPosA = FmInitSVector3(contact.comToPosA[0], contact.comToPosA[1], contact.comToPosA[2]);
+        FmSVector3 comToPosA = FmSVector3(contact.comToPosA[0], contact.comToPosA[1], contact.comToPosA[2]);
         submatrix.setCol0(cross(comToPosA, normal));
         submatrix.setCol1(cross(comToPosA, tangent1));
         submatrix.setCol2(cross(comToPosA, tangent2));
@@ -318,7 +318,7 @@ namespace AMD
             submatOffset++;
         }
 
-        Jvel += mul(submatrix, FmInitSVector3(rigidBody.state.angVel));
+        Jvel += submatrix * FmSVector3(rigidBody.state.angVel);
 
         *Jvel_unconstrained += Jvel;
 
@@ -344,9 +344,9 @@ namespace AMD
 
         uint submatOffset = 0;
 
-        FmSVector3 normal = FmInitSVector3(contact.normal);
-        FmSVector3 tangent1 = FmInitSVector3(contact.tangent1);
-        FmSVector3 tangent2 = FmInitSVector3(cross(contact.normal, contact.tangent1));
+        FmSVector3 normal = FmSVector3(contact.normal);
+        FmSVector3 tangent1 = FmSVector3(contact.tangent1);
+        FmSVector3 tangent2 = FmSVector3(cross(contact.normal, contact.tangent1));
 
         FmSMatrix3 submatrix;
         submatrix.setCol0(-normal);
@@ -362,9 +362,9 @@ namespace AMD
             submatOffset++;
         }
 
-        FmSVector3 Jvel = mul(submatrix, FmInitSVector3(rigidBody.state.vel));
+        FmSVector3 Jvel = submatrix * FmSVector3(rigidBody.state.vel);
 
-        FmSVector3 comToPosB = FmInitSVector3(contact.comToPosB[0], contact.comToPosB[1], contact.comToPosB[2]);
+        FmSVector3 comToPosB = FmSVector3(contact.comToPosB[0], contact.comToPosB[1], contact.comToPosB[2]);
         submatrix.setCol0(cross(comToPosB, -normal));
         submatrix.setCol1(cross(comToPosB, -tangent1));
         submatrix.setCol2(cross(comToPosB, -tangent2));
@@ -378,7 +378,7 @@ namespace AMD
             submatOffset++;
         }
 
-        Jvel += mul(submatrix, FmInitSVector3(rigidBody.state.angVel));
+        Jvel += submatrix * FmSVector3(rigidBody.state.angVel);
 
         *Jvel_unconstrained += Jvel;
 
@@ -413,11 +413,11 @@ namespace AMD
         float weights2 = contact.posBaryA[2];
         float weights3 = contact.posBaryA[3];
 
-        FmSVector3 normal = FmInitSVector3(contact.normal);
-        FmSVector3 tangent1 = FmInitSVector3(contact.tangent1);
-        FmSVector3 tangent2 = FmInitSVector3(cross(contact.normal, contact.tangent1));
+        FmSVector3 normal = FmSVector3(contact.normal);
+        FmSVector3 tangent1 = FmSVector3(contact.tangent1);
+        FmSVector3 tangent2 = FmSVector3(cross(contact.normal, contact.tangent1));
 
-        FmSVector3 Jvel = FmInitSVector3(0.0f);
+        FmSVector3 Jvel = FmSVector3(0.0f);
 
         uint submatFlags = contactPairInfo.dynamicFlags | contact.movingFlags;
 
@@ -439,7 +439,7 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId0]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId0]);
         }
         if (submatFlags & 0x2)
         {
@@ -456,7 +456,7 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId1]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId1]);
         }
         if (submatFlags & 0x4)
         {
@@ -473,7 +473,7 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId2]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId2]);
         }
         if (submatFlags & 0x8)
         {
@@ -490,7 +490,7 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId3]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId3]);
         }
 
         *Jvel_unconstrained += Jvel;
@@ -526,11 +526,11 @@ namespace AMD
         float weights6 = -contact.posBaryB[2];
         float weights7 = -contact.posBaryB[3];
 
-        FmSVector3 normal = FmInitSVector3(contact.normal);
-        FmSVector3 tangent1 = FmInitSVector3(contact.tangent1);
-        FmSVector3 tangent2 = FmInitSVector3(cross(contact.normal, contact.tangent1));
+        FmSVector3 normal = FmSVector3(contact.normal);
+        FmSVector3 tangent1 = FmSVector3(contact.tangent1);
+        FmSVector3 tangent2 = FmSVector3(cross(contact.normal, contact.tangent1));
 
-        FmSVector3 Jvel = FmInitSVector3(0.0f);
+        FmSVector3 Jvel = FmSVector3(0.0f);
 
         uint submatFlags = contactPairInfo.dynamicFlags | contact.movingFlags;
 
@@ -552,7 +552,7 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId4]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId4]);
         }
         if (submatFlags & 0x20)
         {
@@ -569,7 +569,7 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId5]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId5]);
         }
         if (submatFlags & 0x40)
         {
@@ -586,7 +586,7 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId6]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId6]);
         }
         if (submatFlags & 0x80)
         {
@@ -603,7 +603,7 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId7]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId7]);
         }
 
         *Jvel_unconstrained += Jvel;
@@ -620,7 +620,7 @@ namespace AMD
         const FmVolumeContact& contact,
         const FmVolumeContactVert* volContactVerts)
     {
-        FmSVector3 Jvel = FmInitSVector3(0.0f);
+        FmSVector3 Jvel = FmSVector3(0.0f);
 
         uint submatOffset = 0;
         FmSMatrix3 submatrix;
@@ -629,10 +629,10 @@ namespace AMD
         {
             const FmVolumeContactVert& vert = volContactVerts[contact.volVertsStartA + vId];
             FmSVector3 row0, row1, row2;
-            FmSVector3 dVdp = FmInitSVector3(vert.dVdp);
-            FmSVector3 centerToVert = FmInitSVector3(vert.centerToVert);
+            FmSVector3 dVdp = FmSVector3(vert.dVdp);
+            FmSVector3 centerToVert = FmSVector3(vert.centerToVert);
 
-            FmSVector3 tangent1 = FmInitSVector3(vert.tangent);
+            FmSVector3 tangent1 = FmSVector3(vert.tangent);
             FmSVector3 tangent2 = FmSafeNormalize(cross(dVdp, tangent1), normalize(FmOrthogonalVector(tangent1)));
 #if FM_VOLCONTACT_TANGENT_PER_VERTEX
             float Ak = length(dVdp);
@@ -655,7 +655,7 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(rigidBody.state.vel));
+            Jvel += submatrix * FmSVector3(rigidBody.state.vel);
 
             submatrix.setCol0(cross(centerToVert, row0));
             submatrix.setCol1(cross(centerToVert, row1));
@@ -670,7 +670,7 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(rigidBody.state.angVel));
+            Jvel += submatrix * FmSVector3(rigidBody.state.angVel);
         }
 
         *Jvel_unconstrained += Jvel;
@@ -687,7 +687,7 @@ namespace AMD
         const FmVolumeContact& contact,
         const FmVolumeContactVert* volContactVerts)
     {
-        FmSVector3 Jvel = FmInitSVector3(0.0f);
+        FmSVector3 Jvel = FmSVector3(0.0f);
 
         uint submatOffset = 0;
         FmSMatrix3 submatrix;
@@ -696,10 +696,10 @@ namespace AMD
         {
             const FmVolumeContactVert& vert = volContactVerts[contact.volVertsStartB + vId];
             FmSVector3 row0, row1, row2;
-            FmSVector3 dVdp = FmInitSVector3(vert.dVdp);
-            FmSVector3 centerToVert = FmInitSVector3(vert.centerToVert);
+            FmSVector3 dVdp = FmSVector3(vert.dVdp);
+            FmSVector3 centerToVert = FmSVector3(vert.centerToVert);
 
-            FmSVector3 tangent1 = FmInitSVector3(vert.tangent);
+            FmSVector3 tangent1 = FmSVector3(vert.tangent);
             FmSVector3 tangent2 = FmSafeNormalize(cross(dVdp, tangent1), normalize(FmOrthogonalVector(tangent1)));
 #if FM_VOLCONTACT_TANGENT_PER_VERTEX
             float Ak = length(vert.dVdp);
@@ -722,7 +722,7 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(rigidBody.state.vel));
+            Jvel += submatrix * FmSVector3(rigidBody.state.vel);
 
             submatrix.setCol0(cross(centerToVert, row0));
             submatrix.setCol1(cross(centerToVert, row1));
@@ -737,7 +737,7 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(rigidBody.state.angVel));
+            Jvel += submatrix * FmSVector3(rigidBody.state.angVel);
         }
 
         *Jvel_unconstrained += Jvel;
@@ -756,7 +756,7 @@ namespace AMD
     {
         uint vertOffsetA = meshASolverData.solverStateOffset;
 
-        FmSVector3 Jvel = FmInitSVector3(0.0f);
+        FmSVector3 Jvel = FmSVector3(0.0f);
 
         uint submatOffset = 0;
         FmSMatrix3 submatrix;
@@ -767,9 +767,9 @@ namespace AMD
             uint vIdA = vert.vertId;
             uint svIdA = vIdA;
 
-            FmSVector3 dVdp = FmInitSVector3(vert.dVdp);
+            FmSVector3 dVdp = FmSVector3(vert.dVdp);
 
-            FmSVector3 tangent1 = FmInitSVector3(vert.tangent);
+            FmSVector3 tangent1 = FmSVector3(vert.tangent);
             FmSVector3 tangent2 = FmSafeNormalize(cross(dVdp, tangent1), normalize(FmOrthogonalVector(tangent1)));
 #if FM_VOLCONTACT_TANGENT_PER_VERTEX
             float Ak = length(dVdp);
@@ -789,7 +789,7 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vIdA]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vIdA]);
         }
 
         *Jvel_unconstrained += Jvel;
@@ -808,7 +808,7 @@ namespace AMD
     {
         uint vertOffsetB = meshBSolverData.solverStateOffset;
 
-        FmSVector3 Jvel = FmInitSVector3(0.0f);
+        FmSVector3 Jvel = FmSVector3(0.0f);
 
         uint submatOffset = 0;
         FmSMatrix3 submatrix;
@@ -819,9 +819,9 @@ namespace AMD
             uint vIdB = vert.vertId;
             uint svIdB = vIdB;
 
-            FmSVector3 dVdp = FmInitSVector3(vert.dVdp);
+            FmSVector3 dVdp = FmSVector3(vert.dVdp);
 
-            FmSVector3 tangent1 = FmInitSVector3(vert.tangent);
+            FmSVector3 tangent1 = FmSVector3(vert.tangent);
             FmSVector3 tangent2 = FmSafeNormalize(cross(dVdp, tangent1), normalize(FmOrthogonalVector(tangent1)));
 #if FM_VOLCONTACT_TANGENT_PER_VERTEX
             float Ak = length(dVdp);
@@ -841,7 +841,7 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vIdB]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vIdB]);
         }
 
         *Jvel_unconstrained += Jvel;
@@ -868,9 +868,9 @@ namespace AMD
         uint submatOffset = 0;
         FmSMatrix3 submatrix;
         uint idx;
-        submatrix.setCol0(FmInitSVector3(1.0f, 0.0f, 0.0f));
-        submatrix.setCol1(FmInitSVector3(0.0f, 1.0f, 0.0f));
-        submatrix.setCol2(FmInitSVector3(0.0f, 0.0f, 1.0f));
+        submatrix.setCol0(FmSVector3(1.0f, 0.0f, 0.0f));
+        submatrix.setCol1(FmSVector3(0.0f, 1.0f, 0.0f));
+        submatrix.setCol2(FmSVector3(0.0f, 0.0f, 1.0f));
         submatrix = transpose(submatrix);
         idx = stateVecOffsetA;
 
@@ -881,12 +881,12 @@ namespace AMD
             submatOffset++;
         }
 
-        FmSVector3 Jvel = mul(submatrix, FmInitSVector3(rigidBody.state.vel));
+        FmSVector3 Jvel = submatrix * FmSVector3(rigidBody.state.vel);
 
-        FmSVector3 comToPosA = FmInitSVector3(glueConstraint.comToPosA);
-        submatrix.setCol0(cross(comToPosA, FmInitSVector3(1.0f, 0.0f, 0.0f)));
-        submatrix.setCol1(cross(comToPosA, FmInitSVector3(0.0f, 1.0f, 0.0f)));
-        submatrix.setCol2(cross(comToPosA, FmInitSVector3(0.0f, 0.0f, 1.0f)));
+        FmSVector3 comToPosA = FmSVector3(glueConstraint.comToPosA);
+        submatrix.setCol0(cross(comToPosA, FmSVector3(1.0f, 0.0f, 0.0f)));
+        submatrix.setCol1(cross(comToPosA, FmSVector3(0.0f, 1.0f, 0.0f)));
+        submatrix.setCol2(cross(comToPosA, FmSVector3(0.0f, 0.0f, 1.0f)));
         submatrix = transpose(submatrix);
         idx++;
 
@@ -897,7 +897,7 @@ namespace AMD
             submatOffset++;
         }
 
-        Jvel += mul(submatrix, FmInitSVector3(rigidBody.state.angVel));
+        Jvel += submatrix * FmSVector3(rigidBody.state.angVel);
 
         *Jvel_unconstrained += Jvel;
 
@@ -923,9 +923,9 @@ namespace AMD
         uint submatOffset = 0;
         FmSMatrix3 submatrix;
         uint idx;
-        submatrix.setCol0(FmInitSVector3(-1.0f, 0.0f, 0.0f));
-        submatrix.setCol1(FmInitSVector3(0.0f, -1.0f, 0.0f));
-        submatrix.setCol2(FmInitSVector3(0.0f, 0.0f, -1.0f));
+        submatrix.setCol0(FmSVector3(-1.0f, 0.0f, 0.0f));
+        submatrix.setCol1(FmSVector3(0.0f, -1.0f, 0.0f));
+        submatrix.setCol2(FmSVector3(0.0f, 0.0f, -1.0f));
         submatrix = transpose(submatrix);
         idx = stateVecOffsetB;
 
@@ -936,12 +936,12 @@ namespace AMD
             submatOffset++;
         }
 
-        FmSVector3 Jvel = mul(submatrix, FmInitSVector3(rigidBody.state.vel));
+        FmSVector3 Jvel = submatrix * FmSVector3(rigidBody.state.vel);
 
-        FmSVector3 comToPosB = FmInitSVector3(glueConstraint.comToPosB);
-        submatrix.setCol0(cross(comToPosB, FmInitSVector3(-1.0f, 0.0f, 0.0f)));
-        submatrix.setCol1(cross(comToPosB, FmInitSVector3(0.0f, -1.0f, 0.0f)));
-        submatrix.setCol2(cross(comToPosB, FmInitSVector3(0.0f, 0.0f, -1.0f)));
+        FmSVector3 comToPosB = FmSVector3(glueConstraint.comToPosB);
+        submatrix.setCol0(cross(comToPosB, FmSVector3(-1.0f, 0.0f, 0.0f)));
+        submatrix.setCol1(cross(comToPosB, FmSVector3(0.0f, -1.0f, 0.0f)));
+        submatrix.setCol2(cross(comToPosB, FmSVector3(0.0f, 0.0f, -1.0f)));
         submatrix = transpose(submatrix);
         idx++;
 
@@ -952,7 +952,7 @@ namespace AMD
             submatOffset++;
         }
 
-        Jvel += mul(submatrix, FmInitSVector3(rigidBody.state.angVel));
+        Jvel += submatrix * FmSVector3(rigidBody.state.angVel);
 
         *Jvel_unconstrained += Jvel;
 
@@ -986,7 +986,7 @@ namespace AMD
         float weights2 = glueConstraint.posBaryA[2];
         float weights3 = glueConstraint.posBaryA[3];
 
-        FmSVector3 Jvel = FmInitSVector3(0.0f);
+        FmSVector3 Jvel = FmSVector3(0.0f);
 
         uint submatFlags = glueConstraint.dynamicFlags | glueConstraint.movingFlags;
 
@@ -995,9 +995,9 @@ namespace AMD
         uint idx;
         if (submatFlags & 0x1)
         {
-            submatrix.setCol0(FmInitSVector3(weights0, 0.0f, 0.0f));
-            submatrix.setCol1(FmInitSVector3(0.0f, weights0, 0.0f));
-            submatrix.setCol2(FmInitSVector3(0.0f, 0.0f, weights0));
+            submatrix.setCol0(FmSVector3(weights0, 0.0f, 0.0f));
+            submatrix.setCol1(FmSVector3(0.0f, weights0, 0.0f));
+            submatrix.setCol2(FmSVector3(0.0f, 0.0f, weights0));
             submatrix = transpose(submatrix);
             idx = vertOffsetA + svId0;
 
@@ -1008,13 +1008,13 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId0]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId0]);
         }
         if (submatFlags & 0x2)
         {
-            submatrix.setCol0(FmInitSVector3(weights1, 0.0f, 0.0f));
-            submatrix.setCol1(FmInitSVector3(0.0f, weights1, 0.0f));
-            submatrix.setCol2(FmInitSVector3(0.0f, 0.0f, weights1));
+            submatrix.setCol0(FmSVector3(weights1, 0.0f, 0.0f));
+            submatrix.setCol1(FmSVector3(0.0f, weights1, 0.0f));
+            submatrix.setCol2(FmSVector3(0.0f, 0.0f, weights1));
             submatrix = transpose(submatrix);
             idx = vertOffsetA + svId1;
 
@@ -1025,13 +1025,13 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId1]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId1]);
         }
         if (submatFlags & 0x4)
         {
-            submatrix.setCol0(FmInitSVector3(weights2, 0.0f, 0.0f));
-            submatrix.setCol1(FmInitSVector3(0.0f, weights2, 0.0f));
-            submatrix.setCol2(FmInitSVector3(0.0f, 0.0f, weights2));
+            submatrix.setCol0(FmSVector3(weights2, 0.0f, 0.0f));
+            submatrix.setCol1(FmSVector3(0.0f, weights2, 0.0f));
+            submatrix.setCol2(FmSVector3(0.0f, 0.0f, weights2));
             submatrix = transpose(submatrix);
             idx = vertOffsetA + svId2;
 
@@ -1042,13 +1042,13 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId2]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId2]);
         }
         if (submatFlags & 0x8)
         {
-            submatrix.setCol0(FmInitSVector3(weights3, 0.0f, 0.0f));
-            submatrix.setCol1(FmInitSVector3(0.0f, weights3, 0.0f));
-            submatrix.setCol2(FmInitSVector3(0.0f, 0.0f, weights3));
+            submatrix.setCol0(FmSVector3(weights3, 0.0f, 0.0f));
+            submatrix.setCol1(FmSVector3(0.0f, weights3, 0.0f));
+            submatrix.setCol2(FmSVector3(0.0f, 0.0f, weights3));
             submatrix = transpose(submatrix);
             idx = vertOffsetA + svId3;
 
@@ -1059,7 +1059,7 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId3]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId3]);
         }
 
         *Jvel_unconstrained += Jvel;
@@ -1094,7 +1094,7 @@ namespace AMD
         float weights6 = -glueConstraint.posBaryB[2];
         float weights7 = -glueConstraint.posBaryB[3];
 
-        FmSVector3 Jvel = FmInitSVector3(0.0f);
+        FmSVector3 Jvel = FmSVector3(0.0f);
 
         uint submatFlags = glueConstraint.dynamicFlags | glueConstraint.movingFlags;
 
@@ -1103,9 +1103,9 @@ namespace AMD
         uint idx;
         if (submatFlags & 0x10)
         {
-            submatrix.setCol0(FmInitSVector3(weights4, 0.0f, 0.0f));
-            submatrix.setCol1(FmInitSVector3(0.0f, weights4, 0.0f));
-            submatrix.setCol2(FmInitSVector3(0.0f, 0.0f, weights4));
+            submatrix.setCol0(FmSVector3(weights4, 0.0f, 0.0f));
+            submatrix.setCol1(FmSVector3(0.0f, weights4, 0.0f));
+            submatrix.setCol2(FmSVector3(0.0f, 0.0f, weights4));
             submatrix = transpose(submatrix);
             idx = vertOffsetB + svId4;
 
@@ -1116,13 +1116,13 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId4]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId4]);
         }
         if (submatFlags & 0x20)
         {
-            submatrix.setCol0(FmInitSVector3(weights5, 0.0f, 0.0f));
-            submatrix.setCol1(FmInitSVector3(0.0f, weights5, 0.0f));
-            submatrix.setCol2(FmInitSVector3(0.0f, 0.0f, weights5));
+            submatrix.setCol0(FmSVector3(weights5, 0.0f, 0.0f));
+            submatrix.setCol1(FmSVector3(0.0f, weights5, 0.0f));
+            submatrix.setCol2(FmSVector3(0.0f, 0.0f, weights5));
             submatrix = transpose(submatrix);
             idx = vertOffsetB + svId5;
 
@@ -1133,13 +1133,13 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId5]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId5]);
         }
         if (submatFlags & 0x40)
         {
-            submatrix.setCol0(FmInitSVector3(weights6, 0.0f, 0.0f));
-            submatrix.setCol1(FmInitSVector3(0.0f, weights6, 0.0f));
-            submatrix.setCol2(FmInitSVector3(0.0f, 0.0f, weights6));
+            submatrix.setCol0(FmSVector3(weights6, 0.0f, 0.0f));
+            submatrix.setCol1(FmSVector3(0.0f, weights6, 0.0f));
+            submatrix.setCol2(FmSVector3(0.0f, 0.0f, weights6));
             submatrix = transpose(submatrix);
             idx = vertOffsetB + svId6;
 
@@ -1150,13 +1150,13 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId6]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId6]);
         }
         if (submatFlags & 0x80)
         {
-            submatrix.setCol0(FmInitSVector3(weights7, 0.0f, 0.0f));
-            submatrix.setCol1(FmInitSVector3(0.0f, weights7, 0.0f));
-            submatrix.setCol2(FmInitSVector3(0.0f, 0.0f, weights7));
+            submatrix.setCol0(FmSVector3(weights7, 0.0f, 0.0f));
+            submatrix.setCol1(FmSVector3(0.0f, weights7, 0.0f));
+            submatrix.setCol2(FmSVector3(0.0f, 0.0f, weights7));
             submatrix = transpose(submatrix);
             idx = vertOffsetB + svId7;
 
@@ -1167,7 +1167,7 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId7]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId7]);
         }
 
         *Jvel_unconstrained += Jvel;
@@ -1194,9 +1194,9 @@ namespace AMD
         uint submatOffset = 0;
         FmSMatrix3 submatrix;
         uint idx;
-        submatrix.setCol0(FmInitSVector3(planeConstraint.planeNormal0));
-        submatrix.setCol1(FmInitSVector3(planeConstraint.planeNormal1));
-        submatrix.setCol2(FmInitSVector3(planeConstraint.planeNormal2));
+        submatrix.setCol0(FmSVector3(planeConstraint.planeNormal0));
+        submatrix.setCol1(FmSVector3(planeConstraint.planeNormal1));
+        submatrix.setCol2(FmSVector3(planeConstraint.planeNormal2));
         submatrix = transpose(submatrix);
         idx = stateVecOffsetA;
 
@@ -1207,12 +1207,12 @@ namespace AMD
             submatOffset++;
         }
 
-        FmSVector3 Jvel = mul(submatrix, FmInitSVector3(rigidBody.state.vel));
+        FmSVector3 Jvel = submatrix * FmSVector3(rigidBody.state.vel);
 
-        FmSVector3 comToPosA = FmInitSVector3(planeConstraint.comToPosA);
-        submatrix.setCol0(cross(comToPosA, FmInitSVector3(planeConstraint.planeNormal0)));
-        submatrix.setCol1(cross(comToPosA, FmInitSVector3(planeConstraint.planeNormal1)));
-        submatrix.setCol2(cross(comToPosA, FmInitSVector3(planeConstraint.planeNormal2)));
+        FmSVector3 comToPosA = FmSVector3(planeConstraint.comToPosA);
+        submatrix.setCol0(cross(comToPosA, FmSVector3(planeConstraint.planeNormal0)));
+        submatrix.setCol1(cross(comToPosA, FmSVector3(planeConstraint.planeNormal1)));
+        submatrix.setCol2(cross(comToPosA, FmSVector3(planeConstraint.planeNormal2)));
         submatrix = transpose(submatrix);
         idx++;
 
@@ -1223,7 +1223,7 @@ namespace AMD
             submatOffset++;
         }
 
-        Jvel += mul(submatrix, FmInitSVector3(rigidBody.state.angVel));
+        Jvel += submatrix * FmSVector3(rigidBody.state.angVel);
 
         *Jvel_unconstrained += Jvel;
 
@@ -1249,9 +1249,9 @@ namespace AMD
         uint submatOffset = 0;
         FmSMatrix3 submatrix;
         uint idx;
-        submatrix.setCol0(-FmInitSVector3(planeConstraint.planeNormal0));
-        submatrix.setCol1(-FmInitSVector3(planeConstraint.planeNormal1));
-        submatrix.setCol2(-FmInitSVector3(planeConstraint.planeNormal2));
+        submatrix.setCol0(-FmSVector3(planeConstraint.planeNormal0));
+        submatrix.setCol1(-FmSVector3(planeConstraint.planeNormal1));
+        submatrix.setCol2(-FmSVector3(planeConstraint.planeNormal2));
         submatrix = transpose(submatrix);
         idx = stateVecOffsetB;
 
@@ -1262,12 +1262,12 @@ namespace AMD
             submatOffset++;
         }
 
-        FmSVector3 Jvel = mul(submatrix, FmInitSVector3(rigidBody.state.vel));
+        FmSVector3 Jvel = submatrix * FmSVector3(rigidBody.state.vel);
 
-        FmSVector3 comToPosB = FmInitSVector3(planeConstraint.comToPosB);
-        submatrix.setCol0(cross(comToPosB, -FmInitSVector3(planeConstraint.planeNormal0)));
-        submatrix.setCol1(cross(comToPosB, -FmInitSVector3(planeConstraint.planeNormal1)));
-        submatrix.setCol2(cross(comToPosB, -FmInitSVector3(planeConstraint.planeNormal2)));
+        FmSVector3 comToPosB = FmSVector3(planeConstraint.comToPosB);
+        submatrix.setCol0(cross(comToPosB, -FmSVector3(planeConstraint.planeNormal0)));
+        submatrix.setCol1(cross(comToPosB, -FmSVector3(planeConstraint.planeNormal1)));
+        submatrix.setCol2(cross(comToPosB, -FmSVector3(planeConstraint.planeNormal2)));
         submatrix = transpose(submatrix);
         idx++;
 
@@ -1278,7 +1278,7 @@ namespace AMD
             submatOffset++;
         }
 
-        Jvel += mul(submatrix, FmInitSVector3(rigidBody.state.angVel));
+        Jvel += submatrix * FmSVector3(rigidBody.state.angVel);
 
         *Jvel_unconstrained += Jvel;
 
@@ -1312,7 +1312,7 @@ namespace AMD
         float weights2 = planeConstraint.posBaryA[2];
         float weights3 = planeConstraint.posBaryA[3];
 
-        FmSVector3 Jvel = FmInitSVector3(0.0f);
+        FmSVector3 Jvel = FmSVector3(0.0f);
 
         uint submatFlags = planeConstraint.dynamicFlags | planeConstraint.movingFlags;
 
@@ -1321,9 +1321,9 @@ namespace AMD
         uint idx;
         if (submatFlags & 0x1)
         {
-            submatrix.setCol0(FmInitSVector3(planeConstraint.planeNormal0)*weights0);
-            submatrix.setCol1(FmInitSVector3(planeConstraint.planeNormal1)*weights0);
-            submatrix.setCol2(FmInitSVector3(planeConstraint.planeNormal2)*weights0);
+            submatrix.setCol0(FmSVector3(planeConstraint.planeNormal0)*weights0);
+            submatrix.setCol1(FmSVector3(planeConstraint.planeNormal1)*weights0);
+            submatrix.setCol2(FmSVector3(planeConstraint.planeNormal2)*weights0);
             submatrix = transpose(submatrix);
             idx = vertOffsetA + svId0;
 
@@ -1334,13 +1334,13 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId0]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId0]);
         }
         if (submatFlags & 0x2)
         {
-            submatrix.setCol0(FmInitSVector3(planeConstraint.planeNormal0)*weights1);
-            submatrix.setCol1(FmInitSVector3(planeConstraint.planeNormal1)*weights1);
-            submatrix.setCol2(FmInitSVector3(planeConstraint.planeNormal2)*weights1);
+            submatrix.setCol0(FmSVector3(planeConstraint.planeNormal0)*weights1);
+            submatrix.setCol1(FmSVector3(planeConstraint.planeNormal1)*weights1);
+            submatrix.setCol2(FmSVector3(planeConstraint.planeNormal2)*weights1);
             submatrix = transpose(submatrix);
             idx = vertOffsetA + svId1;
 
@@ -1351,13 +1351,13 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId1]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId1]);
         }
         if (submatFlags & 0x4)
         {
-            submatrix.setCol0(FmInitSVector3(planeConstraint.planeNormal0)*weights2);
-            submatrix.setCol1(FmInitSVector3(planeConstraint.planeNormal1)*weights2);
-            submatrix.setCol2(FmInitSVector3(planeConstraint.planeNormal2)*weights2);
+            submatrix.setCol0(FmSVector3(planeConstraint.planeNormal0)*weights2);
+            submatrix.setCol1(FmSVector3(planeConstraint.planeNormal1)*weights2);
+            submatrix.setCol2(FmSVector3(planeConstraint.planeNormal2)*weights2);
             submatrix = transpose(submatrix);
             idx = vertOffsetA + svId2;
 
@@ -1368,13 +1368,13 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId2]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId2]);
         }
         if (submatFlags & 0x8)
         {
-            submatrix.setCol0(FmInitSVector3(planeConstraint.planeNormal0)*weights3);
-            submatrix.setCol1(FmInitSVector3(planeConstraint.planeNormal1)*weights3);
-            submatrix.setCol2(FmInitSVector3(planeConstraint.planeNormal2)*weights3);
+            submatrix.setCol0(FmSVector3(planeConstraint.planeNormal0)*weights3);
+            submatrix.setCol1(FmSVector3(planeConstraint.planeNormal1)*weights3);
+            submatrix.setCol2(FmSVector3(planeConstraint.planeNormal2)*weights3);
             submatrix = transpose(submatrix);
             idx = vertOffsetA + svId3;
 
@@ -1385,7 +1385,7 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId3]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId3]);
         }
 
         *Jvel_unconstrained += Jvel;
@@ -1420,7 +1420,7 @@ namespace AMD
         float weights6 = -planeConstraint.posBaryB[2];
         float weights7 = -planeConstraint.posBaryB[3];
 
-        FmSVector3 Jvel = FmInitSVector3(0.0f);
+        FmSVector3 Jvel = FmSVector3(0.0f);
 
         uint submatFlags = planeConstraint.dynamicFlags | planeConstraint.movingFlags;
 
@@ -1429,9 +1429,9 @@ namespace AMD
         uint idx;
         if (submatFlags & 0x10)
         {
-            submatrix.setCol0(FmInitSVector3(planeConstraint.planeNormal0)*weights4);
-            submatrix.setCol1(FmInitSVector3(planeConstraint.planeNormal1)*weights4);
-            submatrix.setCol2(FmInitSVector3(planeConstraint.planeNormal2)*weights4);
+            submatrix.setCol0(FmSVector3(planeConstraint.planeNormal0)*weights4);
+            submatrix.setCol1(FmSVector3(planeConstraint.planeNormal1)*weights4);
+            submatrix.setCol2(FmSVector3(planeConstraint.planeNormal2)*weights4);
             submatrix = transpose(submatrix);
             idx = vertOffsetB + svId4;
 
@@ -1442,13 +1442,13 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId4]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId4]);
         }
         if (submatFlags & 0x20)
         {
-            submatrix.setCol0(FmInitSVector3(planeConstraint.planeNormal0)*weights5);
-            submatrix.setCol1(FmInitSVector3(planeConstraint.planeNormal1)*weights5);
-            submatrix.setCol2(FmInitSVector3(planeConstraint.planeNormal2)*weights5);
+            submatrix.setCol0(FmSVector3(planeConstraint.planeNormal0)*weights5);
+            submatrix.setCol1(FmSVector3(planeConstraint.planeNormal1)*weights5);
+            submatrix.setCol2(FmSVector3(planeConstraint.planeNormal2)*weights5);
             submatrix = transpose(submatrix);
             idx = vertOffsetB + svId5;
 
@@ -1459,13 +1459,13 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId5]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId5]);
         }
         if (submatFlags & 0x40)
         {
-            submatrix.setCol0(FmInitSVector3(planeConstraint.planeNormal0)*weights6);
-            submatrix.setCol1(FmInitSVector3(planeConstraint.planeNormal1)*weights6);
-            submatrix.setCol2(FmInitSVector3(planeConstraint.planeNormal2)*weights6);
+            submatrix.setCol0(FmSVector3(planeConstraint.planeNormal0)*weights6);
+            submatrix.setCol1(FmSVector3(planeConstraint.planeNormal1)*weights6);
+            submatrix.setCol2(FmSVector3(planeConstraint.planeNormal2)*weights6);
             submatrix = transpose(submatrix);
             idx = vertOffsetB + svId6;
 
@@ -1476,13 +1476,13 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId6]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId6]);
         }
         if (submatFlags & 0x80)
         {
-            submatrix.setCol0(FmInitSVector3(planeConstraint.planeNormal0)*weights7);
-            submatrix.setCol1(FmInitSVector3(planeConstraint.planeNormal1)*weights7);
-            submatrix.setCol2(FmInitSVector3(planeConstraint.planeNormal2)*weights7);
+            submatrix.setCol0(FmSVector3(planeConstraint.planeNormal0)*weights7);
+            submatrix.setCol1(FmSVector3(planeConstraint.planeNormal1)*weights7);
+            submatrix.setCol2(FmSVector3(planeConstraint.planeNormal2)*weights7);
             submatrix = transpose(submatrix);
             idx = vertOffsetB + svId7;
 
@@ -1493,7 +1493,7 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId7]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId7]);
         }
 
         *Jvel_unconstrained += Jvel;
@@ -1523,7 +1523,7 @@ namespace AMD
         uint svId2 = vId2;
         uint svId3 = vId3;
 
-        FmSVector3 Jvel = FmInitSVector3(0.0f);
+        FmSVector3 Jvel = FmSVector3(0.0f);
 
         uint submatFlags = deformationConstraint.dynamicFlags | deformationConstraint.movingFlags;
 
@@ -1532,7 +1532,7 @@ namespace AMD
         uint idx;
         if (submatFlags & 0x1)
         {
-            submatrix = FmInitSMatrix3(deformationConstraint.jacobian0);
+            submatrix = FmSMatrix3(deformationConstraint.jacobian0);
             idx = vertOffsetA + svId0;
 
             if (deformationConstraint.dynamicFlags & 0x1)
@@ -1542,11 +1542,11 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId0]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId0]);
         }
         if (submatFlags & 0x2)
         {
-            submatrix = FmInitSMatrix3(deformationConstraint.jacobian1);
+            submatrix = FmSMatrix3(deformationConstraint.jacobian1);
             idx = vertOffsetA + svId1;
 
             if (deformationConstraint.dynamicFlags & 0x2)
@@ -1556,11 +1556,11 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId1]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId1]);
         }
         if (submatFlags & 0x4)
         {
-            submatrix = FmInitSMatrix3(deformationConstraint.jacobian2);
+            submatrix = FmSMatrix3(deformationConstraint.jacobian2);
             idx = vertOffsetA + svId2;
 
             if (deformationConstraint.dynamicFlags & 0x4)
@@ -1570,11 +1570,11 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId2]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId2]);
         }
         if (submatFlags & 0x8)
         {
-            submatrix = FmInitSMatrix3(deformationConstraint.jacobian3);
+            submatrix = FmSMatrix3(deformationConstraint.jacobian3);
             idx = vertOffsetA + svId3;
 
             if (deformationConstraint.dynamicFlags & 0x8)
@@ -1584,7 +1584,7 @@ namespace AMD
                 submatOffset++;
             }
 
-            Jvel += mul(submatrix, FmInitSVector3(tetMesh.vertsVel[vId3]));
+            Jvel += submatrix * FmSVector3(tetMesh.vertsVel[vId3]);
         }
 
         *Jvel_unconstrained += Jvel;
@@ -1611,7 +1611,7 @@ namespace AMD
         FmSMatrix3 submatrix;
         uint submatOffset = 0;
         
-        submatrix = FmInitSMatrix3(rigidBodyAngleConstraint.jacobianA);
+        submatrix = FmSMatrix3(rigidBodyAngleConstraint.jacobianA);
 
         if (isDynamic)
         {
@@ -1620,7 +1620,7 @@ namespace AMD
             submatOffset++;
         }
 
-        FmSVector3 Jvel = mul(submatrix, FmInitSVector3(rigidBody.state.angVel));
+        FmSVector3 Jvel = submatrix * FmSVector3(rigidBody.state.angVel);
 
         *Jvel_unconstrained += Jvel;
 
@@ -1646,7 +1646,7 @@ namespace AMD
         FmSMatrix3 submatrix;
         uint submatOffset = 0;
 
-        submatrix = FmInitSMatrix3(rigidBodyAngleConstraint.jacobianB);
+        submatrix = FmSMatrix3(rigidBodyAngleConstraint.jacobianB);
 
         if (isDynamic)
         {
@@ -1655,14 +1655,14 @@ namespace AMD
             submatOffset++;
         }
 
-        FmSVector3 Jvel = mul(submatrix, FmInitSVector3(rigidBody.state.angVel));
+        FmSVector3 Jvel = submatrix * FmSVector3(rigidBody.state.angVel);
 
         *Jvel_unconstrained += Jvel;
 
         return submatOffset;
     }
 
-    class FmTaskDataInitSolverData : public FmAsyncTaskData
+    class FmTaskDataInitSolverData : public TLTaskDataBase
     {
     public:
         FmScene* scene;
@@ -1676,6 +1676,8 @@ namespace AMD
         uint numRigidBodyTasks;
         uint numConstraints;
         uint numConstraintTasks;
+
+        TLTask postSetupConstraintSolveTask;
 
         FmTaskDataInitSolverData(
             FmScene* inScene, FmConstraintSolverData* inConstraintSolverData, FmConstraintIsland* inConstraintIsland,
@@ -1702,7 +1704,7 @@ namespace AMD
 
     void FmTaskFuncInitMeshSolverArrayData(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
-        FM_TRACE_SCOPED_EVENT(ISLAND_SOLVE_INIT_MESH_DATA);
+        FM_TRACE_SCOPED_EVENT("IslandSolveInitMeshData");
 
         FmTaskDataInitSolverData* taskData = (FmTaskDataInitSolverData*)inTaskData;
         FmScene* scene = taskData->scene;
@@ -1727,26 +1729,24 @@ namespace AMD
                 constraintSolverData->DAinv[stateOffset + vId] = meshMpcgData.PInvDiag[vId];
                 float invMass = 1.0f / meshMpcgData.mass[vId];
 
-                meshMpcgData.b[vId] = FmInitSVector3(0.0f);
+                meshMpcgData.b[vId] = FmSVector3(0.0f);
 
                 constraintSolverData->W[stateOffset + vId] =
-                    FmInitSMatrix3(
-                        FmInitSVector3(invMass, 0.0f, 0.0f),
-                        FmInitSVector3(0.0f, invMass, 0.0f),
-                        FmInitSVector3(0.0f, 0.0f, invMass));
+                    FmSMatrix3(
+                        FmSVector3(invMass, 0.0f, 0.0f),
+                        FmSVector3(0.0f, invMass, 0.0f),
+                        FmSVector3(0.0f, 0.0f, invMass));
 
-                constraintSolverData->deltaVel[stateOffset + vId] = FmInitSVector3(0.0f);
-                constraintSolverData->JTlambda[stateOffset + vId] = FmInitSVector3(0.0f);
+                constraintSolverData->deltaVel[stateOffset + vId] = FmSVector3(0.0f);
+                constraintSolverData->JTlambda[stateOffset + vId] = FmSVector3(0.0f);
             }
         }
-
-        taskData->progress.TasksAreFinished(endIdx - beginIdx);
     }
 
 #if FM_CONSTRAINT_STABILIZATION_SOLVE
     void FmTaskFuncInitMeshSolverArrayDataForStabilization(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
-        FM_TRACE_SCOPED_EVENT(ISLAND_SOLVE_INIT_MESH_DATA);
+        FM_TRACE_SCOPED_EVENT("IslandSolveInitMeshData");
 
         FmTaskDataInitSolverData* taskData = (FmTaskDataInitSolverData*)inTaskData;
         FmScene* scene = taskData->scene;
@@ -1778,26 +1778,28 @@ namespace AMD
                 // and J * (deltaPos + vel * deltat) >= -g0 (penetration correction)
                 // vel is pre-contact vel + contact solve deltaVel
                 constraintSolverData->velTemp[stateOffset + svId] =
-                    (FmInitSVector3(tetMesh.vertsVel[vId]) +
+                    (FmSVector3(tetMesh.vertsVel[vId]) +
                         constraintSolverData->deltaVel[stateOffset + svId]) * delta_t;
 
-                constraintSolverData->deltaPos[stateOffset + svId] = FmInitSVector3(0.0f);
-                constraintSolverData->JTlambda[stateOffset + svId] = FmInitSVector3(0.0f);
+                constraintSolverData->deltaPos[stateOffset + svId] = FmSVector3(0.0f);
+                constraintSolverData->JTlambda[stateOffset + svId] = FmSVector3(0.0f);
 
-                meshMpcgData.b[svId] = FmInitSVector3(0.0f);
+                meshMpcgData.b[svId] = FmSVector3(0.0f);
             }
         }
-
-        taskData->progress.TasksAreFinished(endIdx - beginIdx);
     }
 #endif
 
     void FmTaskFuncInitRbSolverArrayData(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(ISLAND_SOLVE_INIT_RB_DATA);
+        FM_TRACE_SCOPED_EVENT("IslandSolveInitRbData");
 
         FmTaskDataInitSolverData* taskData = (FmTaskDataInitSolverData*)inTaskData;
+
+        if (taskData->numRigidBodies == 0)
+            return;
+
         FmScene* scene = taskData->scene;
         FmConstraintSolverData* constraintSolverData = taskData->constraintSolverData;
         FmConstraintIsland& constraintIsland = *taskData->constraintIsland;
@@ -1814,40 +1816,42 @@ namespace AMD
             FmRigidBody& rb = *FmGetRigidBodyPtrById(*scene, rbId);
             uint stateOffset = FmGetRigidBodySolverOffsetById(constraintSolverBuffer, rbId);
 
-            rb.worldInertiaTensor = FmTransformBodyInertiaToWorld(rb.bodyInertiaTensor, FmInitMatrix3(rb.state.quat));
+            rb.worldInertiaTensor = FmTransformBodyInertiaToWorld(rb.bodyInertiaTensor, FmMatrix3(rb.state.quat));
 
             float invMass = 1.0f / rb.mass;
 
             constraintSolverData->DAinv[stateOffset] =
-                FmInitSMatrix3(
-                    FmInitSVector3(invMass, 0.0f, 0.0f),
-                    FmInitSVector3(0.0f, invMass, 0.0f),
-                    FmInitSVector3(0.0f, 0.0f, invMass));
-            constraintSolverData->DAinv[stateOffset + 1] = FmInitSMatrix3(inverse(rb.worldInertiaTensor));
+                FmSMatrix3(
+                    FmSVector3(invMass, 0.0f, 0.0f),
+                    FmSVector3(0.0f, invMass, 0.0f),
+                    FmSVector3(0.0f, 0.0f, invMass));
+            constraintSolverData->DAinv[stateOffset + 1] = FmSMatrix3(inverse(rb.worldInertiaTensor));
 
             constraintSolverData->W[stateOffset] = constraintSolverData->DAinv[stateOffset];
             constraintSolverData->W[stateOffset + 1] = constraintSolverData->DAinv[stateOffset + 1];
 
-            constraintSolverData->deltaVel[stateOffset] = FmInitSVector3(0.0f);
-            constraintSolverData->deltaVel[stateOffset + 1] = FmInitSVector3(0.0f);
+            constraintSolverData->deltaVel[stateOffset] = FmSVector3(0.0f);
+            constraintSolverData->deltaVel[stateOffset + 1] = FmSVector3(0.0f);
 
             // For rigid bodies this term is always zero
-            constraintSolverData->pgsDeltaVelTerm[stateOffset] = FmInitSVector3(0.0f);
-            constraintSolverData->pgsDeltaVelTerm[stateOffset + 1] = FmInitSVector3(0.0f);
+            constraintSolverData->pgsDeltaVelTerm[stateOffset] = FmSVector3(0.0f);
+            constraintSolverData->pgsDeltaVelTerm[stateOffset + 1] = FmSVector3(0.0f);
 
-            constraintSolverData->JTlambda[stateOffset] = FmInitSVector3(0.0f);
-            constraintSolverData->JTlambda[stateOffset + 1] = FmInitSVector3(0.0f);
+            constraintSolverData->JTlambda[stateOffset] = FmSVector3(0.0f);
+            constraintSolverData->JTlambda[stateOffset + 1] = FmSVector3(0.0f);
         }
-
-        taskData->progress.TaskIsFinished();
     }
 
     void FmTaskFuncInitRbSolverArrayDataForStabilization(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(ISLAND_SOLVE_INIT_RB_DATA);
+        FM_TRACE_SCOPED_EVENT("IslandSolveInitRbData");
 
         FmTaskDataInitSolverData* taskData = (FmTaskDataInitSolverData*)inTaskData;
+
+        if (taskData->numRigidBodies == 0)
+            return;
+
         FmScene* scene = taskData->scene;
         FmConstraintSolverData* constraintSolverData = taskData->constraintSolverData;
         FmConstraintIsland& constraintIsland = *taskData->constraintIsland;
@@ -1868,31 +1872,32 @@ namespace AMD
             // Read deltaVel values from rigid body in case updated externally
             FmSVector3 deltaVel = constraintSolverData->deltaVel[stateOffset];
             FmSVector3 deltaAngVel = constraintSolverData->deltaVel[stateOffset + 1];
-            constraintSolverData->velTemp[stateOffset] = (FmInitSVector3(rb.state.vel) + deltaVel) * delta_t;
-            constraintSolverData->velTemp[stateOffset + 1] = (FmInitSVector3(rb.state.angVel) + deltaAngVel) * delta_t;
+            constraintSolverData->velTemp[stateOffset] = (FmSVector3(rb.state.vel) + deltaVel) * delta_t;
+            constraintSolverData->velTemp[stateOffset + 1] = (FmSVector3(rb.state.angVel) + deltaAngVel) * delta_t;
 
 #if FM_CONSTRAINT_STABILIZATION_SOLVE
-            constraintSolverData->deltaPos[stateOffset] = FmInitSVector3(0.0f);
-            constraintSolverData->deltaPos[stateOffset + 1] = FmInitSVector3(0.0f);
+            constraintSolverData->deltaPos[stateOffset] = FmSVector3(0.0f);
+            constraintSolverData->deltaPos[stateOffset + 1] = FmSVector3(0.0f);
 #endif
 
             // For rigid bodies this term is always zero
-            constraintSolverData->pgsDeltaVelTerm[stateOffset] = FmInitSVector3(0.0f);
-            constraintSolverData->pgsDeltaVelTerm[stateOffset + 1] = FmInitSVector3(0.0f);
+            constraintSolverData->pgsDeltaVelTerm[stateOffset] = FmSVector3(0.0f);
+            constraintSolverData->pgsDeltaVelTerm[stateOffset + 1] = FmSVector3(0.0f);
 
-            constraintSolverData->JTlambda[stateOffset] = FmInitSVector3(0.0f);
-            constraintSolverData->JTlambda[stateOffset + 1] = FmInitSVector3(0.0f);
+            constraintSolverData->JTlambda[stateOffset] = FmSVector3(0.0f);
+            constraintSolverData->JTlambda[stateOffset + 1] = FmSVector3(0.0f);
         }
-
-        taskData->progress.TaskIsFinished();
     }
 
     void FmTaskFuncInitConstraintArrayData(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(ISLAND_SOLVE_INIT_CONSTRAINT_DATA);
+        FM_TRACE_SCOPED_EVENT("IslandSolveInitConstraintData");
 
         FmTaskDataInitSolverData* taskData = (FmTaskDataInitSolverData*)inTaskData;
+
+        if (taskData->numConstraints == 0)
+            return;
 
         FmScene* scene = taskData->scene;
         FmConstraintSolverBuffer* constraintSolverBuffer = scene->constraintSolverBuffer;
@@ -1914,8 +1919,8 @@ namespace AMD
             FmConstraintJacobian& J = constraintSolverData->J;
             FmConstraintParams& constraintParams = J.params[constraintIdx];
 
-            FmSVector3 correctionVec = FmInitSVector3(0.0f);
-            FmSVector3 Jvel_unconstrained = FmInitSVector3(0.0f);
+            FmSVector3 correctionVec = FmSVector3(0.0f);
+            FmSVector3 Jvel_unconstrained = FmSVector3(0.0f);
 
             FmSMatrix3* jacobianSubmats = (FmSMatrix3*)((uint8_t*)J.submats + constraintParams.jacobianSubmatsOffset);
             uint* jacobianIndices = (uint*)((uint8_t*)J.indices + constraintParams.jacobianIndicesOffset);
@@ -1964,8 +1969,8 @@ namespace AMD
 
                 FM_ASSERT(submatOffset == FmGetNumJacobianSubmats(contactPairInfo));
 
-                constraintSolverData->pgsRhs[constraintIdx] = FmInitSVector3(0.0f);
-                constraintSolverData->lambda3[constraintIdx] = FmInitSVector3(0.0f);
+                constraintSolverData->pgsRhs[constraintIdx] = FmSVector3(0.0f);
+                constraintSolverData->lambda3[constraintIdx] = FmSVector3(0.0f);
 
                 float kCorrection = controlParams.kDistanceCorrection;
 
@@ -1973,7 +1978,7 @@ namespace AMD
                 kCorrection = (normalError < 0.0f) ? 1.0f : kCorrection;
                 float normalCorrection = normalError * kCorrection * delta_t_inv;
 
-                correctionVec = FmInitSVector3(normalCorrection, 0.0f, 0.0f);
+                correctionVec = FmSVector3(normalCorrection, 0.0f, 0.0f);
 
                 constraintSolverData->lambda3Temp[constraintIdx] = correctionVec;
             }
@@ -2019,15 +2024,15 @@ namespace AMD
 
                 FM_ASSERT(submatOffset == FmGetNumJacobianSubmats(contact));
 
-                constraintSolverData->pgsRhs[constraintIdx] = FmInitSVector3(0.0f);
-                constraintSolverData->lambda3[constraintIdx] = FmInitSVector3(0.0f);
+                constraintSolverData->pgsRhs[constraintIdx] = FmSVector3(0.0f);
+                constraintSolverData->lambda3[constraintIdx] = FmSVector3(0.0f);
 
                 float kCorrection = controlParams.kVolumeCorrection;
 
                 float volumeError = -contact.V;
                 kCorrection = (volumeError < 0.0f) ? 1.0f : kCorrection;
                 float volumeCorrection = volumeError * kCorrection * delta_t_inv;
-                correctionVec = FmInitSVector3(volumeCorrection, 0.0f, 0.0f);
+                correctionVec = FmSVector3(volumeCorrection, 0.0f, 0.0f);
 
                 constraintSolverData->lambda3Temp[constraintIdx] = correctionVec;
             }
@@ -2046,8 +2051,8 @@ namespace AMD
 
                 FM_ASSERT(submatOffset == FmGetNumJacobianSubmats(deformationConstraint));
 
-                constraintSolverData->pgsRhs[constraintIdx] = FmInitSVector3(0.0f);
-                constraintSolverData->lambda3[constraintIdx] = FmInitSVector3(0.0f);
+                constraintSolverData->pgsRhs[constraintIdx] = FmSVector3(0.0f);
+                constraintSolverData->lambda3[constraintIdx] = FmSVector3(0.0f);
 
                 float kCorrection = deformationConstraint.kVelCorrection;
 
@@ -2056,7 +2061,7 @@ namespace AMD
                 float kCorrectionY = deformationConstraint.deformationDeltas.y > 0.0f ? 1.0f : kCorrection;
                 float kCorrectionZ = deformationConstraint.deformationDeltas.z > 0.0f ? 1.0f : kCorrection;
 
-                correctionVec = -FmInitSVector3(
+                correctionVec = -FmSVector3(
                     deformationConstraint.deformationDeltas.x * kCorrectionX,
                     deformationConstraint.deformationDeltas.y * kCorrectionY,
                     deformationConstraint.deformationDeltas.z * kCorrectionZ) * delta_t_inv;
@@ -2109,12 +2114,12 @@ namespace AMD
 
                 FM_ASSERT(submatOffset == FmGetNumJacobianSubmats(glueConstraint));
 
-                constraintSolverData->pgsRhs[constraintIdx] = FmInitSVector3(0.0f);
-                constraintSolverData->lambda3[constraintIdx] = FmInitSVector3(0.0f);
+                constraintSolverData->pgsRhs[constraintIdx] = FmSVector3(0.0f);
+                constraintSolverData->lambda3[constraintIdx] = FmSVector3(0.0f);
 
                 float kCorrection = glueConstraint.kVelCorrection;
 
-                correctionVec = -FmInitSVector3(glueConstraint.deltaPos) * kCorrection * delta_t_inv;
+                correctionVec = -FmSVector3(glueConstraint.deltaPos) * kCorrection * delta_t_inv;
 
                 constraintSolverData->lambda3Temp[constraintIdx] = correctionVec;
             }
@@ -2130,12 +2135,12 @@ namespace AMD
                 // TODO: specialize for 1 or 2D
                 if (planeConstraint.flags & FM_CONSTRAINT_FLAG_1D)
                 {
-                    planeConstraint.planeNormal1 = FmInitVector3(0.0f);
-                    planeConstraint.planeNormal2 = FmInitVector3(0.0f);
+                    planeConstraint.planeNormal1 = FmVector3(0.0f);
+                    planeConstraint.planeNormal2 = FmVector3(0.0f);
                 }
                 else if (planeConstraint.flags & FM_CONSTRAINT_FLAG_2D)
                 {
-                    planeConstraint.planeNormal2 = FmInitVector3(0.0f);
+                    planeConstraint.planeNormal2 = FmVector3(0.0f);
                 }
 
                 constraintParams.type = FM_SOLVER_CONSTRAINT_TYPE_3D;
@@ -2194,8 +2199,8 @@ namespace AMD
 
                 FM_ASSERT(submatOffset == FmGetNumJacobianSubmats(planeConstraint));
 
-                constraintSolverData->pgsRhs[constraintIdx] = FmInitSVector3(0.0f);
-                constraintSolverData->lambda3[constraintIdx] = FmInitSVector3(0.0f);
+                constraintSolverData->pgsRhs[constraintIdx] = FmSVector3(0.0f);
+                constraintSolverData->lambda3[constraintIdx] = FmSVector3(0.0f);
 
                 float kCorrection = planeConstraint.kVelCorrection;
 
@@ -2208,7 +2213,7 @@ namespace AMD
                 float kCorrection1 = (nonNeg1 && correction1 < 0.0f) ? 1.0f : kCorrection;
                 float kCorrection2 = (nonNeg2 && correction2 < 0.0f) ? 1.0f : kCorrection;
 
-                correctionVec = FmInitSVector3(
+                correctionVec = FmSVector3(
                     correction0 * kCorrection0, 
                     correction1 * kCorrection1, 
                     correction2 * kCorrection2) * delta_t_inv;
@@ -2248,12 +2253,12 @@ namespace AMD
 
                 FM_ASSERT(submatOffset == FmGetNumJacobianSubmats(rigidBodyAngleConstraint));
 
-                constraintSolverData->pgsRhs[constraintIdx] = FmInitSVector3(0.0f);
-                constraintSolverData->lambda3[constraintIdx] = FmInitSVector3(0.0f);
+                constraintSolverData->pgsRhs[constraintIdx] = FmSVector3(0.0f);
+                constraintSolverData->lambda3[constraintIdx] = FmSVector3(0.0f);
 
                 float kCorrection = rigidBodyAngleConstraint.kVelCorrection;
 
-                correctionVec = FmInitSVector3(
+                correctionVec = FmSVector3(
                     -rigidBodyAngleConstraint.error0,
                     -rigidBodyAngleConstraint.error1,
                     -rigidBodyAngleConstraint.error2) * kCorrection * delta_t_inv;
@@ -2271,16 +2276,17 @@ namespace AMD
             constraintSolverData->pgsRhs[constraintIdx] = pgsRhsConstant;
 
         }
-
-        taskData->progress.TaskIsFinished();
     }
 
-    FM_WRAPPED_TASK_FUNC(FmTaskFuncInitConstraintJacobianDiagonal)
+    void FmTaskFuncInitConstraintJacobianDiagonal(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(ISLAND_SOLVE_INIT_CONSTRAINT_DATA);
+        FM_TRACE_SCOPED_EVENT("IslandSolveInitConstraintData");
 
         FmTaskDataInitSolverData* taskData = (FmTaskDataInitSolverData*)inTaskData;
+
+        if (taskData->numConstraints == 0)
+            return;
 
         FmConstraintSolverData* constraintSolverData = taskData->constraintSolverData;
 
@@ -2301,7 +2307,7 @@ namespace AMD
             float diagYInv = (fabsf(diagY) < tol) ? 1.0f : 1.0f / diagY;
             float diagZInv = (fabsf(diagZ) < tol) ? 1.0f : 1.0f / diagZ;
 
-            constraintSolverData->J.params[constraintIdx].diagInverse[1] = FmInitSVector3(diagXInv, diagYInv, diagZInv);
+            constraintSolverData->J.params[constraintIdx].diagInverse[1] = FmSVector3(diagXInv, diagYInv, diagZInv);
 
             diagBlock = FmDiagOfMxDiagxMT(constraintSolverData->J, constraintSolverData->W, constraintIdx);
 
@@ -2313,19 +2319,20 @@ namespace AMD
             diagYInv = (fabsf(diagY) < tol) ? 1.0f : 1.0f / diagY;
             diagZInv = (fabsf(diagZ) < tol) ? 1.0f : 1.0f / diagZ;
 
-            constraintSolverData->J.params[constraintIdx].diagInverse[0] = FmInitSVector3(diagXInv, diagYInv, diagZInv);
+            constraintSolverData->J.params[constraintIdx].diagInverse[0] = FmSVector3(diagXInv, diagYInv, diagZInv);
 
         }
-
-        taskData->progress.TaskIsFinished(taskData);
     }
 
     void FmTaskFuncInitConstraintArrayDataForStabilization(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(ISLAND_SOLVE_INIT_CONSTRAINT_DATA);
+        FM_TRACE_SCOPED_EVENT("IslandSolveInitConstraintData");
 
         FmTaskDataInitSolverData* taskData = (FmTaskDataInitSolverData*)inTaskData;
+
+        if (taskData->numConstraints == 0)
+            return;
 
         FmScene* scene = taskData->scene;
         FmConstraintsBuffer* constraintsBuffer = scene->constraintsBuffer;
@@ -2350,8 +2357,8 @@ namespace AMD
 
                 constraintParams.frictionCoeff = 0.0f;
 
-                constraintSolverData->pgsRhs[constraintIdx] = FmInitSVector3(0.0f);
-                constraintSolverData->lambda3[constraintIdx] = FmInitSVector3(0.0f);
+                constraintSolverData->pgsRhs[constraintIdx] = FmSVector3(0.0f);
+                constraintSolverData->lambda3[constraintIdx] = FmSVector3(0.0f);
 
                 float kCorrection = controlParams.kDistanceCorrection;
 
@@ -2360,7 +2367,7 @@ namespace AMD
 
                 float normalCorrection = normalError * kCorrection;
 
-                constraintSolverData->lambda3Temp[constraintIdx] = FmInitSVector3(normalCorrection, 0.0f, 0.0f);
+                constraintSolverData->lambda3Temp[constraintIdx] = FmSVector3(normalCorrection, 0.0f, 0.0f);
             }
             else if (constraintRef.type == FM_CONSTRAINT_TYPE_VOLUME_CONTACT)
             {
@@ -2368,8 +2375,8 @@ namespace AMD
 
                 constraintParams.frictionCoeff = 0.0f;
 
-                constraintSolverData->pgsRhs[constraintIdx] = FmInitSVector3(0.0f);
-                constraintSolverData->lambda3[constraintIdx] = FmInitSVector3(0.0f);
+                constraintSolverData->pgsRhs[constraintIdx] = FmSVector3(0.0f);
+                constraintSolverData->lambda3[constraintIdx] = FmSVector3(0.0f);
 
                 float kCorrection = controlParams.kVolumeCorrection;
 
@@ -2378,14 +2385,14 @@ namespace AMD
 
                 float volumeCorrection = volumeError * kCorrection;
 
-                constraintSolverData->lambda3Temp[constraintIdx] = FmInitSVector3(volumeCorrection, 0.0f, 0.0f);
+                constraintSolverData->lambda3Temp[constraintIdx] = FmSVector3(volumeCorrection, 0.0f, 0.0f);
             }
             else if (constraintRef.type == FM_CONSTRAINT_TYPE_DEFORMATION)
             {
                 FmDeformationConstraint& constraint = constraintsBuffer->deformationConstraints[constraintRef.idx];
 
-                constraintSolverData->pgsRhs[constraintIdx] = FmInitSVector3(0.0f);
-                constraintSolverData->lambda3[constraintIdx] = FmInitSVector3(0.0f);
+                constraintSolverData->pgsRhs[constraintIdx] = FmSVector3(0.0f);
+                constraintSolverData->lambda3[constraintIdx] = FmSVector3(0.0f);
 
                 float kCorrection = constraint.kPosCorrection;
 
@@ -2394,7 +2401,7 @@ namespace AMD
                 float kCorrectionY = constraint.deformationDeltas.y > 0.0f ? 1.0f : kCorrection;
                 float kCorrectionZ = constraint.deformationDeltas.z > 0.0f ? 1.0f : kCorrection;
 
-                constraintSolverData->lambda3Temp[constraintIdx] = -FmInitSVector3(
+                constraintSolverData->lambda3Temp[constraintIdx] = -FmSVector3(
                     constraint.deformationDeltas.x * kCorrectionX,
                     constraint.deformationDeltas.y * kCorrectionY,
                     constraint.deformationDeltas.z * kCorrectionZ);
@@ -2408,12 +2415,12 @@ namespace AMD
                     continue;
                 }
 
-                constraintSolverData->pgsRhs[constraintIdx] = FmInitSVector3(0.0f);
-                constraintSolverData->lambda3[constraintIdx] = FmInitSVector3(0.0f);
+                constraintSolverData->pgsRhs[constraintIdx] = FmSVector3(0.0f);
+                constraintSolverData->lambda3[constraintIdx] = FmSVector3(0.0f);
 
                 float kCorrection = constraint.kPosCorrection;
 
-                constraintSolverData->lambda3Temp[constraintIdx] = -FmInitSVector3(constraint.deltaPos) * kCorrection;
+                constraintSolverData->lambda3Temp[constraintIdx] = -FmSVector3(constraint.deltaPos) * kCorrection;
             }
             else if (constraintRef.type == FM_CONSTRAINT_TYPE_PLANE)
             {
@@ -2424,8 +2431,8 @@ namespace AMD
                     continue;
                 }
 
-                constraintSolverData->pgsRhs[constraintIdx] = FmInitSVector3(0.0f);
-                constraintSolverData->lambda3[constraintIdx] = FmInitSVector3(0.0f);
+                constraintSolverData->pgsRhs[constraintIdx] = FmSVector3(0.0f);
+                constraintSolverData->lambda3[constraintIdx] = FmSVector3(0.0f);
 
                 float kCorrection = constraint.kPosCorrection;
 
@@ -2442,7 +2449,7 @@ namespace AMD
                 float kCorrection1 = (nonNeg1 && correction1 < 0.0f) ? 1.0f : kCorrection;
                 float kCorrection2 = (nonNeg2 && correction2 < 0.0f) ? 1.0f : kCorrection;
 
-                constraintSolverData->lambda3Temp[constraintIdx] = FmInitSVector3(
+                constraintSolverData->lambda3Temp[constraintIdx] = FmSVector3(
                     correction0 * kCorrection0,
                     correction1 * kCorrection1,
                     correction2 * kCorrection2);
@@ -2458,28 +2465,29 @@ namespace AMD
 
                 constraintParams.frictionCoeff = 0.0f;
 
-                constraintSolverData->pgsRhs[constraintIdx] = FmInitSVector3(0.0f);
-                constraintSolverData->lambda3[constraintIdx] = FmInitSVector3(0.0f);
+                constraintSolverData->pgsRhs[constraintIdx] = FmSVector3(0.0f);
+                constraintSolverData->lambda3[constraintIdx] = FmSVector3(0.0f);
 
                 float kCorrection = constraint.kPosCorrection;
 
                 constraintSolverData->lambda3Temp[constraintIdx] =
-                    FmInitSVector3(
+                    FmSVector3(
                         -constraint.error0,
                         -constraint.error1,
                         -constraint.error2) * kCorrection;
             }
         }
-
-        taskData->progress.TaskIsFinished();
     }
 
-    FM_WRAPPED_TASK_FUNC(FmTaskFuncInitConstraintPgsConstantForStabilization)
+    void FmTaskFuncInitConstraintPgsConstantForStabilization(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         (void)inTaskEndIndex;
-        FM_TRACE_SCOPED_EVENT(ISLAND_SOLVE_INIT_CONSTRAINT_DATA);
+        FM_TRACE_SCOPED_EVENT("IslandSolveInitConstraintData");
 
         FmTaskDataInitSolverData* taskData = (FmTaskDataInitSolverData*)inTaskData;
+
+        if (taskData->numConstraints == 0)
+            return;
 
         FmConstraintSolverData* constraintSolverData = taskData->constraintSolverData;
 
@@ -2494,11 +2502,9 @@ namespace AMD
             // PGS right-hand-side initially is the constant part assuming deltaVel or deltaPos initially zero
             constraintSolverData->pgsRhs[constraintIdx] = pgsRhsConstant;
         }
-
-        taskData->progress.TaskIsFinished(taskData);
     }
 
-    FM_WRAPPED_TASK_FUNC(FmTaskFuncInitConstraintSolverData)
+    void FmTaskFuncInitConstraintSolverData(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         (void)inTaskEndIndex;
         FmTaskDataInitSolverData* taskData = (FmTaskDataInitSolverData*)inTaskData;
@@ -2523,7 +2529,7 @@ namespace AMD
     }
 
 #if FM_CONSTRAINT_STABILIZATION_SOLVE
-    FM_WRAPPED_TASK_FUNC(FmTaskFuncInitConstraintSolverDataForStabilization)
+    void FmTaskFuncInitConstraintSolverDataForStabilization(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
     {
         (void)inTaskEndIndex;
         FmTaskDataInitSolverData* taskData = (FmTaskDataInitSolverData*)inTaskData;
@@ -2591,8 +2597,8 @@ namespace AMD
         FmConstraintSolverData* constraintSolverData,
         FmConstraintIsland* constraintIsland,
         float delta_t,
-        FmTaskFuncCallback followTaskFunc,
-        void* followTaskData)
+        TLTaskFuncCallback postSetupConstraintSolveTaskFunc,
+        void* postSetupConstraintSolveTaskData)
     {
         FM_ASSERT(constraintSolverData->isAllocated);
 
@@ -2626,14 +2632,17 @@ namespace AMD
             *constraintIsland);
 
 #if FM_ASYNC_THREADING
-        FmSetupConstraintSolveTaskData* setupTaskData = new FmSetupConstraintSolveTaskData(scene, constraintSolverData, constraintIsland, delta_t, followTaskFunc, followTaskData);
+        FmSetupConstraintSolveTaskData* setupTaskData = new FmSetupConstraintSolveTaskData(scene, constraintSolverData, constraintIsland, delta_t, postSetupConstraintSolveTaskFunc, postSetupConstraintSolveTaskData);
 
         FmCreatePartitions(scene, constraintSolverData, constraintIsland, setupTaskData);
 #else
+        (void)postSetupConstraintSolveTaskFunc;
+        (void)postSetupConstraintSolveTaskData;
+
         uint numConstraints = constraintIsland->numConstraints;
         FmConstraintsBuffer* constraintsBuffer = scene->constraintsBuffer;
 
-        FmCreatePartitions(scene, constraintSolverData, constraintIsland, NULL);
+        FmCreatePartitions(scene, constraintSolverData, constraintIsland, nullptr);
         FmCreatePartitionPairs(scene, constraintSolverData, constraintIsland);
 
         FmGraphColorPartitionPairs(constraintSolverData);
@@ -2687,20 +2696,20 @@ namespace AMD
         uint constraintsBatchSize = FM_INIT_CONSTRAINTS_BATCH_SIZE;
         uint numConstraintTasks = FmGetNumTasksMinBatchSize(numConstraints, constraintsBatchSize);
 
-        uint numTasks = numTetMeshes + numRigidBodyTasks + numConstraintTasks;
+        uint numItems = numTetMeshes + numRigidBodyTasks + numConstraintTasks;
 
         FmTaskDataInitSolverData taskDataInitSolverData(scene, constraintSolverData, constraintIsland, delta_t,
             numTetMeshes,
             numRigidBodies, numRigidBodyTasks,
             numConstraints, numConstraintTasks);
 
-        scene->taskSystemCallbacks.ParallelFor("InitConstraintSolverData", FmTaskFuncInitConstraintSolverData, &taskDataInitSolverData, (int32_t)numTasks);
-        scene->taskSystemCallbacks.ParallelFor("InitConstraintArrayData", FmTaskFuncInitConstraintJacobianDiagonal, &taskDataInitSolverData, (int32_t)numConstraintTasks);
+        TLParallelFor(FmTaskFuncInitConstraintSolverData, &taskDataInitSolverData, 0, (int32_t)numItems);
+        TLParallelFor(FmTaskFuncInitConstraintJacobianDiagonal, &taskDataInitSolverData, 0, (int32_t)numConstraintTasks);
 #endif
     }
 
 #if FM_ASYNC_THREADING
-    void FmSetupConstraintSolvePostSort(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK(FmTaskFuncSetupConstraintSolvePostSort)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
@@ -2711,13 +2720,12 @@ namespace AMD
         FmConstraintSolverData* constraintSolverData = taskData->constraintSolverData;
         FmConstraintIsland* constraintIsland = taskData->constraintIsland;
         float delta_t = taskData->delta_t;
-        FmTaskFuncCallback followTaskFunc = taskData->followTaskFunc;
-        void* followTaskData = taskData->followTaskData;
+        TLTask postSetupConstraintSolveTask = taskData->postSetupConstraintSolveTask;
 
         // Can delete sort task graph and consumed task data
         delete taskData->sortTaskGraph;
         delete taskData;
-        taskData = NULL;
+        taskData = nullptr;
 
         FmConstraintSolverBuffer* constraintSolverBuffer = scene->constraintSolverBuffer;
         FmConstraintsBuffer* constraintsBuffer = scene->constraintsBuffer;
@@ -2779,40 +2787,39 @@ namespace AMD
         uint constraintsBatchSize = FM_INIT_CONSTRAINTS_BATCH_SIZE;
         uint numConstraintTasks = FmGetNumTasksMinBatchSize(numConstraints, constraintsBatchSize);
 
-        uint numTasks = numTetMeshes + numRigidBodyTasks + numConstraintTasks;
+        uint numItems = numTetMeshes + numRigidBodyTasks + numConstraintTasks;
 
-        if (followTaskFunc)
+        if (postSetupConstraintSolveTask.func)
         {
             FmTaskDataInitSolverData* taskDataInitSolverData = new FmTaskDataInitSolverData(scene, constraintSolverData, constraintIsland, delta_t,
                 numTetMeshes,
                 numRigidBodies, numRigidBodyTasks,
                 numConstraints, numConstraintTasks);
 
-            taskDataInitSolverData->followTask.func = followTaskFunc;
-            taskDataInitSolverData->followTask.data = followTaskData;
-            taskDataInitSolverData->progress.Init(numTasks, FmTaskFuncSetupConstraintSolveEnd, taskDataInitSolverData);
+            taskDataInitSolverData->postSetupConstraintSolveTask = postSetupConstraintSolveTask;
 
-            FmParallelForAsync("InitConstraintSolverData", FM_TASK_AND_WRAPPED_TASK_ARGS(FmTaskFuncInitConstraintSolverData), 
-                FmBatchingFuncInitConstraintSolverData,
-                taskDataInitSolverData, numTasks, scene->taskSystemCallbacks.SubmitAsyncTask, scene->params.numThreads);
+            TLTask followTask(FmTaskFuncSetupConstraintSolveEnd, taskDataInitSolverData);
+
+            TLParallelForAsync(FmTaskFuncInitConstraintSolverData,
+                taskDataInitSolverData, 0, numItems, TLParallelForOptions::GrainFunc(FmBatchingFuncInitConstraintSolverData), followTask, false);
         }
     }
 
-    void FmTaskFuncSetupConstraintSolveEnd(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK(FmTaskFuncSetupConstraintSolveEnd)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
 
         FmTaskDataInitSolverData* taskData = (FmTaskDataInitSolverData*)inTaskData;
-        FmScene* scene = taskData->scene;
         uint numConstraintTasks = taskData->numConstraintTasks;
 
         // Call last parallel-for to set up constraint solve, which will call next task in
         // island solve.  Next task will get the island id from the task index.
         int32_t taskIndex = (int32_t)taskData->constraintIsland->islandId;
-        taskData->progress.Init(numConstraintTasks, taskData->followTask.func, taskData->followTask.data, taskIndex, taskIndex + 1);
 
-        FmParallelForAsync("InitConstraintArrayData", FM_TASK_AND_WRAPPED_TASK_ARGS(FmTaskFuncInitConstraintJacobianDiagonal), NULL, taskData, (int32_t)numConstraintTasks, scene->taskSystemCallbacks.SubmitAsyncTask, scene->params.numThreads);
+        TLTask followTask(taskData->postSetupConstraintSolveTask.func, taskData->postSetupConstraintSolveTask.data, taskIndex, taskIndex + 1);
+
+        TLParallelForAsync(FmTaskFuncInitConstraintJacobianDiagonal, taskData, 0, (int32_t)numConstraintTasks, TLParallelForOptions::GrainSize(1), followTask, true);
     }
 #endif
 
@@ -2826,8 +2833,8 @@ namespace AMD
         FmConstraintSolverData* constraintSolverData,
         FmConstraintIsland* constraintIsland,
         float delta_t,
-        FmTaskFuncCallback followTaskFunc,
-        void* followTaskData)
+        TLTaskFuncCallback postSetupConstraintSolveTaskFunc,
+        void* postSetupConstraintSolveTaskData)
     {
         // Configure settings for solve; default to original GS-based method
         constraintSolverData->currentControlParams = &constraintSolverData->stabilizationParams;
@@ -2854,51 +2861,55 @@ namespace AMD
         uint constraintsBatchSize = FM_INIT_CONSTRAINTS_BATCH_SIZE;
         uint numConstraintTasks = FmGetNumTasksMinBatchSize(numConstraints, constraintsBatchSize);
 
-        uint numTasks = numTetMeshes + numRigidBodyTasks + numConstraintTasks;
+        uint numItems = numTetMeshes + numRigidBodyTasks + numConstraintTasks;
 
 #if FM_ASYNC_THREADING
-        if (followTaskFunc)
+        if (postSetupConstraintSolveTaskFunc)
         {
             FmTaskDataInitSolverData* taskDataInitSolverData = new FmTaskDataInitSolverData(scene, constraintSolverData, constraintIsland, delta_t,
                 numTetMeshes,
                 numRigidBodies, numRigidBodyTasks,
                 numConstraints, numConstraintTasks);
 
-            taskDataInitSolverData->followTask.func = followTaskFunc;
-            taskDataInitSolverData->followTask.data = followTaskData;
-            taskDataInitSolverData->progress.Init(numTasks, FmTaskFuncSetupConstraintStabilizationEnd, taskDataInitSolverData);
+            taskDataInitSolverData->postSetupConstraintSolveTask.func = postSetupConstraintSolveTaskFunc;
+            taskDataInitSolverData->postSetupConstraintSolveTask.data = postSetupConstraintSolveTaskData;
 
-            FmParallelForAsync("InitConstraintSolverDataForStabilization", FM_TASK_AND_WRAPPED_TASK_ARGS(FmTaskFuncInitConstraintSolverDataForStabilization), 
-                FmBatchingFuncInitConstraintSolverData,
-                taskDataInitSolverData, (int32_t)numTasks, scene->taskSystemCallbacks.SubmitAsyncTask, scene->params.numThreads);
+            TLTask followTask(FmTaskFuncSetupConstraintStabilizationEnd, taskDataInitSolverData);
+
+            TLParallelForAsync(FmTaskFuncInitConstraintSolverDataForStabilization,
+                taskDataInitSolverData, 0, (int32_t)numItems, TLParallelForOptions::GrainFunc(FmBatchingFuncInitConstraintSolverData), followTask, false);
         }
 #else
+        (void)postSetupConstraintSolveTaskFunc;
+        (void)postSetupConstraintSolveTaskData;
+
         FmTaskDataInitSolverData taskDataInitSolverData(scene, constraintSolverData, constraintIsland, delta_t,
             numTetMeshes,
             numRigidBodies, numRigidBodyTasks,
             numConstraints, numConstraintTasks);
 
-        scene->taskSystemCallbacks.ParallelFor("InitConstraintSolverDataForStabilization", FmTaskFuncInitConstraintSolverDataForStabilization, &taskDataInitSolverData, (int32_t)numTasks);
-        scene->taskSystemCallbacks.ParallelFor("InitConstraintPgsConstantForStabilization", FmTaskFuncInitConstraintPgsConstantForStabilization, &taskDataInitSolverData, (int32_t)numConstraintTasks);
+        TLParallelFor(FmTaskFuncInitConstraintSolverDataForStabilization, &taskDataInitSolverData, 0, (int32_t)numItems,
+            TLParallelForOptions::GrainFunc(FmBatchingFuncInitConstraintSolverData));
+        TLParallelFor(FmTaskFuncInitConstraintPgsConstantForStabilization, &taskDataInitSolverData, 0, (int32_t)numConstraintTasks);
 #endif
     }
 
 #if FM_ASYNC_THREADING
-    void FmTaskFuncSetupConstraintStabilizationEnd(void* inTaskData, int32_t inTaskBeginIndex, int32_t inTaskEndIndex)
+    FM_ASYNC_TASK(FmTaskFuncSetupConstraintStabilizationEnd)
     {
         (void)inTaskBeginIndex;
         (void)inTaskEndIndex;
 
         FmTaskDataInitSolverData* taskData = (FmTaskDataInitSolverData*)inTaskData;
-        FmScene* scene = taskData->scene;
         uint numConstraintTasks = taskData->numConstraintTasks;
 
         // Call last parallel-for to set up constraint solve, which will call next task in
         // island solve.  Next task will get the island id from the task index.
         int32_t taskIndex = (int32_t)taskData->constraintIsland->islandId;
-        taskData->progress.Init(numConstraintTasks, taskData->followTask.func, taskData->followTask.data, taskIndex, taskIndex + 1);
 
-        FmParallelForAsync("InitConstraintPgsConstantForStabilization", FM_TASK_AND_WRAPPED_TASK_ARGS(FmTaskFuncInitConstraintPgsConstantForStabilization), NULL, taskData, (int32_t)numConstraintTasks, scene->taskSystemCallbacks.SubmitAsyncTask, scene->params.numThreads);
+        TLTask followTask(taskData->postSetupConstraintSolveTask.func, taskData->postSetupConstraintSolveTask.data, taskIndex, taskIndex + 1);
+
+        TLParallelForAsync(FmTaskFuncInitConstraintPgsConstantForStabilization, taskData, 0, (int32_t)numConstraintTasks, TLParallelForOptions::GrainSize(1), followTask, true);
     }
 #endif
 #endif
@@ -2908,13 +2919,13 @@ namespace AMD
         if (constraintSolverData->pDynamicAllocatedBuffer)
         {
             FmAlignedFree(constraintSolverData->pDynamicAllocatedBuffer);
-            constraintSolverData->pDynamicAllocatedBuffer = NULL;
+            constraintSolverData->pDynamicAllocatedBuffer = nullptr;
         }
 #if FM_CONSTRAINT_ISLAND_DEPENDENCY_GRAPH
         if (constraintSolverData->taskGraph)
         {
             FmDestroyConstraintSolveTaskGraph(constraintSolverData->taskGraph);
-            constraintSolverData->taskGraph = NULL;
+            constraintSolverData->taskGraph = nullptr;
         }
 #else
         (void)constraintSolverData;

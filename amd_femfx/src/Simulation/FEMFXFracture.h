@@ -37,8 +37,8 @@ namespace AMD
 
     struct FmFractureTetIdMapElement
     {
-        uint key;  // global tet id
-        uint id;   // local tet id
+        uint key = FM_INVALID_ID;  // global tet id
+        uint id = FM_INVALID_ID;   // local tet id
     };
 
     struct FmFractureTetIdRemapSetFuncs
@@ -73,29 +73,29 @@ namespace AMD
 
     struct FmSplitFaceConnectedLocalTet
     {
-        uint                       tetId;
-        uint                       componentId;
-        float                      tetMass;
+        uint                    tetId = FM_INVALID_ID;
+        uint                    componentId = FM_INVALID_ID;
+        float                   tetMass = 0.0f;
         FmTetVertIds            tetVerts;
         FmTetFaceIncidentTetIds tetFaceIncidentTets;
         FmTetFaceIncidentTetIds localTetFaceIncidentTets;
-        bool                       isKinematic;
+        bool                    isKinematic = false;
     };
 
     struct FmMakeSplitsLocalTet
     {
-        uint                       tetId;
+        uint                    tetId = FM_INVALID_ID;
         FmTetVertIds            tetVerts;
-        uint                       componentId;
+        uint                    componentId = FM_INVALID_ID;
         FmTetFaceIncidentTetIds newTetFaceIncidentTets;
         FmTetFaceIncidentTetIds localTetFaceIncidentTets;  // indices of tets within tet assignment array
-        float                      tetMass;
-        float                      projectionOnFractureDir;
-        uint                       crackTipId0;
-        uint                       crackTipId1;
-        uint16_t                   faceFractureDisabled;
-        bool                       isKinematic;
-        bool                       positiveSide;
+        float                   tetMass = 0.0f;
+        float                   projectionOnFractureDir = 0.0f;
+        uint                    crackTipId0 = 0;
+        uint                    crackTipId1 = 0;
+        uint16_t                faceFractureDisabled = 0;
+        bool                    isKinematic = false;
+        bool                    positiveSide = false;
     };
 
     // Find tet corner with vert id

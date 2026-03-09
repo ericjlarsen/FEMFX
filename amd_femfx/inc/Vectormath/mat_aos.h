@@ -30,7 +30,9 @@
 #ifndef _VECTORMATH_MAT_AOS_CPP__SCALAR_H
 #define _VECTORMATH_MAT_AOS_CPP__SCALAR_H
 
+#if FM_SIMD_ENABLED
 #include "vectormath_utils.h"
+#endif
 
 namespace FmVectormath {
 
@@ -258,35 +260,32 @@ namespace FmVectormath {
             return *this;
         }
 
+        VECTORMATH_FORCE_INLINE Matrix3 & Matrix3::operator*=( const Matrix3& mat )
+        {
+            *this = *this * mat;
+            return *this;
+        }
+
         VECTORMATH_FORCE_INLINE const Matrix3 operator *(float scalar, const Matrix3 & mat)
         {
             return mat * scalar;
         }
 
-        VECTORMATH_FORCE_INLINE const Vector3 mul(const Matrix3& mat, const Vector3 & vec)
+        VECTORMATH_FORCE_INLINE const Vector3 Matrix3::operator *( const Vector3 & vec ) const
         {
             return Vector3(
-                (((mat.col0.getX() * vec.getX()) + (mat.col1.getX() * vec.getY())) + (mat.col2.getX() * vec.getZ())),
-                (((mat.col0.getY() * vec.getX()) + (mat.col1.getY() * vec.getY())) + (mat.col2.getY() * vec.getZ())),
-                (((mat.col0.getZ() * vec.getX()) + (mat.col1.getZ() * vec.getY())) + (mat.col2.getZ() * vec.getZ()))
+                (((col0.getX() * vec.getX()) + (col1.getX() * vec.getY())) + (col2.getX() * vec.getZ())),
+                (((col0.getY() * vec.getX()) + (col1.getY() * vec.getY())) + (col2.getY() * vec.getZ())),
+                (((col0.getZ() * vec.getX()) + (col1.getZ() * vec.getY())) + (col2.getZ() * vec.getZ()))
                 );
         }
 
-        VECTORMATH_FORCE_INLINE const Matrix3 mul(const Matrix3& mat0, const Matrix3 & mat1)
+        VECTORMATH_FORCE_INLINE const Matrix3 Matrix3::operator *( const Matrix3 & mat ) const
         {
             return Matrix3(
-                mul(mat0, mat1.col0),
-                mul(mat0, mat1.col1),
-                mul(mat0, mat1.col2)
-                );
-        }
-
-        VECTORMATH_FORCE_INLINE const Matrix3 mulPerElem(const Matrix3 & mat0, const Matrix3 & mat1)
-        {
-            return Matrix3(
-                mat0.getCol0() * mat1.getCol0(),
-                mat0.getCol1() * mat1.getCol1(),
-                mat0.getCol2() * mat1.getCol2()
+                *this * mat.col0,
+                *this * mat.col1,
+                *this * mat.col2
                 );
         }
 
@@ -356,7 +355,7 @@ namespace FmVectormath {
         VECTORMATH_FORCE_INLINE const Matrix3 Matrix3::rotation(float radians, const Vector3 & unitVec)
         {
             float x, y, z, s, c, oneMinusC, xy, yz, zx;
-#if 1
+#if FM_SIMD_ENABLED
             __m128 msin, mcos;
             simd_sincos_ps(_mm_set1_ps(radians), &msin, &mcos);
             s = simd_getx_ps(msin);
@@ -778,58 +777,70 @@ namespace FmVectormath {
             return *this;
         }
 
+        VECTORMATH_FORCE_INLINE Matrix4 & Matrix4::operator*=( const Matrix4& mat )
+        {
+            *this = *this * mat;
+            return *this;
+        }
+
+        VECTORMATH_FORCE_INLINE Matrix4 & Matrix4::operator*=( const Transform3& tfrm )
+        {
+            *this = *this * tfrm;
+            return *this;
+        }
+
         VECTORMATH_FORCE_INLINE const Matrix4 operator *(float scalar, const Matrix4 & mat)
         {
             return mat * scalar;
         }
 
-        VECTORMATH_FORCE_INLINE const Vector4 mul(const Matrix4& mat, const Vector4 & vec)
+        VECTORMATH_FORCE_INLINE const Vector4 Matrix4::operator *( const Vector4 & vec ) const
         {
             return Vector4(
-                ((((mat.col0.getX() * vec.getX()) + (mat.col1.getX() * vec.getY())) + (mat.col2.getX() * vec.getZ())) + (mat.col3.getX() * vec.getW())),
-                ((((mat.col0.getY() * vec.getX()) + (mat.col1.getY() * vec.getY())) + (mat.col2.getY() * vec.getZ())) + (mat.col3.getY() * vec.getW())),
-                ((((mat.col0.getZ() * vec.getX()) + (mat.col1.getZ() * vec.getY())) + (mat.col2.getZ() * vec.getZ())) + (mat.col3.getZ() * vec.getW())),
-                ((((mat.col0.getW() * vec.getX()) + (mat.col1.getW() * vec.getY())) + (mat.col2.getW() * vec.getZ())) + (mat.col3.getW() * vec.getW()))
+                ((((col0.getX() * vec.getX()) + (col1.getX() * vec.getY())) + (col2.getX() * vec.getZ())) + (col3.getX() * vec.getW())),
+                ((((col0.getY() * vec.getX()) + (col1.getY() * vec.getY())) + (col2.getY() * vec.getZ())) + (col3.getY() * vec.getW())),
+                ((((col0.getZ() * vec.getX()) + (col1.getZ() * vec.getY())) + (col2.getZ() * vec.getZ())) + (col3.getZ() * vec.getW())),
+                ((((col0.getW() * vec.getX()) + (col1.getW() * vec.getY())) + (col2.getW() * vec.getZ())) + (col3.getW() * vec.getW()))
                 );
         }
 
-        VECTORMATH_FORCE_INLINE const Vector4 mul(const Matrix4& mat, const Vector3 & vec)
+        VECTORMATH_FORCE_INLINE const Vector4 Matrix4::operator *( const Vector3 & vec ) const
         {
             return Vector4(
-                (((mat.col0.getX() * vec.getX()) + (mat.col1.getX() * vec.getY())) + (mat.col2.getX() * vec.getZ())),
-                (((mat.col0.getY() * vec.getX()) + (mat.col1.getY() * vec.getY())) + (mat.col2.getY() * vec.getZ())),
-                (((mat.col0.getZ() * vec.getX()) + (mat.col1.getZ() * vec.getY())) + (mat.col2.getZ() * vec.getZ())),
-                (((mat.col0.getW() * vec.getX()) + (mat.col1.getW() * vec.getY())) + (mat.col2.getW() * vec.getZ()))
+                (((col0.getX() * vec.getX()) + (col1.getX() * vec.getY())) + (col2.getX() * vec.getZ())),
+                (((col0.getY() * vec.getX()) + (col1.getY() * vec.getY())) + (col2.getY() * vec.getZ())),
+                (((col0.getZ() * vec.getX()) + (col1.getZ() * vec.getY())) + (col2.getZ() * vec.getZ())),
+                (((col0.getW() * vec.getX()) + (col1.getW() * vec.getY())) + (col2.getW() * vec.getZ()))
                 );
         }
 
-        VECTORMATH_FORCE_INLINE const Vector4 mul(const Matrix4& mat, const Point3 & pnt)
+        VECTORMATH_FORCE_INLINE const Vector4 Matrix4::operator *( const Point3 & pnt ) const
         {
             return Vector4(
-                ((((mat.col0.getX() * pnt.getX()) + (mat.col1.getX() * pnt.getY())) + (mat.col2.getX() * pnt.getZ())) + mat.col3.getX()),
-                ((((mat.col0.getY() * pnt.getX()) + (mat.col1.getY() * pnt.getY())) + (mat.col2.getY() * pnt.getZ())) + mat.col3.getY()),
-                ((((mat.col0.getZ() * pnt.getX()) + (mat.col1.getZ() * pnt.getY())) + (mat.col2.getZ() * pnt.getZ())) + mat.col3.getZ()),
-                ((((mat.col0.getW() * pnt.getX()) + (mat.col1.getW() * pnt.getY())) + (mat.col2.getW() * pnt.getZ())) + mat.col3.getW())
+                ((((col0.getX() * pnt.getX()) + (col1.getX() * pnt.getY())) + (col2.getX() * pnt.getZ())) + col3.getX()),
+                ((((col0.getY() * pnt.getX()) + (col1.getY() * pnt.getY())) + (col2.getY() * pnt.getZ())) + col3.getY()),
+                ((((col0.getZ() * pnt.getX()) + (col1.getZ() * pnt.getY())) + (col2.getZ() * pnt.getZ())) + col3.getZ()),
+                ((((col0.getW() * pnt.getX()) + (col1.getW() * pnt.getY())) + (col2.getW() * pnt.getZ())) + col3.getW())
                 );
         }
 
-        VECTORMATH_FORCE_INLINE const Matrix4 mul(const Matrix4& mat, const Transform3 & tfrm)
+        VECTORMATH_FORCE_INLINE const Matrix4 Matrix4::operator *( const Transform3 & tfrm ) const
         {
             return Matrix4(
-                mul(mat, tfrm.getCol0()),
-                mul(mat, tfrm.getCol1()),
-                mul(mat, tfrm.getCol2()),
-                mul(mat, Point3(tfrm.getCol3()))
+                *this * tfrm.getCol0(),
+                *this * tfrm.getCol1(),
+                *this * tfrm.getCol2(),
+                *this * Point3(tfrm.getCol3())
                 );
         }
 
-        VECTORMATH_FORCE_INLINE const Matrix4 mul(const Matrix4& mat0, const Matrix4 & mat1)
+        VECTORMATH_FORCE_INLINE const Matrix4 Matrix4::operator *( const Matrix4 & mat ) const
         {
             return Matrix4(
-                mul(mat0, mat1.col0),
-                mul(mat0, mat1.col1),
-                mul(mat0, mat1.col2),
-                mul(mat0, mat1.col3)
+                *this * mat.col0,
+                *this * mat.col1,
+                *this * mat.col2,
+                *this * mat.col3
                 );
         }
 
@@ -1256,42 +1267,38 @@ namespace FmVectormath {
                 );
         }
 
-        VECTORMATH_FORCE_INLINE const Vector3 mul(const Transform3& tfrm, const Vector3 & vec)
+        VECTORMATH_FORCE_INLINE const Vector3 Transform3::operator *( const Vector3 & vec ) const
         {
             return Vector3(
-                (((tfrm.col0.getX() * vec.getX()) + (tfrm.col1.getX() * vec.getY())) + (tfrm.col2.getX() * vec.getZ())),
-                (((tfrm.col0.getY() * vec.getX()) + (tfrm.col1.getY() * vec.getY())) + (tfrm.col2.getY() * vec.getZ())),
-                (((tfrm.col0.getZ() * vec.getX()) + (tfrm.col1.getZ() * vec.getY())) + (tfrm.col2.getZ() * vec.getZ()))
+                (((col0.getX() * vec.getX()) + (col1.getX() * vec.getY())) + (col2.getX() * vec.getZ())),
+                (((col0.getY() * vec.getX()) + (col1.getY() * vec.getY())) + (col2.getY() * vec.getZ())),
+                (((col0.getZ() * vec.getX()) + (col1.getZ() * vec.getY())) + (col2.getZ() * vec.getZ()))
                 );
         }
 
-        VECTORMATH_FORCE_INLINE const Point3 mul(const Transform3& tfrm, const Point3 & pnt)
+        VECTORMATH_FORCE_INLINE const Point3 Transform3::operator *( const Point3 & pnt ) const
         {
             return Point3(
-                ((((tfrm.col0.getX() * pnt.getX()) + (tfrm.col1.getX() * pnt.getY())) + (tfrm.col2.getX() * pnt.getZ())) + tfrm.col3.getX()),
-                ((((tfrm.col0.getY() * pnt.getX()) + (tfrm.col1.getY() * pnt.getY())) + (tfrm.col2.getY() * pnt.getZ())) + tfrm.col3.getY()),
-                ((((tfrm.col0.getZ() * pnt.getX()) + (tfrm.col1.getZ() * pnt.getY())) + (tfrm.col2.getZ() * pnt.getZ())) + tfrm.col3.getZ())
+                ((((col0.getX() * pnt.getX()) + (col1.getX() * pnt.getY())) + (col2.getX() * pnt.getZ())) + col3.getX()),
+                ((((col0.getY() * pnt.getX()) + (col1.getY() * pnt.getY())) + (col2.getY() * pnt.getZ())) + col3.getY()),
+                ((((col0.getZ() * pnt.getX()) + (col1.getZ() * pnt.getY())) + (col2.getZ() * pnt.getZ())) + col3.getZ())
                 );
         }
 
-        VECTORMATH_FORCE_INLINE const Transform3 mul(const Transform3 & tfrm0, const Transform3 & tfrm1)
+        VECTORMATH_FORCE_INLINE const Transform3 Transform3::operator *( const Transform3 & tfrm ) const
         {
             return Transform3(
-                mul(tfrm0, tfrm1.col0),
-                mul(tfrm0, tfrm1.col1),
-                mul(tfrm0, tfrm1.col2),
-                Vector3(mul(tfrm0, Point3(tfrm1.col3)))
+                *this * tfrm.col0,
+                *this * tfrm.col1,
+                *this * tfrm.col2,
+                Vector3(*this * Point3(tfrm.col3))
                 );
         }
 
-        VECTORMATH_FORCE_INLINE const Transform3 mulPerElem(const Transform3 & tfrm0, const Transform3 & tfrm1)
+        VECTORMATH_FORCE_INLINE Transform3 & Transform3::operator *=( const Transform3& tfrm )
         {
-            return Transform3(
-                tfrm0.getCol0() * tfrm1.getCol0(),
-                tfrm0.getCol1() * tfrm1.getCol1(),
-                tfrm0.getCol2() * tfrm1.getCol2(),
-                tfrm0.getCol3() * tfrm1.getCol3()
-                );
+            *this = *this * tfrm;
+            return *this;
         }
 
         VECTORMATH_FORCE_INLINE const Transform3 Transform3::identity()
@@ -1559,7 +1566,7 @@ namespace FmVectormath {
                 );
         }
 
-        VECTORMATH_FORCE_INLINE const Vector3 mul(const Vector3 & vec, const Matrix3 & mat)
+        VECTORMATH_FORCE_INLINE const Vector3 operator *(const Vector3 & vec, const Matrix3 & mat)
         {
             return Vector3(
                 (((vec.getX() * mat.getCol0().getX()) + (vec.getY() * mat.getCol0().getY())) + (vec.getZ() * mat.getCol0().getZ())),

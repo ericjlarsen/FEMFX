@@ -50,7 +50,7 @@ union SSEFloat
     float f[4];
     SSEFloat(__m128 v) : m128(v) {}
     SSEFloat(__m128i v) : vi(v) {}
-    SSEFloat() {}//uninitialized
+    SSEFloat() { vf = _mm_setzero_ps(); }
 };
 
 #define simd_ror_ps(vec,i)    \

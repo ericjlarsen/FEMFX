@@ -6,11 +6,10 @@ solution ( SOLUTION_NAME )
 -- Solution-wide config
 
     filename(SOLUTION_NAME.."_".._ACTION)
-    configurations { "Debug", "Release" }
+    configurations { "Release", "Debug" }
     platforms { "x64" }
     symbols "On"
     architecture "x86_64"
-    flags { "MultiProcessorCompile", "NoBufferSecurityCheck" }
     floatingpoint "Fast"
     vectorextensions "AVX2"
     exceptionhandling ("Off")
@@ -18,7 +17,8 @@ solution ( SOLUTION_NAME )
 
     defines { 
         "WIN32", 
-        "NOMINMAX"
+        "NOMINMAX",
+        "MTR_ENABLED"
 	}
 
     objdir ('obj/'.._ACTION..'/%{cfg.architecture}')
@@ -35,8 +35,5 @@ solution ( SOLUTION_NAME )
         defines { "NDEBUG" }
         optimize "Speed"
 
-	filter "action:vs2017"
-		systemversion "10.0.17763.0"
-    
 include "."
 

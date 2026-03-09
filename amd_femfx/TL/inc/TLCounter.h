@@ -29,7 +29,7 @@ THE SOFTWARE.
 #pragma once
 
 #include "TLCommon.h"
-#ifdef WIN32
+#if defined(_MSC_VER)
 #include "Windows.h"
 #endif
 
@@ -38,7 +38,7 @@ THE SOFTWARE.
 namespace AMD
 {
 
-#ifdef WIN32
+#if defined(_MSC_VER)
     // Counter with condition variable, allowing threads to sleep until counter decremented to 0.
     // Counter value is signed to allow negative values, for cases with non-deterministic order of increments/decrements.
     // While counter value is <= 0 no thread can stay asleep - decrement to 0 will wake threads and prevent sleeping.
@@ -63,6 +63,11 @@ namespace AMD
         inline ~TLCounter()
         {
             DeleteCriticalSection(&criticalSection);
+        }
+
+        inline int32_t GetCounter() const
+        {
+            return counter;
         }
 
         // Wait/sleep while counter > 0
@@ -177,6 +182,154 @@ namespace AMD
             }
 
             LeaveCriticalSection(&criticalSection);
+            return lcounter;
+        }
+    };
+#elif defined(__GNUC__)
+    // Counter with condition variable, allowing threads to sleep until counter decremented to 0.
+    // Counter value is signed to allow negative values, for cases with non-deterministic order of increments/decrements.
+    // While counter value is <= 0 no thread can stay asleep - decrement to 0 will wake threads and prevent sleeping.
+    class TLCounter
+    {
+        TL_ALIGN(64) pthread_mutex_t criticalSection TL_ALIGN_END(64);
+        pthread_cond_t conditionVar;
+        volatile int32_t counter;
+        volatile int32_t numWaiters;
+
+    public:
+        TL_CLASS_NEW_DELETE(TLCounter)
+
+        inline TLCounter()
+        {
+            pthread_mutex_init(&criticalSection, nullptr);
+            pthread_cond_init(&conditionVar, nullptr);
+            counter = 0;
+            numWaiters = 0;
+        }
+
+        inline ~TLCounter()
+        {
+            pthread_mutex_destroy(&criticalSection);
+            pthread_cond_destroy(&conditionVar);
+        }
+
+        inline int32_t GetCounter() const
+        {
+            return counter;
+        }
+
+        // Wait/sleep while counter > 0
+        inline bool WaitUntilZero()
+        {
+            bool didWait = false;
+            pthread_mutex_lock(&criticalSection);
+            while (counter > 0)
+            {
+                numWaiters++;
+                pthread_cond_wait(&conditionVar, &criticalSection);
+                numWaiters--;
+
+                didWait = true;
+            }
+
+#if TL_WAKE_ONE
+            if (numWaiters > 0)
+            {
+                pthread_cond_signal(&conditionVar);
+            }
+#endif
+
+            pthread_mutex_unlock(&criticalSection);
+            return didWait;
+        }
+
+        // If counter > 0, wait until wakeup.
+        // Can use to put worker back into spin wait rather than sleep
+        inline bool WaitOneWakeup()
+        {
+            bool didWait = false;
+            pthread_mutex_lock(&criticalSection);
+            if (counter > 0)
+            {
+                numWaiters++;
+                pthread_cond_wait(&conditionVar, &criticalSection);
+                numWaiters--;
+
+                didWait = true;
+            }
+
+#if TL_WAKE_ONE
+            if (numWaiters > 0)
+            {
+                pthread_cond_signal(&conditionVar);
+            }
+#endif
+
+            pthread_mutex_unlock(&criticalSection);
+            return didWait;
+        }
+
+        // Increment count of active work
+        inline int32_t Increment()
+        {
+            pthread_mutex_lock(&criticalSection);
+            counter++;
+            int32_t lcounter = counter;
+            pthread_mutex_unlock(&criticalSection);
+            return lcounter;
+        }
+
+        // Decrement count of active work, and if 0, wake waiters
+        inline int32_t Decrement()
+        {
+            pthread_mutex_lock(&criticalSection);
+            counter--;
+            int32_t lcounter = counter;
+            if (lcounter <= 0)
+            {
+                // Finish using all data before unlocking, in case waiting thread might delete this.
+
+#if TL_WAKE_ONE
+                // Wake one waiter
+                pthread_cond_signal(&conditionVar);
+#else
+                pthread_cond_signal(&conditionVar);
+#endif
+            }
+
+            pthread_mutex_unlock(&criticalSection);
+            return lcounter;
+        }
+
+        // Add to count of active work
+        inline int32_t Add(int32_t count)
+        {
+            pthread_mutex_lock(&criticalSection);
+            counter += count;
+            int32_t lcounter = counter;
+            pthread_mutex_unlock(&criticalSection);
+            return lcounter;
+        }
+
+        // Subtract from count of active work, and if 0, wake waiters
+        inline int32_t Subtract(int32_t count)
+        {
+            pthread_mutex_lock(&criticalSection);
+            counter -= count;
+            int32_t lcounter = counter;
+            if (lcounter <= 0)
+            {
+                // Finish using all data before unlocking, in case waiting thread might delete this.
+
+#if TL_WAKE_ONE
+                // Wake one waiter
+                pthread_cond_signal(&conditionVar);
+#else
+                pthread_cond_signal(&conditionVar);
+#endif
+            }
+
+            pthread_mutex_unlock(&criticalSection);
             return lcounter;
         }
     };

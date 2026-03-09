@@ -129,7 +129,7 @@ namespace AMD
 
     void FmCCGroup(FmCCNode* nodes, uint numNodes)
     {
-        FmSort<FmCCNode, FmCompareCCNodes>(nodes, numNodes, NULL);
+        FmSort<FmCCNode, FmCompareCCNodes>(nodes, numNodes, nullptr);
     }
 
     class FmCompareConstraintIslands
@@ -222,13 +222,13 @@ namespace AMD
             if ((contact.objectIdA & FM_RB_FLAG) && isADynamic)
             {
                 FmRigidBody* pRigidBody = FmGetRigidBodyPtrById(*scene, contact.objectIdA);
-                FM_ASSERT(pRigidBody != NULL);
+                FM_ASSERT(pRigidBody != nullptr);
                 pRigidBody->foundInConstraint = true;
             }
             if ((contact.objectIdB & FM_RB_FLAG) && isBDynamic)
             {
                 FmRigidBody* pRigidBody = FmGetRigidBodyPtrById(*scene, contact.objectIdB);
-                FM_ASSERT(pRigidBody != NULL);
+                FM_ASSERT(pRigidBody != nullptr);
                 pRigidBody->foundInConstraint = true;
             }
 
@@ -270,13 +270,13 @@ namespace AMD
             if ((contact.objectIdA & FM_RB_FLAG) && isADynamic)
             {
                 FmRigidBody* pRigidBody = FmGetRigidBodyPtrById(*scene, contact.objectIdA);
-                FM_ASSERT(pRigidBody != NULL);
+                FM_ASSERT(pRigidBody != nullptr);
                 pRigidBody->foundInConstraint = true;
             }
             if ((contact.objectIdB & FM_RB_FLAG) && isBDynamic)
             {
                 FmRigidBody* pRigidBody = FmGetRigidBodyPtrById(*scene, contact.objectIdB);
-                FM_ASSERT(pRigidBody != NULL);
+                FM_ASSERT(pRigidBody != nullptr);
                 pRigidBody->foundInConstraint = true;
             }
 
@@ -336,13 +336,13 @@ namespace AMD
             if ((glueConstraint.objectIdA & FM_RB_FLAG) && isADynamic)
             {
                 FmRigidBody* pRigidBody = FmGetRigidBodyPtrById(*scene, glueConstraint.objectIdA);
-                FM_ASSERT(pRigidBody != NULL);
+                FM_ASSERT(pRigidBody != nullptr);
                 pRigidBody->foundInConstraint = true;
             }
             if ((glueConstraint.objectIdB & FM_RB_FLAG) && isBDynamic)
             {
                 FmRigidBody* pRigidBody = FmGetRigidBodyPtrById(*scene, glueConstraint.objectIdB);
-                FM_ASSERT(pRigidBody != NULL);
+                FM_ASSERT(pRigidBody != nullptr);
                 pRigidBody->foundInConstraint = true;
             }
 
@@ -394,13 +394,13 @@ namespace AMD
             if ((planeConstraint.objectIdA & FM_RB_FLAG) && isADynamic)
             {
                 FmRigidBody* pRigidBody = FmGetRigidBodyPtrById(*scene, planeConstraint.objectIdA);
-                FM_ASSERT(pRigidBody != NULL);
+                FM_ASSERT(pRigidBody != nullptr);
                 pRigidBody->foundInConstraint = true;
             }
             if ((planeConstraint.objectIdB & FM_RB_FLAG) && isBDynamic)
             {
                 FmRigidBody* pRigidBody = FmGetRigidBodyPtrById(*scene, planeConstraint.objectIdB);
-                FM_ASSERT(pRigidBody != NULL);
+                FM_ASSERT(pRigidBody != nullptr);
                 pRigidBody->foundInConstraint = true;
             }
 
@@ -452,13 +452,13 @@ namespace AMD
             if (isADynamic)
             {
                 FmRigidBody* pRigidBody = FmGetRigidBodyPtrById(*scene, rigidBodyAngleConstraint.objectIdA);
-                FM_ASSERT(pRigidBody != NULL);
+                FM_ASSERT(pRigidBody != nullptr);
                 pRigidBody->foundInConstraint = true;
             }
             if (isBDynamic)
             {
                 FmRigidBody* pRigidBody = FmGetRigidBodyPtrById(*scene, rigidBodyAngleConstraint.objectIdB);
-                FM_ASSERT(pRigidBody != NULL);
+                FM_ASSERT(pRigidBody != nullptr);
                 pRigidBody->foundInConstraint = true;
             }
 
@@ -877,7 +877,7 @@ namespace AMD
         constraintsBuffer->numConstraintIslands = numConstraintIslands;
 
         // Sort constraint islands by decreasing size
-        FmSort<FmConstraintIsland, FmCompareConstraintIslands>(constraintsBuffer->constraintIslands, constraintsBuffer->numConstraintIslands, NULL);
+        FmSort<FmConstraintIsland, FmCompareConstraintIslands>(constraintsBuffer->constraintIslands, constraintsBuffer->numConstraintIslands, nullptr);
 
         // Reassign island ids after sorting
         for (uint islandIdx = 0; islandIdx < constraintsBuffer->numConstraintIslands; islandIdx++)

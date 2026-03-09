@@ -39,7 +39,9 @@
 #include <stdio.h>
 #endif
 
+#if defined(_MSC_VER)
 #pragma warning(disable : 4201)
+#endif
 
 namespace FmVectormath {
 
@@ -54,6 +56,8 @@ class SimdQuat;
 class SimdMatrix3;
 class SimdMatrix4;
 class SimdTransform3;
+class Vector3;
+class Matrix3;
 
 // A 3-D vector in array-of-structures format
 //
@@ -71,9 +75,9 @@ public:
 
     SIMD_VECTORMATH_FORCE_INLINE void set128(__m128 vec);
      
-    // Default constructor; does no initialization
+    // Default constructor
     // 
-    SIMD_VECTORMATH_FORCE_INLINE SimdVector3( ) { };
+    SIMD_VECTORMATH_FORCE_INLINE SimdVector3( ) { mVec128 = _mm_setzero_ps(); }
 
     // Copy a 3-D vector
     // 
@@ -102,6 +106,10 @@ public:
     // Set vector float data in a 3-D vector
     // 
     explicit SIMD_VECTORMATH_FORCE_INLINE SimdVector3( __m128 vf4 );
+
+    // Construct a 3-D vector from scalar vector
+    //
+    explicit SIMD_VECTORMATH_FORCE_INLINE SimdVector3( const Vector3& vec );
 
     // Get vector float data from a 3-D vector
     // 
@@ -237,16 +245,6 @@ SIMD_VECTORMATH_FORCE_INLINE const SimdVector3 operator *( float scalar, const S
 // 
 SIMD_VECTORMATH_FORCE_INLINE const SimdVector3 operator *( const SimdFloat &scalar, const SimdVector3 & vec );
 
-// Multiply two 3-D vectors per element
-// 
-SIMD_VECTORMATH_FORCE_INLINE const SimdVector3 operator *( const SimdVector3 & vec0, const SimdVector3 & vec1 );
-
-// Divide two 3-D vectors per element
-// NOTE: 
-// Floating-point behavior matches standard library function divf4.
-// 
-SIMD_VECTORMATH_FORCE_INLINE const SimdVector3 operator /( const SimdVector3 & vec0, const SimdVector3 & vec1 );
-
 // Compute the reciprocal of a 3-D vector per element
 // NOTE: 
 // Floating-point behavior matches standard library function _mm_rcp_ps.
@@ -321,7 +319,7 @@ SIMD_VECTORMATH_FORCE_INLINE const SimdMatrix3 outer( const SimdVector3 & vec0, 
 
 // Pre-multiply a row vector by a 3x3 matrix
 // 
-SIMD_VECTORMATH_FORCE_INLINE const SimdVector3 mul( const SimdVector3 & vec, const SimdMatrix3 & mat );
+SIMD_VECTORMATH_FORCE_INLINE const SimdVector3 operator *( const SimdVector3 & vec, const SimdMatrix3 & mat );
 
 // Cross-product matrix of a 3-D vector
 // 
@@ -420,9 +418,9 @@ public:
         __m128 mVec128;
     };
 
-    // Default constructor; does no initialization
+    // Default constructor
     // 
-    SIMD_VECTORMATH_FORCE_INLINE SimdVector4( ) { };
+    SIMD_VECTORMATH_FORCE_INLINE SimdVector4( ) { mVec128 = _mm_setzero_ps(); }
 
     // Copy a 4-D vector
     // 
@@ -624,16 +622,6 @@ SIMD_VECTORMATH_FORCE_INLINE const SimdVector4 operator *( float scalar, const S
 // 
 SIMD_VECTORMATH_FORCE_INLINE const SimdVector4 operator *( const SimdFloat &scalar, const SimdVector4 & vec );
 
-// Multiply two 4-D vectors per element
-// 
-SIMD_VECTORMATH_FORCE_INLINE const SimdVector4 operator *( const SimdVector4 & vec0, const SimdVector4 & vec1 );
-
-// Divide two 4-D vectors per element
-// NOTE: 
-// Floating-point behavior matches standard library function divf4.
-// 
-SIMD_VECTORMATH_FORCE_INLINE const SimdVector4 operator /( const SimdVector4 & vec0, const SimdVector4 & vec1 );
-
 // Compute the reciprocal of a 4-D vector per element
 // NOTE: 
 // Floating-point behavior matches standard library function _mm_rcp_ps.
@@ -782,9 +770,9 @@ public:
         __m128 mVec128;
     };
 
-    // Default constructor; does no initialization
+    // Default constructor
     // 
-    SIMD_VECTORMATH_FORCE_INLINE SimdPoint3( ) { };
+    SIMD_VECTORMATH_FORCE_INLINE SimdPoint3( ) { mVec128 = _mm_setzero_ps(); }
 
     // Copy a 3-D point
     // 
@@ -891,16 +879,6 @@ public:
     SIMD_VECTORMATH_FORCE_INLINE SimdPoint3 & operator -=( const SimdVector3 & vec );
 
 };
-
-// Multiply two 3-D points per element
-// 
-SIMD_VECTORMATH_FORCE_INLINE const SimdPoint3 operator *( const SimdPoint3 & pnt0, const SimdPoint3 & pnt1 );
-
-// Divide two 3-D points per element
-// NOTE: 
-// Floating-point behavior matches standard library function divf4.
-// 
-SIMD_VECTORMATH_FORCE_INLINE const SimdPoint3 operator /( const SimdPoint3 & pnt0, const SimdPoint3 & pnt1 );
 
 // Compute the reciprocal of a 3-D point per element
 // NOTE: 
@@ -1053,9 +1031,9 @@ public:
         __m128 mVec128;
     };
 
-    // Default constructor; does no initialization
+    // Default constructor
     // 
-    SIMD_VECTORMATH_FORCE_INLINE SimdQuat( ) { };
+    SIMD_VECTORMATH_FORCE_INLINE SimdQuat() { mVec128 = _mm_setr_ps(0.0f, 0.0f, 0.0f, 1.0f); }
 
     // Copy a quaternion
     // 
@@ -1189,7 +1167,7 @@ public:
 
     // Multiply two quaternions
     // 
-    //SIMD_VECTORMATH_FORCE_INLINE const SimdQuat operator *( const SimdQuat & quat ) const;
+    SIMD_VECTORMATH_FORCE_INLINE const SimdQuat operator *( const SimdQuat & quat ) const;
 
     // Multiply a quaternion by a scalar
     // 
@@ -1217,7 +1195,7 @@ public:
 
     // Perform compound assignment and multiplication by a quaternion
     // 
-    //SIMD_VECTORMATH_FORCE_INLINE SimdQuat & operator *=( const SimdQuat & quat );
+    SIMD_VECTORMATH_FORCE_INLINE SimdQuat & operator *=( const SimdQuat & quat );
 
     // Perform compound assignment and multiplication by a scalar
     // 
@@ -1282,10 +1260,6 @@ public:
     static SIMD_VECTORMATH_FORCE_INLINE const SimdQuat rotationZ( const SimdFloat &radians );
 
 };
-
-// Multiply two quaternions
-// 
-SIMD_VECTORMATH_FORCE_INLINE const SimdQuat mul(const SimdQuat & q0, const SimdQuat & q1);
 
 // Multiply a quaternion by a scalar
 // 
@@ -1395,7 +1369,7 @@ public:
     SimdVector3 col1;
     SimdVector3 col2;
 
-    // Default constructor; does no initialization
+    // Default constructor
     // 
     SIMD_VECTORMATH_FORCE_INLINE SimdMatrix3( ) { };
 
@@ -1418,6 +1392,10 @@ public:
     // Set all elements of a 3x3 matrix to the same scalar value (scalar data contained in vector data type)
     // 
     explicit SIMD_VECTORMATH_FORCE_INLINE SimdMatrix3( const SimdFloat &scalar );
+
+    // Construct a 3x3 matrix from scalar matrix
+    //
+    explicit SIMD_VECTORMATH_FORCE_INLINE SimdMatrix3( const Matrix3& mat );
 
     // Assign one 3x3 matrix to another
     // 
@@ -1495,6 +1473,14 @@ public:
     // 
     SIMD_VECTORMATH_FORCE_INLINE const SimdMatrix3 operator *(const SimdFloat& scalar) const;
 
+    // Multiply a 3x3 matrix by a 3-D vector
+    // 
+    SIMD_VECTORMATH_FORCE_INLINE const SimdVector3 operator *( const SimdVector3 & vec ) const;
+
+    // Multiply two 3x3 matrices
+    // 
+    SIMD_VECTORMATH_FORCE_INLINE const SimdMatrix3 operator *( const SimdMatrix3 & mat ) const;
+
     // Perform compound assignment and addition with a 3x3 matrix
     // 
     SIMD_VECTORMATH_FORCE_INLINE SimdMatrix3 & operator +=( const SimdMatrix3 & mat );
@@ -1510,6 +1496,10 @@ public:
     // Perform compound assignment and multiplication by a scalar (scalar data contained in vector data type)
     // 
     SIMD_VECTORMATH_FORCE_INLINE SimdMatrix3 & operator *=( const SimdFloat &scalar );
+
+    // Perform compound assignment and multiplication by a 3x3 matrix
+    // 
+    SIMD_VECTORMATH_FORCE_INLINE SimdMatrix3 & operator *=( const SimdMatrix3 & mat );
 
     // Construct an identity 3x3 matrix
     // 
@@ -1560,14 +1550,6 @@ public:
     static SIMD_VECTORMATH_FORCE_INLINE const SimdMatrix3 scale( const SimdVector3 & scaleVec );
 
 };
-
-// Multiply a 3x3 matrix by a 3-D vector
-// 
-SIMD_VECTORMATH_FORCE_INLINE const SimdVector3 mul(const SimdMatrix3 & mat, const SimdVector3 & vec);
-
-// Multiply two 3x3 matrices
-// 
-SIMD_VECTORMATH_FORCE_INLINE const SimdMatrix3 mul(const SimdMatrix3 & mat0, const SimdMatrix3 & mat1);
 
 // Multiply a 3x3 matrix by a scalar
 // 
@@ -1647,7 +1629,7 @@ public:
     SimdVector4 col2;
     SimdVector4 col3;
 
-    // Default constructor; does no initialization
+    // Default constructor
     // 
     SIMD_VECTORMATH_FORCE_INLINE SimdMatrix4( ) { };
 
@@ -1783,6 +1765,26 @@ public:
     // 
     SIMD_VECTORMATH_FORCE_INLINE const SimdMatrix4 operator *( const SimdFloat &scalar ) const;
 
+    // Multiply a 4x4 matrix by a 4-D vector
+    // 
+    SIMD_VECTORMATH_FORCE_INLINE const SimdVector4 operator *( const SimdVector4 & vec ) const;
+
+    // Multiply a 4x4 matrix by a 3-D vector
+    // 
+    SIMD_VECTORMATH_FORCE_INLINE const SimdVector4 operator *( const SimdVector3 & vec ) const;
+
+    // Multiply a 4x4 matrix by a 3-D point
+    // 
+    SIMD_VECTORMATH_FORCE_INLINE const SimdVector4 operator *( const SimdPoint3 & pnt ) const;
+
+    // Multiply two 4x4 matrices
+    // 
+    SIMD_VECTORMATH_FORCE_INLINE const SimdMatrix4 operator *( const SimdMatrix4 & mat ) const;
+
+    // Multiply a 4x4 matrix by a 3x4 transformation matrix
+    // 
+    SIMD_VECTORMATH_FORCE_INLINE const SimdMatrix4 operator *( const SimdTransform3 & tfrm ) const;
+
     // Perform compound assignment and addition with a 4x4 matrix
     // 
     SIMD_VECTORMATH_FORCE_INLINE SimdMatrix4 & operator +=( const SimdMatrix4 & mat );
@@ -1798,6 +1800,14 @@ public:
     // Perform compound assignment and multiplication by a scalar (scalar data contained in vector data type)
     // 
     SIMD_VECTORMATH_FORCE_INLINE SimdMatrix4 & operator *=( const SimdFloat &scalar );
+
+    // Perform compound assignment and multiplication by a 4x4 matrix
+    // 
+    SIMD_VECTORMATH_FORCE_INLINE SimdMatrix4 & operator *=( const SimdMatrix4 & mat );
+
+    // Perform compound assignment and multiplication by a 3x4 transformation matrix
+    // 
+    SIMD_VECTORMATH_FORCE_INLINE SimdMatrix4 & operator *=( const SimdTransform3 & tfrm );
 
     // Construct an identity 4x4 matrix
     // 
@@ -1868,26 +1878,6 @@ public:
     static SIMD_VECTORMATH_FORCE_INLINE const SimdMatrix4 orthographic( float left, float right, float bottom, float top, float zNear, float zFar );
 
 };
-
-// Multiply a 4x4 matrix by a 4-D vector
-// 
-SIMD_VECTORMATH_FORCE_INLINE const SimdVector4 mul(const SimdMatrix4& mat, const SimdVector4 & vec);
-
-// Multiply a 4x4 matrix by a 3-D vector
-// 
-SIMD_VECTORMATH_FORCE_INLINE const SimdVector4 mul(const SimdMatrix4& mat, const SimdVector3 & vec);
-
-// Multiply a 4x4 matrix by a 3-D point
-// 
-SIMD_VECTORMATH_FORCE_INLINE const SimdVector4 mul(const SimdMatrix4& mat, const SimdPoint3 & pnt);
-
-// Multiply two 4x4 matrices
-// 
-SIMD_VECTORMATH_FORCE_INLINE const SimdMatrix4 mul(const SimdMatrix4& mat0, const SimdMatrix4 & mat1);
-
-// Multiply a 4x4 matrix by a 3x4 transformation matrix
-// 
-SIMD_VECTORMATH_FORCE_INLINE const SimdMatrix4 mul(const SimdMatrix4& mat, const SimdTransform3 & tfrm);
 
 // Multiply a 4x4 matrix by a scalar
 // 
@@ -1979,7 +1969,7 @@ public:
     SimdVector3 col2;
     SimdVector3 col3;
 
-    // Default constructor; does no initialization
+    // Default constructor
     // 
     SIMD_VECTORMATH_FORCE_INLINE SimdTransform3( ) { };
 
@@ -2087,6 +2077,21 @@ public:
     // 
     SIMD_VECTORMATH_FORCE_INLINE const SimdFloat getElem( int col, int row ) const;
 
+    // Multiply a 3x4 transformation matrix by a 3-D vector
+    // 
+    SIMD_VECTORMATH_FORCE_INLINE const SimdVector3 operator *( const SimdVector3 & vec ) const;
+
+    // Multiply a 3x4 transformation matrix by a 3-D point
+    // 
+    SIMD_VECTORMATH_FORCE_INLINE const SimdPoint3 operator *( const SimdPoint3 & pnt ) const;
+
+    // Multiply two 3x4 transformation matrices
+    // 
+    SIMD_VECTORMATH_FORCE_INLINE const SimdTransform3 operator *( const SimdTransform3 & tfrm ) const;
+
+    // Perform compound assignment and multiplication by a 3x4 transformation matrix
+    // 
+    SIMD_VECTORMATH_FORCE_INLINE SimdTransform3 & operator *=( const SimdTransform3 & tfrm );
 
     // Construct an identity 3x4 transformation matrix
     // 
@@ -2141,18 +2146,6 @@ public:
     static SIMD_VECTORMATH_FORCE_INLINE const SimdTransform3 translation( const SimdVector3 & translateVec );
 
 };
-
-// Multiply a 3x4 transformation matrix by a 3-D vector
-// 
-SIMD_VECTORMATH_FORCE_INLINE const SimdVector3 mul(const SimdTransform3 & tfrm, const SimdVector3 & vec);
-
-// Multiply a 3x4 transformation matrix by a 3-D point
-// 
-SIMD_VECTORMATH_FORCE_INLINE const SimdPoint3 mul(const SimdTransform3 & tfrm, const SimdPoint3 & pnt);
-
-// Multiply two 3x4 transformation matrices
-// 
-SIMD_VECTORMATH_FORCE_INLINE const SimdTransform3 mul(const SimdTransform3 & tfrm0, const SimdTransform3 & tfrm1);
 
 // Append (post-multiply) a scale transformation to a 3x4 transformation matrix
 // NOTE: 
@@ -2214,7 +2207,9 @@ SIMD_VECTORMATH_FORCE_INLINE void print( const SimdTransform3 & tfrm, const char
 
 } // namespace FmVectormath
 
+#if defined(_MSC_VER)
 #pragma warning(default : 4201)
+#endif
 
 #include "simd_vec_aos.h"
 #include "simd_quat_aos.h"

@@ -1,0 +1,142 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{ADA75063-195D-C958-A251-C32F0E06C05C}</ProjectGuid>
+    <IgnoreWarnCompileDuplicatedFilename>true</IgnoreWarnCompileDuplicatedFilename>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>FEMFXViewer</RootNamespace>
+    <ProjectName>FEMFXViewer</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(ProjectDir)build\vs2022\x86_64\Release\</OutDir>
+    <IntDir>$(ProjectDir)obj\vs2022\x86_64\x64\Release\</IntDir>
+    <TargetName>FEMFXViewer</TargetName>
+    <TargetExt>.exe</TargetExt>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LinkIncremental>true</LinkIncremental>
+    <OutDir>$(ProjectDir)build\vs2022\x86_64\Debug\</OutDir>
+    <IntDir>$(ProjectDir)obj\vs2022\x86_64\x64\Debug\</IntDir>
+    <TargetName>FEMFXViewer_d</TargetName>
+    <TargetExt>.exe</TargetExt>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level4</WarningLevel>
+      <PreprocessorDefinitions>WIN32;NOMINMAX;MTR_ENABLED;NDEBUG;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\amd_femfx\inc;..\..\amd_femfx\src\Common;..\..\amd_femfx\src\Bvh;..\..\amd_femfx\src\PrimitiveCollision;..\..\amd_femfx\src\FindContacts;..\..\amd_femfx\src\Scene;..\..\amd_femfx\src\SparseSolvers;..\..\amd_femfx\src\ConstraintSolver;..\..\amd_femfx\src\Simulation;..\..\amd_femfx\inc\Vectormath;..\..\amd_femfx\TL\inc;..\..\external\minitrace;..\ExampleRigidBodies;..\..\external\json\include;.;..\common;..\..\external\glfw\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <MinimalRebuild>false</MinimalRebuild>
+      <StringPooling>true</StringPooling>
+      <ExceptionHandling>false</ExceptionHandling>
+      <FloatingPointModel>Fast</FloatingPointModel>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <AdditionalOptions>$(FEMFXViewerOptionsEnvVar) %(AdditionalOptions)</AdditionalOptions>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>opengl32.lib;glu32.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\..\amd_femfx\lib;..\..\external\glfw\lib-vc2022;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+    <ProjectReference>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level4</WarningLevel>
+      <PreprocessorDefinitions>WIN32;NOMINMAX;MTR_ENABLED;_DEBUG;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\amd_femfx\inc;..\..\amd_femfx\src\Common;..\..\amd_femfx\src\Bvh;..\..\amd_femfx\src\PrimitiveCollision;..\..\amd_femfx\src\FindContacts;..\..\amd_femfx\src\Scene;..\..\amd_femfx\src\SparseSolvers;..\..\amd_femfx\src\ConstraintSolver;..\..\amd_femfx\src\Simulation;..\..\amd_femfx\inc\Vectormath;..\..\amd_femfx\TL\inc;..\..\external\minitrace;..\ExampleRigidBodies;..\..\external\json\include;.;..\common;..\..\external\glfw\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
+      <Optimization>Disabled</Optimization>
+      <ExceptionHandling>false</ExceptionHandling>
+      <FloatingPointModel>Fast</FloatingPointModel>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <AdditionalOptions>$(FEMFXViewerOptionsEnvVar) %(AdditionalOptions)</AdditionalOptions>
+      <ExternalWarningLevel>Level3</ExternalWarningLevel>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>opengl32.lib;glu32.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\..\amd_femfx\lib;..\..\external\glfw\lib-vc2022;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+    <ProjectReference>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="..\ExampleRigidBodies\ExampleRigidBodies.h" />
+    <ClInclude Include="..\common\ExplosionForce.h" />
+    <ClInclude Include="..\common\FemResource.h" />
+    <ClInclude Include="..\common\LoadFemFile.h" />
+    <ClInclude Include="..\common\LoadNodeEleMesh.h" />
+    <ClInclude Include="..\common\PartitionFemMesh.h" />
+    <ClInclude Include="..\common\RenderTetAssignment.h" />
+    <ClInclude Include="..\common\TestScenes.h" />
+    <ClInclude Include="ViewerCamera.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\ExampleRigidBodies\ExampleRigidBodies.cpp" />
+    <ClCompile Include="..\common\ExplosionForce.cpp" />
+    <ClCompile Include="..\common\FemResource.cpp" />
+    <ClCompile Include="..\common\LoadFemFile.cpp" />
+    <ClCompile Include="..\common\LoadNodeEleMesh.cpp" />
+    <ClCompile Include="..\common\PartitionFemMesh.cpp" />
+    <ClCompile Include="..\common\RenderTetAssignment.cpp" />
+    <ClCompile Include="..\common\TestScenes.cpp" />
+    <ClCompile Include="FEMFXViewer.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\amd_femfx\AMD_FEMFX_vs2022.vcxproj">
+      <Project>{EC54AEEA-58BF-6261-A1FD-13070DA740B6}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\amd_femfx\TL\TL_vs2022.vcxproj">
+      <Project>{65755900-5101-880B-BAAF-880BA65A880B}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

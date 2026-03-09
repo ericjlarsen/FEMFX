@@ -50,7 +50,7 @@ namespace AMD
         for (uint vId = 0; vId < numVerts; vId++)
         {
             tetMesh->vertsRestPos[vId] = vertRestPositions[vId];
-            tetMesh->vertsPos[vId] = translation + mul(rotation, vertRestPositions[vId]);
+            tetMesh->vertsPos[vId] = translation + rotation * vertRestPositions[vId];
             tetMesh->vertsVel[vId] = velocity;
             tetMesh->vertsMass[vId] = mass;
         }
@@ -74,6 +74,9 @@ namespace AMD
             FmInitTetMaterialParams(tetMesh, tId, materialParams);
         }
         tetMesh->removeKinematicStressThreshold = materialParams.fractureStressThreshold * 4.0f;
+
+        tetMesh->minShapeSingularValue = materialParams.adjustShapeParams ? FM_DEFAULT_MIN_SHAPE_SINGULAR_VALUE : 0.0f;
+        tetMesh->minShapeSingularValueRatio = materialParams.adjustShapeParams ? FM_DEFAULT_MIN_SHAPE_SINGULAR_VALUE_RATIO : 0.0f;
     }
 
     size_t FmGetMpcgSolverSize(uint maxVerts, uint maxVertAdjacentVerts)
@@ -161,12 +164,12 @@ namespace AMD
         FmVertTetValues& vertTetValues = tetMesh->vertsTetValues[idx];
         vertTetValues.tetStrainMagAvg = 0.0f;
         vertTetValues.tetStrainMagMax = 0.0f;
-        vertTetValues.tetQuatSum = FmInitQuat(0.0f, 0.0f, 0.0f, 0.0f);
+        vertTetValues.tetQuatSum = FmQuat(0.0f, 0.0f, 0.0f, 0.0f);
 
-        tetMesh->vertsRestPos[idx] = FmInitVector3(0.0f);
-        tetMesh->vertsPos[idx] = FmInitVector3(0.0f);
-        tetMesh->vertsVel[idx] = FmInitVector3(0.0f);
-        tetMesh->vertsExtForce[idx] = FmInitVector3(0.0f);
+        tetMesh->vertsRestPos[idx] = FmVector3(0.0f);
+        tetMesh->vertsPos[idx] = FmVector3(0.0f);
+        tetMesh->vertsVel[idx] = FmVector3(0.0f);
+        tetMesh->vertsExtForce[idx] = FmVector3(0.0f);
     }
 
     void FmInitTetMeshTet(FmTetMesh* tetMesh, uint idx, uint16_t flags = 0)
@@ -232,16 +235,16 @@ namespace AMD
         tetMesh->tetsMaxUnconstrainedSolveIterations = FmAllocFromBuffer<uint>(&pBuffer, numTets, pBufferEnd);
         tetMesh->tetsStressMaterialParams = FmAllocFromBuffer<FmTetStressMaterialParams>(&pBuffer, numTets, pBufferEnd);
         tetMesh->tetsDeformationMaterialParams = FmAllocFromBuffer<FmTetDeformationMaterialParams>(&pBuffer, numTets, pBufferEnd);
-        tetMesh->tetsFractureMaterialParams = enableFracture ? FmAllocFromBuffer<FmTetFractureMaterialParams>(&pBuffer, numTets, pBufferEnd) : NULL;
-        tetMesh->tetsPlasticityMaterialParams = enablePlasticity ? FmAllocFromBuffer<FmTetPlasticityMaterialParams>(&pBuffer, numTets, pBufferEnd) : NULL;
+        tetMesh->tetsFractureMaterialParams = enableFracture ? FmAllocFromBuffer<FmTetFractureMaterialParams>(&pBuffer, numTets, pBufferEnd) : nullptr;
+        tetMesh->tetsPlasticityMaterialParams = enablePlasticity ? FmAllocFromBuffer<FmTetPlasticityMaterialParams>(&pBuffer, numTets, pBufferEnd) : nullptr;
         tetMesh->tetsStrainMag = FmAllocFromBuffer<float>(&pBuffer, numTets, pBufferEnd);
         tetMesh->tetsIndex0 = FmAllocFromBuffer<uint>(&pBuffer, numTets, pBufferEnd);
         tetMesh->tetsRotation = FmAllocFromBuffer<FmMatrix3>(&pBuffer, numTets, pBufferEnd);
         tetMesh->tetsFaceIncidentTetIds = FmAllocFromBuffer<FmTetFaceIncidentTetIds>(&pBuffer, numTets, pBufferEnd);
         tetMesh->tetsVertIds = FmAllocFromBuffer<FmTetVertIds>(&pBuffer, numTets, pBufferEnd);
         tetMesh->tetsStiffness = FmAllocFromBuffer<FmTetStiffnessState>(&pBuffer, numTets, pBufferEnd);
-        tetMesh->tetsToFracture = enableFracture ? FmAllocFromBuffer<FmTetToFracture>(&pBuffer, numTets, pBufferEnd) : NULL;
-        tetMesh->tetsPlasticity = enablePlasticity ? FmAllocFromBuffer<FmTetPlasticityState>(&pBuffer, numTets, pBufferEnd) : NULL;
+        tetMesh->tetsToFracture = enableFracture ? FmAllocFromBuffer<FmTetToFracture>(&pBuffer, numTets, pBufferEnd) : nullptr;
+        tetMesh->tetsPlasticity = enablePlasticity ? FmAllocFromBuffer<FmTetPlasticityState>(&pBuffer, numTets, pBufferEnd) : nullptr;
 
         tetMesh->exteriorFaces = FmAllocFromBuffer<FmExteriorFace>(&pBuffer, maxExteriorFaces, pBufferEnd);
         tetMesh->bvh.nodes = FmAllocFromBuffer<FmBvhNode>(&pBuffer, maxBvhNodes, pBufferEnd);
@@ -329,9 +332,6 @@ namespace AMD
             if (enablePlasticity)
             {
                 tetMesh0.tetsPlasticity[i].plasticDeformationMatrix = FmMatrix3::identity();
-#if FM_COMPUTE_PLASTIC_REL_ROTATION
-                tetMesh0.tetsPlasticity[i].plasticTetRelRotation = FmMatrix3::identity();
-#endif
             }
         }
 
@@ -428,9 +428,9 @@ namespace AMD
         size_t bufferNumBytes = FmGetTetMeshBufferSize(params);
 
         uint8_t* pBuffer = (uint8_t*)FmAlignedMalloc(bufferNumBytes, 64);
-        if (pBuffer == NULL)
+        if (pBuffer == nullptr)
         {
-            return NULL;
+            return nullptr;
         }
 
         return FmSetupTetMeshBuffer(params, fractureGroupCounts, tetFractureGroupIds, pBuffer, bufferNumBytes, pTetMeshPtr);
@@ -489,16 +489,13 @@ namespace AMD
             for (uint i = 0; i < numTets; i++)
             {
                 tetMesh->tetsPlasticity[i].plasticDeformationMatrix = FmMatrix3::identity();
-#if FM_COMPUTE_PLASTIC_REL_ROTATION
-                tetMesh->tetsPlasticity[i].plasticTetRelRotation = FmMatrix3::identity();
-#endif
             }
             tetMesh->tetsPlasticityMaterialParams = new FmTetPlasticityMaterialParams[numTets];
         }
         else
         {
-            tetMesh->tetsPlasticity = NULL;
-            tetMesh->tetsPlasticityMaterialParams = NULL;
+            tetMesh->tetsPlasticity = nullptr;
+            tetMesh->tetsPlasticityMaterialParams = nullptr;
         }
 
         if (enableFracture)
@@ -508,8 +505,8 @@ namespace AMD
         }
         else
         {
-            tetMesh->tetsToFracture = NULL;
-            tetMesh->tetsFractureMaterialParams = NULL;
+            tetMesh->tetsToFracture = nullptr;
+            tetMesh->tetsFractureMaterialParams = nullptr;
         }
 
         tetMesh->bvh.nodes = new FmBvhNode[maxBvhNodes];
@@ -526,7 +523,7 @@ namespace AMD
         tetMesh->vertConnectivity.numIncidentTets = numVertIncidentTets;
         tetMesh->vertConnectivity.numIncidentTetsTotal = numVertIncidentTets;
 
-        tetMesh->solverData = NULL;
+        tetMesh->solverData = nullptr;
     }
 
     void FmAllocTetMeshData(FmTetMesh* tetMesh, const FmTetMesh& srcMesh)
@@ -537,7 +534,7 @@ namespace AMD
         uint maxExteriorFaces = srcMesh.maxExteriorFaces;
         uint numVertIncidentTets = srcMesh.vertConnectivity.numIncidentTetsTotal;  // Set incident tets size to numIncidentTetsTotal so that src incidentTetsStart values are valid
 
-        FmAllocTetMeshData(tetMesh, numVerts, numTets, maxVerts, maxExteriorFaces, numVertIncidentTets, (srcMesh.tetsPlasticity != NULL), (srcMesh.tetsToFracture != NULL));
+        FmAllocTetMeshData(tetMesh, numVerts, numTets, maxVerts, maxExteriorFaces, numVertIncidentTets, (srcMesh.tetsPlasticity != nullptr), (srcMesh.tetsToFracture != nullptr));
     }
 
     void FmCopyTetMesh(FmTetMesh* dstMesh, const FmTetMesh& srcMesh)
@@ -762,7 +759,11 @@ namespace AMD
     void FmWriteTetMesh(const char* filename, FmTetMesh* tetMesh)
     {
         FILE* fp;
+#if defined(_MSC_VER)
         fopen_s(&fp, filename, "wb");
+#else
+        fp = fopen(filename, "wb");
+#endif
 
         if (!fp)
         {
@@ -822,7 +823,11 @@ namespace AMD
     void FmReadTetMesh(const char* filename, FmTetMesh* tetMesh)
     {
         FILE* fp;
+#if defined(_MSC_VER)
         fopen_s(&fp, filename, "rb");
+#else
+        fp = fopen(filename, "rb");
+#endif
 
         if (!fp)
         {
@@ -830,7 +835,7 @@ namespace AMD
         }
 
         fread(tetMesh, sizeof(*tetMesh), 1, fp);
-        tetMesh->solverData = NULL;
+        tetMesh->solverData = nullptr;
 
         tetMesh->vertsNeighbors = new FmVertNeighbors[tetMesh->maxVerts];
         tetMesh->vertsMass = new float[tetMesh->maxVerts];
@@ -979,7 +984,7 @@ namespace AMD
         tetMesh->vertConnectivity.numIncidentTets = 0;
         tetMesh->vertConnectivity.numIncidentTetsTotal = 0;
 
-        tetMesh->solverData = NULL;
+        tetMesh->solverData = nullptr;
     }
 
     // Assign verts and edges to exterior faces, which can accelerate collision detection or reduce number of contacts.
@@ -1027,7 +1032,6 @@ namespace AMD
 
                 // Loop over tets that are connected at edge by face connections, until exterior face is found
                 uint currentTetId = tetId;
-                uint currentFaceId = faceId;
                 uint currentEdgeId = edgeId;
                 FmTetVertIds currentTetVerts = tetVerts;
                 FmTetFaceIncidentTetIds currentFaceIncidentTets = faceIncidentTets;
@@ -1107,7 +1111,6 @@ namespace AMD
 
                         // Jump to next tet
                         currentTetId = nextTetId;
-                        currentFaceId = nextFaceId;
                         currentEdgeId = nextEdgeId;
                         currentTetVerts = nextTetVerts;
                         currentFaceIncidentTets = nextFaceIncidentTets;
@@ -1750,7 +1753,7 @@ namespace AMD
     FmVector3 FmMoveRestPositionCenterOfMassToOrigin(FmTetMesh* tetMesh)
     {
         uint numVerts = tetMesh->numVerts;
-        FmVector3 centerOfMass = FmInitVector3(0.0f);
+        FmVector3 centerOfMass = FmVector3(0.0f);
         float totalMass = 0.0f;
 
         for (uint vId = 0; vId < numVerts; vId++)
@@ -1804,7 +1807,7 @@ namespace AMD
     int FmFinishTetMeshInit(FmTetMesh* tetMesh)
     {
         FmUpdateBoundsAndCenterOfMass(tetMesh);
-        FmUpdateTetStateAndFracture(NULL, tetMesh, false, false);
+        FmUpdateTetStateAndFracture(nullptr, tetMesh, false, false);
 
         return FmCheckTetMeshAspectRatios(tetMesh);
     }
@@ -1882,7 +1885,7 @@ namespace AMD
     // Get the matrix derived from the tet rest positions that transforms a position in homogeneous coordinates (x,y,z,1) into barycentric coordinates.
     FmMatrix4 FmGetTetRestBaryMatrix(const FmTetMesh& tetMesh, uint tetId)
     {
-        return tetMesh.tetsShapeParams[tetId].baryMatrix;
+        return tetMesh.tetsShapeParams[tetId].ComputeBaryMatrix();
     }
 
     FmTetMaterialParams FmGetTetMaterialParams(const FmTetMesh& tetMesh, uint tetId)
@@ -1932,12 +1935,12 @@ namespace AMD
         return tetMeshBuffer.maxTetMeshes;
     }
 
-    // Get a FmTetMesh* by index with a FmTetMeshBuffer; returns NULL if not found.
+    // Get a FmTetMesh* by index with a FmTetMeshBuffer; returns nullptr if not found.
     FmTetMesh* FmGetTetMesh(const FmTetMeshBuffer& tetMeshBuffer, uint meshIdx)
     {
         if (meshIdx >= tetMeshBuffer.numTetMeshes)
         {
-            return NULL;
+            return nullptr;
         }
 
         return &tetMeshBuffer.tetMeshes[meshIdx];
@@ -1947,7 +1950,7 @@ namespace AMD
     {
         if (bufferVertId >= tetMeshBuffer.numVerts)
         {
-            return NULL;
+            return nullptr;
         }
 
         FmVertReference& vertRef = tetMeshBuffer.vertReferences[bufferVertId];
@@ -1968,7 +1971,7 @@ namespace AMD
     {
         if (bufferTetId >= tetMeshBuffer.numTets)
         {
-            return NULL;
+            return nullptr;
         }
 
         FmTetReference& tetRef = tetMeshBuffer.tetReferences[bufferTetId];
@@ -2083,7 +2086,7 @@ namespace AMD
     {
         if (vertId >= tetMesh.numVerts)
         {
-            return FmInitVector3(0.0f);
+            return FmVector3(0.0f);
         }
 
         return tetMesh.vertsRestPos[vertId];
@@ -2093,7 +2096,7 @@ namespace AMD
     {
         if (vertId >= tetMesh.numVerts)
         {
-            return FmInitVector3(0.0f);
+            return FmVector3(0.0f);
         }
 
         return tetMesh.vertsPos[vertId];
@@ -2103,7 +2106,7 @@ namespace AMD
     {
         if (vertId >= tetMesh.numVerts)
         {
-            return FmInitVector3(0.0f);
+            return FmVector3(0.0f);
         }
 
         return tetMesh.vertsVel[vertId];
@@ -2113,7 +2116,7 @@ namespace AMD
     {
         if (vertId >= tetMesh.numVerts)
         {
-            return FmInitVector3(0.0f);
+            return FmVector3(0.0f);
         }
 
         return tetMesh.vertsExtForce[vertId];
@@ -2173,7 +2176,7 @@ namespace AMD
     {
         if (vertId >= tetMesh.numVerts)
         {
-            return FmInitQuat(0.0f, 0.0f, 0.0f, 1.0f);
+            return FmQuat(0.0f, 0.0f, 0.0f, 1.0f);
         }
 
         return tetMesh.vertsTetValues[vertId].tetQuatSum;
@@ -2234,9 +2237,6 @@ namespace AMD
             {
                 // Reset plastic deformation
                 plasticityState.plasticDeformationMatrix = FmMatrix3::identity();
-#if FM_COMPUTE_PLASTIC_REL_ROTATION
-                plasticityState.plasticTetRelRotation = FmMatrix3::identity();
-#endif
             }
             else if (plasticDeformationAttenuation >= 0.0f && plasticDeformationAttenuation < 1.0f)
             {
@@ -2258,40 +2258,9 @@ namespace AMD
                     totalPlasticDeformation = totalPlasticDeformation * powf(plasticDet, -(1.0f / 3.0f));
                 }
 
-                plasticDeformationMatrix = mul(mul(V, FmMatrix3::scale(totalPlasticDeformation)), transpose(V));
+                plasticDeformationMatrix = V * FmMatrix3::scale(totalPlasticDeformation) * transpose(V);
 
                 plasticityState.plasticDeformationMatrix = plasticDeformationMatrix;
-            }
-        }
-
-        // Tet stress, strain, stiffness mats must be updated if change to Young's modulus, Poisson's ratio, or plastic deformation
-        if (prevTetMaterialParams.youngsModulus != newMaterialParams.youngsModulus
-            || prevTetMaterialParams.poissonsRatio != newMaterialParams.poissonsRatio
-            || plasticDeformationAttenuation < 1.0f)
-        {
-            FmTetShapeParams shapeParams;
-            FmVector3 tetRestPosition0, tetRestPosition1, tetRestPosition2, tetRestPosition3;
-            if (tetMesh->tetsPlasticity)
-            {
-                FmTetPlasticityState& plasticityState = tetMesh->tetsPlasticity[meshTetId];
-
-                FmVector3 restPos0 = tetMesh->vertsRestPos[tetVertIds.ids[0]];
-                FmVector3 restPos1 = tetMesh->vertsRestPos[tetVertIds.ids[1]];
-                FmVector3 restPos2 = tetMesh->vertsRestPos[tetVertIds.ids[2]];
-                FmVector3 restPos3 = tetMesh->vertsRestPos[tetVertIds.ids[3]];
-
-                FmMatrix3 restVolumeMatrix = FmComputeTetVolumeMatrix(restPos0, restPos1, restPos2, restPos3);
-
-                FmMatrix3 offsets = mul(plasticityState.plasticDeformationMatrix, restVolumeMatrix);
-                tetRestPosition3 = FmVector3(0.0f);
-                tetRestPosition0 = offsets.col0;
-                tetRestPosition1 = offsets.col1;
-                tetRestPosition2 = offsets.col2;
-
-                FmComputeShapeParams(&shapeParams, tetRestPosition0, tetRestPosition1, tetRestPosition2, tetRestPosition3);
-
-                // Update the plasticRestBaryMatrix to match new rest positions
-                plasticityState.plasticShapeParams = shapeParams;
             }
         }
 
@@ -2470,7 +2439,7 @@ namespace AMD
 
     void FmSetGravity(FmTetMesh* tetMesh, const FmVector3& gravityVector)
     {
-        if (tetMesh == NULL)
+        if (tetMesh == nullptr)
         {
             return;
         }
@@ -2514,18 +2483,12 @@ namespace AMD
             FmVector3 tetRestPosition3 = tetMesh->vertsRestPos[tetVertIds.ids[3]];
 
             FmTetShapeParams shapeParams;
-            FmComputeShapeParams(&shapeParams, tetRestPosition0, tetRestPosition1, tetRestPosition2, tetRestPosition3);
+            FmComputeShapeParams(&shapeParams, tetRestPosition0, tetRestPosition1, tetRestPosition2, tetRestPosition3, tetMesh->minShapeSingularValueRatio, tetMesh->minShapeSingularValue);
 
             // save shape parameters
             tetShapeParams = shapeParams;
 
             totalRestVolume += shapeParams.GetVolume();
-
-            if (tetMesh->tetsPlasticity)
-            {
-                FmTetPlasticityState& plasticityState = tetMesh->tetsPlasticity[tetId];
-                plasticityState.plasticShapeParams = tetShapeParams;
-            }
         }
 
         return totalRestVolume;
@@ -2571,7 +2534,7 @@ namespace AMD
             }
         }
 
-        FmVector3 velocity = FmInitVector3(0.0f);
+        FmVector3 velocity = FmVector3(0.0f);
         uint numVerts = tetMesh->numVerts;
         for (uint vId = 0; vId < numVerts; vId++)
         {
@@ -2585,13 +2548,13 @@ namespace AMD
         }
 
         FmMatrix3 rotation = FmGetTetRotation(*tetMesh, centerTetId);
-        FmVector3 translation = centerTetPos + mul(rotation, -FmGetRestTetCenter(*tetMesh, centerTetId));
+        FmVector3 translation = centerTetPos + rotation * -FmGetRestTetCenter(*tetMesh, centerTetId);
 
         for (uint vId = 0; vId < numVerts; vId++)
         {
             if (!FM_IS_SET(tetMesh->vertsFlags[vId], FM_VERT_FLAG_KINEMATIC))
             {
-                tetMesh->vertsPos[vId] = translation + mul(rotation, tetMesh->vertsRestPos[vId]);
+                tetMesh->vertsPos[vId] = translation + rotation * tetMesh->vertsRestPos[vId];
                 tetMesh->vertsVel[vId] = velocity;
             }
         }
@@ -2620,7 +2583,7 @@ namespace AMD
     void FmUpdateVertPositions(FmTetMesh* tetMesh, float timestep)
     {
         uint numVerts = tetMesh->numVerts;
-        FmVector3 centerOfMass = FmInitVector3(0.0f);
+        FmVector3 centerOfMass = FmVector3(0.0f);
         float totalMass = 0.0f;
 
         if (numVerts == 0)
@@ -2669,7 +2632,7 @@ namespace AMD
     void FmUpdateBoundsAndCenterOfMass(FmTetMesh* tetMesh)
     {
         uint numVerts = tetMesh->numVerts;
-        FmVector3 centerOfMass = FmInitVector3(0.0f);
+        FmVector3 centerOfMass = FmVector3(0.0f);
         float totalMass = 0.0f;
 
         if (numVerts == 0)

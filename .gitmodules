@@ -1,0 +1,6 @@
+[submodule "external/json"]
+	path = external/json
+	url = https://github.com/nlohmann/json
+[submodule "external/minitrace"]
+	path = external/minitrace
+	url = https://github.com/hrydgard/minitrace

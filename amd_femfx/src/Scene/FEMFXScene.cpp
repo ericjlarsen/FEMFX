@@ -167,9 +167,9 @@ namespace AMD
         size_t bufferNumBytes = FmGetSceneSize(params);
 
         uint8_t* pBuffer = (uint8_t*)FmAlignedMalloc(bufferNumBytes, 64);
-        if (pBuffer == NULL)
+        if (pBuffer == nullptr)
         {
-            return NULL;
+            return nullptr;
         }
 
         return FmSetupScene(params, pBuffer, bufferNumBytes);
@@ -201,12 +201,7 @@ namespace AMD
         scene->params = sceneParams;
     }
 
-    void FmSetSceneTaskSystemCallbacks(FmScene* scene, const FmTaskSystemCallbacks& callbacks)
-    {
-        scene->taskSystemCallbacks = callbacks;
-    }
-
-    void FmSetPostSceneUpdateCallback(FmScene* scene, FmTaskFuncCallback postSceneUpdateCallback, void* postSceneUpdateData)
+    void FmSetPostSceneUpdateCallback(FmScene* scene, TLTaskFuncCallback postSceneUpdateCallback, void* postSceneUpdateData)
     {
         scene->postUpdateSceneCallback = postSceneUpdateCallback;
         scene->postUpdateSceneData = postSceneUpdateData;
@@ -524,7 +519,7 @@ namespace AMD
 
         for (uint meshBufferIdx = 0; meshBufferIdx < maxMeshBuffers; meshBufferIdx++)
         {
-            if (scene->tetMeshBuffers[meshBufferIdx] == NULL)
+            if (scene->tetMeshBuffers[meshBufferIdx] == nullptr)
             {
                 // Save tet mesh buffer to empty slot
                 scene->tetMeshBuffers[meshBufferIdx] = tetMeshBuffer;
@@ -649,7 +644,7 @@ namespace AMD
             FmRemoveTetMeshIdFromIsland(scene, objectId);
 
             // Release id and remove tet mesh pointer
-            FmSetTetMeshPtrById(scene, objectId, NULL);
+            FmSetTetMeshPtrById(scene, objectId, nullptr);
 
             FmReleaseId(&scene->freeTetMeshIds, objectId);
         }
@@ -657,10 +652,10 @@ namespace AMD
         // Reset flags and scene indices
         FmResetTetMeshBufferSceneState(tetMeshBuffer);
 
-        // Set mesh buffer pointer to NULL to remove from scene
-        scene->tetMeshBuffers[tetMeshBufferId] = NULL;
+        // Set mesh buffer pointer to nullptr to remove from scene
+        scene->tetMeshBuffers[tetMeshBufferId] = nullptr;
 
-        // Scan back to first non-NULL pointer to reduce number of tet mesh buffers
+        // Scan back to first non-null pointer to reduce number of tet mesh buffers
         uint numTetMeshBufferSlots = scene->numTetMeshBufferSlots;
         for (int meshBufferIdx = (int)numTetMeshBufferSlots - 1; meshBufferIdx >= 0; meshBufferIdx--)
         {
@@ -859,16 +854,16 @@ namespace AMD
     {
         if (tetMeshBufferId >= scene.maxTetMeshBuffers)
         {
-            return NULL;
+            return nullptr;
         }
         return scene.tetMeshBuffers[tetMeshBufferId];
     }
 
     FmTetMesh* FmGetTetMesh(const FmScene& scene, uint objectId)
     {
-        if (scene.tetMeshBuffers == NULL || objectId >= scene.maxTetMeshes)
+        if (scene.tetMeshBuffers == nullptr || objectId >= scene.maxTetMeshes)
         {
-            return NULL;
+            return nullptr;
         }
 
         return FmGetTetMeshPtrById(scene, objectId);
@@ -956,13 +951,13 @@ namespace AMD
         // Release id
         FmReleaseId(&scene->freeRigidBodyIds, rigidBodyId);
 
-        // Reset and set pointer NULL
+        // Reset and set pointer nullptr
         FmResetRigidBodySceneState(&rigidBody);
 
-        // Set mesh buffer pointer to NULL to remove from scene
-        scene->rigidBodies[rbIdx] = NULL;
+        // Set mesh buffer pointer to nullptr to remove from scene
+        scene->rigidBodies[rbIdx] = nullptr;
 
-        // Scan back to first non-NULL pointer to reduce number of rigid body slots
+        // Scan back to first non-null pointer to reduce number of rigid body slots
         uint numRigidBodySlots = scene->numRigidBodySlots;
         for (int rbsIdx = (int)numRigidBodySlots - 1; rbsIdx >= 0; rbsIdx--)
         {
@@ -984,7 +979,7 @@ namespace AMD
 
         if (rigidBodyIdx >= scene.numRigidBodySlots)
         {
-            return NULL;
+            return nullptr;
         }
 
         return scene.rigidBodies[rigidBodyIdx];

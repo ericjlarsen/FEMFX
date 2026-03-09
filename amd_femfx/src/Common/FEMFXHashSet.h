@@ -78,14 +78,14 @@ namespace AMD
     template< class KeyValue, class SetFuncs >
     struct FmHashSet
     {
-        KeyValue* elements;
-        uint numElements;
-        uint maxElements;
+        KeyValue* elements = nullptr;
+        uint numElements = 0;
+        uint maxElements = 0;
     };
 
     // Init hash set with provided memory for elements and initialize keys to invalid.
     template< class KeyValue, class SetFuncs >
-    void FmInitHashSet(FmHashSet<KeyValue, SetFuncs>* hashSet, typename KeyValue* pElements, uint maxElements)
+    void FmInitHashSet(FmHashSet<KeyValue, SetFuncs>* hashSet, KeyValue* pElements, uint maxElements)
     {
         hashSet->elements = pElements;
         hashSet->maxElements = maxElements;
@@ -120,7 +120,7 @@ namespace AMD
     }
 
     // Insert element and return pointer; set whether key was found in set.
-    // NULL element signifies set full.
+    // nullptr element signifies set full.
     template< class KeyValue, class SetFuncs, class Key >
     KeyValue* FmInsertElement(bool* foundInSet, FmHashSet<KeyValue, SetFuncs>* hashSet, const Key& key)
     {
@@ -149,9 +149,9 @@ namespace AMD
         }
         else
         {
-            // Hash table full, set element to NULL
+            // Hash table full, set element to nullptr
             *foundInSet = false;
-            return NULL;
+            return nullptr;
         }
     }
 
@@ -161,13 +161,13 @@ namespace AMD
     template< class KeyValue, class SetFuncs >
     struct FmExpandableHashSet
     {
-        FmHashSet< KeyValue, SetFuncs >* sets;
-        uint                             numSets;
-        uint                             maxSets;
+        FmHashSet< KeyValue, SetFuncs >* sets = nullptr;
+        uint                             numSets = 0;
+        uint                             maxSets = 0;
 
-        KeyValue* elements;
-        uint      numElementsUsed;
-        uint      maxElements;
+        KeyValue* elements = nullptr;
+        uint      numElementsUsed = 0;
+        uint      maxElements = 0;
     };
 
     // Insert element
@@ -222,7 +222,7 @@ namespace AMD
         if (expandableSet->numSets >= expandableSet->maxSets)
         {
             FM_ASSERT(0);
-            return NULL;
+            return nullptr;
         }
 
         uint numElements = FmMinUint(lastSet.maxElements * 2, expandableSet->maxElements - expandableSet->numElementsUsed);
@@ -242,7 +242,7 @@ namespace AMD
         else
         {
             FM_ASSERT(0);
-            return NULL;
+            return nullptr;
         }
     }
 
@@ -261,6 +261,13 @@ namespace AMD
 
     static inline void FmGetExpandableHashSetSizes(uint* outMaxElements, uint* outMaxSets, uint numElements)
     {
+        if (numElements == 0)
+        {
+            *outMaxElements = 0;
+            *outMaxSets = 0;
+            return;
+        }
+
         uint maxElements = numElements * 2;
         *outMaxElements = maxElements;
         *outMaxSets = FmIntLog2(maxElements) + 1;
@@ -272,7 +279,7 @@ namespace AMD
         uint maxElements, maxSets;
         FmGetExpandableHashSetSizes(&maxElements, &maxSets, numElements);
 
-        return sizeof(FmExpandableHashSet) + sizeof(KeyValue) * maxElements + sizeof(FmHashSet< KeyValue, SetFuncs >) * maxSets;
+        return sizeof(FmExpandableHashSet<KeyValue, SetFuncs>) + sizeof(KeyValue) * maxElements + sizeof(FmHashSet< KeyValue, SetFuncs >) * maxSets;
     }
 
 

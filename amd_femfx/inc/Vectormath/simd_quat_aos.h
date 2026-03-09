@@ -289,6 +289,12 @@ SIMD_VECTORMATH_FORCE_INLINE SimdQuat & SimdQuat::operator -=( const SimdQuat & 
     return *this;
 }
 
+SIMD_VECTORMATH_FORCE_INLINE SimdQuat & SimdQuat::operator*=( const SimdQuat& quat )
+{
+    *this = *this * quat;
+    return *this;
+}
+
 SIMD_VECTORMATH_FORCE_INLINE SimdQuat & SimdQuat::operator *=( float scalar )
 {
     *this = *this * scalar;
@@ -441,12 +447,12 @@ SIMD_VECTORMATH_FORCE_INLINE const SimdQuat SimdQuat::rotationZ( const SimdFloat
     return SimdQuat( res );
 }
 
-SIMD_VECTORMATH_FORCE_INLINE const SimdQuat mul(const SimdQuat& quat0, const SimdQuat & quat1 )
+SIMD_VECTORMATH_FORCE_INLINE const SimdQuat SimdQuat::operator *( const SimdQuat & quat ) const
 {
     __m128 ldata, rdata, qv, tmp0, tmp1, tmp2, tmp3;
     __m128 product, l_wxyz, r_wxyz, xy, qw;
-    ldata = quat0.mVec128;
-    rdata = quat1.mVec128;
+    ldata = mVec128;
+    rdata = quat.mVec128;
     tmp0 = _mm_shuffle_ps( ldata, ldata, _MM_SHUFFLE(3,0,2,1) );
     tmp1 = _mm_shuffle_ps( rdata, rdata, _MM_SHUFFLE(3,1,0,2) );
     tmp2 = _mm_shuffle_ps( ldata, ldata, _MM_SHUFFLE(3,1,0,2) );

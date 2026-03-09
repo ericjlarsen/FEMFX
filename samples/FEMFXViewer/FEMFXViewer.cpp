@@ -31,34 +31,41 @@ THE SOFTWARE.
 #include <stdlib.h>
 #include <algorithm>
 #include <string>
+#if defined(_MSC_VER)
 #include <Windows.h>
+#endif
 
 // GLFW includes
+#if defined(_MSC_VER)
 #pragma warning(push, 0)
+#endif
 #define GLFW_INCLUDE_GLU
 #include <GLFW/glfw3.h>
+#if defined(_MSC_VER)
 #pragma warning(pop)
+#endif
 
 #define _VECTORMATH_DEBUG // For print functions
 #include "ViewerCamera.h"
 #include "TestScenes.h"
 #include "FEMFXInternal.h"
-#include "SampleTaskSystem.h"
+#include <vector>
 
 using namespace AMD;
 
 // Config settings
 #define DRAW_ROTATIONS 0
-#define DRAW_DIST_CONTACTS 1
-#define DRAW_GLUE 1
+#define DRAW_DIST_CONTACTS 0
+#define DRAW_GLUE 0
 #define DRAW_FRACTURE_CONTACTS 0
-#define DRAW_VOL_CONTACTS 1
+#define DRAW_VOL_CONTACTS 0
 #define DRAW_VOL_CONTACT_FRAME 0
 #define DRAW_MESH_BVH 0
 #define DRAW_BROAD_PHASE_BVH 0
-#define DRAW_PARTITION_OBJECTS  0
-#define DRAW_PARTITION_BVH      0
+#define DRAW_PARTITION_BVH   0
 #define DRAW_GROUND 1
+
+#define TRACE_TEST 1 && !FIX_INITIAL_CONDITIONS
 
 #if PERF_TEST
 #define PERF_TEST_MODE_MAX_THREADS                     0       // run max threads
@@ -81,19 +88,24 @@ static int gRandomSeed = 0;
 
 static int gFrameCounter = 0;
 
+#if TRACE_TEST
+static bool gRunning = true;
+#else
 static bool gRunning = false;
+#endif
 static bool gStepForward = false;
 static bool gStepBackward = false;
 static int gTargetFrame = 0;
 
 static const float gTimestep = (1.0f / 60.0f);
 
-static bool gDrawWireframe = false;
 static bool gDrawContacts = false;
 static bool gDrawGlue = false;
 static bool gDrawVolContacts = false;
 static bool gDrawHighAspectRatioTets = false;
 static bool gDrawKinematicTets = false;
+static int  gDrawMode = 0;
+static bool gDrawWireframe = false;
 static bool gDrawFractureFlags = false;
 static bool gDrawFracturableFaces = true;
 
@@ -116,9 +128,34 @@ namespace AMD
 #endif
 }
 
-static inline float randfloat()
+void PrintHelp()
 {
-    return (float)rand() / RAND_MAX;
+    printf("===================================================================\n");
+    printf("Controls:\n");
+    printf("Left mouse drag : rotate the scene\n");
+    printf("Middle mouse drag : pan\n");
+    printf("Right mouse drag down / up : zoom in / out\n");
+    printf("'h' : print help\n");
+    printf("'p' : toggle paused / running\n");
+    printf("'r' : reset simulation\n");
+    printf("'q' : quit\n");
+#if CARS_SCENE
+    printf("'f' : fire projectile\n");
+    printf("' ' : fire higher-speed projectile\n");
+    printf("'l' : launch cars\n");
+#endif
+#if DRAW_DIST_CONTACTS
+    printf("'c' : display distance contact debug\n");
+#endif
+#if DRAW_VOL_CONTACTS
+    printf("'v' : display volume contact debug\n");
+#endif
+    printf("'d' : cycle drawing wireframe, fracturable, non-fracturable faces\n");
+    printf("']' : step simulation forward\n");
+#if FIX_INITIAL_CONDITIONS
+    printf("'[' : step simulation backward\n");
+#endif
+    printf("===================================================================\n");
 }
 
 static inline float randfloat(uint seed)
@@ -128,90 +165,107 @@ static inline float randfloat(uint seed)
 }
 
 // Drawing functions
-static void DrawCube()
+static void DrawCube(float r, float g, float b)
 {
     GLfloat verts[] =
     {
-        -1, -1, -1,
-        1, -1, -1,
-        1, -1, 1,
-        -1, -1, 1,
-
-        -1, 1, -1,
-        -1, 1, 1,
-        1, 1, 1,
-        1, 1, -1,
-
-        -1, -1, -1,
-        -1, 1, -1,
-        1, 1, -1,
-        1, -1, -1,
-
-        -1, -1, 1,
-        1, -1, 1,
-        1, 1, 1,
-        -1, 1, 1,
-
-        -1, -1, -1,
-        -1, -1, 1,
-        -1, 1, 1,
-        -1, 1, -1,
-
-        1, -1, -1,
-        1, 1, -1,
-        1, 1, 1,
-        1, -1, 1,
+        -1.0f, -1.0f, -1.0f,   1.0f, -1.0f, -1.0f,   1.0f, -1.0f,  1.0f,  -1.0f, -1.0f,  1.0f,
+        -1.0f,  1.0f, -1.0f,  -1.0f,  1.0f,  1.0f,   1.0f,  1.0f,  1.0f,   1.0f,  1.0f, -1.0f,
+        -1.0f, -1.0f, -1.0f,  -1.0f,  1.0f, -1.0f,   1.0f,  1.0f, -1.0f,   1.0f, -1.0f, -1.0f,
+        -1.0f, -1.0f,  1.0f,   1.0f, -1.0f,  1.0f,   1.0f,  1.0f,  1.0f,  -1.0f,  1.0f,  1.0f,
+        -1.0f, -1.0f, -1.0f,  -1.0f, -1.0f,  1.0f,  -1.0f,  1.0f,  1.0f,  -1.0f,  1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f,   1.0f,  1.0f, -1.0f,   1.0f,  1.0f,  1.0f,   1.0f, -1.0f,  1.0f,
     };
-
     GLfloat normals[] =
     {
-        0.0f, -1.0f, 0.0f,
-        0.0f, -1.0f, 0.0f,
-        0.0f, -1.0f, 0.0f,
-        0.0f, -1.0f, 0.0f,
-
-        0.0f, 1.0f, 0.0f,
-        0.0f, 1.0f, 0.0f,
-        0.0f, 1.0f, 0.0f,
-        0.0f, 1.0f, 0.0f,
-
-        0.0f, 0.0f, -1.0f,
-        0.0f, 0.0f, -1.0f,
-        0.0f, 0.0f, -1.0f,
-        0.0f, 0.0f, -1.0f,
-
-        0.0f, 0.0f, 1.0f,
-        0.0f, 0.0f, 1.0f,
-        0.0f, 0.0f, 1.0f,
-        0.0f, 0.0f, 1.0f,
-
-        -1.0f, 0.0f, 0.0f,
-        -1.0f, 0.0f, 0.0f,
-        -1.0f, 0.0f, 0.0f,
-        -1.0f, 0.0f, 0.0f,
-
-        1.0f, 0.0f, 0.0f,
-        1.0f, 0.0f, 0.0f,
-        1.0f, 0.0f, 0.0f,
-        1.0f, 0.0f, 0.0f,
+         0.0f, -1.0f,  0.0f,   0.0f, -1.0f,  0.0f,   0.0f, -1.0f,  0.0f,   0.0f, -1.0f,  0.0f,
+         0.0f,  1.0f,  0.0f,   0.0f,  1.0f,  0.0f,   0.0f,  1.0f,  0.0f,   0.0f,  1.0f,  0.0f,
+         0.0f,  0.0f, -1.0f,   0.0f,  0.0f, -1.0f,   0.0f,  0.0f, -1.0f,   0.0f,  0.0f, -1.0f,
+         0.0f,  0.0f,  1.0f,   0.0f,  0.0f,  1.0f,   0.0f,  0.0f,  1.0f,   0.0f,  0.0f,  1.0f,
+        -1.0f,  0.0f,  0.0f,  -1.0f,  0.0f,  0.0f,  -1.0f,  0.0f,  0.0f,  -1.0f,  0.0f,  0.0f,
+         1.0f,  0.0f,  0.0f,   1.0f,  0.0f,  0.0f,   1.0f,  0.0f,  0.0f,   1.0f,  0.0f,  0.0f,
     };
-
+    glColor3f(r, g, b);
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);
     glVertexPointer(3, GL_FLOAT, 0, verts);
     glNormalPointer(GL_FLOAT, 0, normals);
-
     glDrawArrays(GL_QUADS, 0, 24);
-
     glDisableClientState(GL_VERTEX_ARRAY);
     glDisableClientState(GL_NORMAL_ARRAY);
 }
 
-static GLUquadric* gQuadric = NULL;
+static void DrawTriangles(GLfloat* verts, GLfloat* normals, GLfloat* colors, int numVertices)
+{
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glEnableClientState(GL_NORMAL_ARRAY);
+    glEnableClientState(GL_COLOR_ARRAY);
+    glVertexPointer(3, GL_FLOAT, 0, verts);
+    glNormalPointer(GL_FLOAT, 0, normals);
+    glColorPointer(3, GL_FLOAT, 0, colors);
+    glDrawArrays(GL_TRIANGLES, 0, numVertices);
+    glDisableClientState(GL_VERTEX_ARRAY);
+    glDisableClientState(GL_NORMAL_ARRAY);
+    glDisableClientState(GL_COLOR_ARRAY);
+}
+
+static void DrawLines(GLfloat* verts, GLfloat* colors, int numVertices)
+{
+    glDisable(GL_LIGHTING);
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glEnableClientState(GL_COLOR_ARRAY);
+    glVertexPointer(3, GL_FLOAT, 0, verts);
+    glColorPointer(3, GL_FLOAT, 0, colors);
+    glDrawArrays(GL_LINES, 0, numVertices);
+    glDisableClientState(GL_VERTEX_ARRAY);
+    glDisableClientState(GL_COLOR_ARRAY);
+    glEnable(GL_LIGHTING);
+}
+
+static GLUquadric* gQuadric = nullptr;
+
+#if DRAW_DIST_CONTACTS || DRAW_VOL_CONTACTS || DRAW_GLUE
+static void DrawLine(const FmVector3& posA, const FmVector3& posB, float r, float g, float b)
+{
+    GLfloat verts[] =
+    {
+        posA.x, posA.y, posA.z,
+        posB.x, posB.y, posB.z,
+    };
+    GLfloat colors[] =
+    {
+        r, g, b,
+        r, g, b
+    };
+    DrawLines(verts, colors, 2);
+}
+
+static void DrawAxes(const FmVector3& pos, const FmVector3& xAxis, const FmVector3& yAxis, const FmVector3& zAxis)
+{
+    GLfloat verts[] =
+    {
+        pos.x, pos.y, pos.z,
+        pos.x + xAxis.x, pos.y + xAxis.y, pos.z + xAxis.z,
+        pos.x, pos.y, pos.z,
+        pos.x + yAxis.x, pos.y + yAxis.y, pos.z + yAxis.z,
+        pos.x, pos.y, pos.z,
+        pos.x + zAxis.x, pos.y + zAxis.y, pos.z + zAxis.z,
+    };
+    GLfloat colors[] =
+    {
+        1.0, 0.0f, 0.0f,
+        1.0, 0.0f, 0.0f,
+        0.0, 1.0f, 0.0f,
+        0.0, 1.0f, 0.0f,
+        0.0, 0.0f, 1.0f,
+        0.0, 0.0f, 1.0f
+    };
+    DrawLines(verts, colors, 6);
+}
 
 static void DrawSphere(FmVector3 pos, float radius, float r, float g, float b)
 {
-    if (gQuadric == NULL)
+    if (gQuadric == nullptr)
     {
         gQuadric = gluNewQuadric();
     }
@@ -221,18 +275,19 @@ static void DrawSphere(FmVector3 pos, float radius, float r, float g, float b)
     gluSphere(gQuadric, radius, 10, 10);
     glPopMatrix();
 }
+#endif
 
 static void DrawBox(float hx, float hy, float hz, float r, float g, float b)
 {
     glEnable(GL_NORMALIZE);
     glPushMatrix();
-    glColor3f(r, g, b);
     glScalef(hx, hy, hz);
-    DrawCube();
+    DrawCube(r, g, b);
     glPopMatrix();
     glDisable(GL_NORMALIZE);
 }
 
+#if DRAW_MESH_BVH || DRAW_BROAD_PHASE_BVH || DRAW_PARTITION_BVH
 static void DrawAabb(FmAabb& aabb, float timestep, float r, float g, float b)
 {
     FmVector3 pmin = aabb.pmin + aabb.vmin * timestep;
@@ -240,37 +295,26 @@ static void DrawAabb(FmAabb& aabb, float timestep, float r, float g, float b)
 
     glDisable(GL_LIGHTING);
     glDisable(GL_CULL_FACE);
-    glBegin(GL_LINES);
-    glColor3f(r, g, b);
-    glVertex3f(pmin.x, pmin.y, pmin.z);
-    glVertex3f(pmax.x, pmin.y, pmin.z);
-    glVertex3f(pmin.x, pmin.y, pmax.z);
-    glVertex3f(pmax.x, pmin.y, pmax.z);
-    glVertex3f(pmin.x, pmax.y, pmin.z);
-    glVertex3f(pmax.x, pmax.y, pmin.z);
-    glVertex3f(pmin.x, pmax.y, pmax.z);
-    glVertex3f(pmax.x, pmax.y, pmax.z);
 
-    glVertex3f(pmin.x, pmin.y, pmin.z);
-    glVertex3f(pmin.x, pmax.y, pmin.z);
-    glVertex3f(pmin.x, pmin.y, pmax.z);
-    glVertex3f(pmin.x, pmax.y, pmax.z);
-    glVertex3f(pmax.x, pmin.y, pmin.z);
-    glVertex3f(pmax.x, pmax.y, pmin.z);
-    glVertex3f(pmax.x, pmin.y, pmax.z);
-    glVertex3f(pmax.x, pmax.y, pmax.z);
-
-    glVertex3f(pmin.x, pmin.y, pmin.z);
-    glVertex3f(pmin.x, pmin.y, pmax.z);
-    glVertex3f(pmin.x, pmax.y, pmin.z);
-    glVertex3f(pmin.x, pmax.y, pmax.z);
-    glVertex3f(pmax.x, pmin.y, pmin.z);
-    glVertex3f(pmax.x, pmin.y, pmax.z);
-    glVertex3f(pmax.x, pmax.y, pmin.z);
-    glVertex3f(pmax.x, pmax.y, pmax.z);
-    glEnd();
-    glEnable(GL_LIGHTING);
-    glEnable(GL_CULL_FACE);
+    GLfloat verts[] =
+    {
+        pmin.x, pmin.y, pmin.z,  pmax.x, pmin.y, pmin.z,  pmin.x, pmin.y, pmax.z,  pmax.x, pmin.y, pmax.z,
+        pmin.x, pmax.y, pmin.z,  pmax.x, pmax.y, pmin.z,  pmin.x, pmax.y, pmax.z,  pmax.x, pmax.y, pmax.z,
+        pmin.x, pmin.y, pmin.z,  pmin.x, pmax.y, pmin.z,  pmin.x, pmin.y, pmax.z,  pmin.x, pmax.y, pmax.z,
+        pmax.x, pmin.y, pmin.z,  pmax.x, pmax.y, pmin.z,  pmax.x, pmin.y, pmax.z,  pmax.x, pmax.y, pmax.z,
+        pmin.x, pmin.y, pmin.z,  pmin.x, pmin.y, pmax.z,  pmin.x, pmax.y, pmin.z,  pmin.x, pmax.y, pmax.z,
+        pmax.x, pmin.y, pmin.z,  pmax.x, pmin.y, pmax.z,  pmax.x, pmax.y, pmin.z,  pmax.x, pmax.y, pmax.z
+    };
+    GLfloat colors[] =
+    {
+        r, g, b,  r, g, b,  r, g, b,  r, g, b,
+        r, g, b,  r, g, b,  r, g, b,  r, g, b,
+        r, g, b,  r, g, b,  r, g, b,  r, g, b,
+        r, g, b,  r, g, b,  r, g, b,  r, g, b,
+        r, g, b,  r, g, b,  r, g, b,  r, g, b,
+        r, g, b,  r, g, b,  r, g, b,  r, g, b
+    };
+    DrawLines(verts, colors, 24);
 }
 
 static void DrawBvhRecursive(FmBvh& hierarchy, uint nodeIndex, uint depth, uint minDepth, uint maxDepth, float timestep, float r, float g, float b)
@@ -295,7 +339,6 @@ static void DrawBvhRecursive(FmBvh& hierarchy, uint nodeIndex, uint depth, uint 
     }
 }
 
-#if DRAW_MESH_BVH || DRAW_BROAD_PHASE_BVH || DRAW_PARTITION_BVH
 static void DrawBvh(FmBvh& hierarchy, uint minDepth, uint maxDepth, float timestep, float r = 0.6f, float g = 0.0f, float b = 0.0f)
 {
     if (hierarchy.numPrims)
@@ -305,6 +348,7 @@ static void DrawBvh(FmBvh& hierarchy, uint minDepth, uint maxDepth, float timest
 }
 #endif
 
+#if DRAW_DIST_CONTACTS
 static void DrawDistanceContact(FmDistanceContactPairInfo& contactPairInfo, FmDistanceContact& contact, float r = 1.0f, float g = 1.0f, float b = 1.0f)
 {
     FmVector3 posA;
@@ -317,7 +361,7 @@ static void DrawDistanceContact(FmDistanceContactPairInfo& contactPairInfo, FmDi
 #else
         FmRigidBody& rigidBodyA = *FmGetRigidBody(*gScene, contactPairInfo.objectIdA);
 #endif
-        posA = rigidBodyA.state.pos + FmInitVector3(contact.comToPosA[0], contact.comToPosA[1], contact.comToPosA[2]);
+        posA = rigidBodyA.state.pos + FmVector3(contact.comToPosA[0], contact.comToPosA[1], contact.comToPosA[2]);
     }
     else
     {
@@ -351,7 +395,7 @@ static void DrawDistanceContact(FmDistanceContactPairInfo& contactPairInfo, FmDi
 #else
         FmRigidBody& rigidBodyB = *FmGetRigidBody(*gScene, contactPairInfo.objectIdB);
 #endif
-        posB = rigidBodyB.state.pos + FmInitVector3(contact.comToPosB[0], contact.comToPosB[1], contact.comToPosB[2]);
+        posB = rigidBodyB.state.pos + FmVector3(contact.comToPosB[0], contact.comToPosB[1], contact.comToPosB[2]);
     }
     else
     {
@@ -376,33 +420,12 @@ static void DrawDistanceContact(FmDistanceContactPairInfo& contactPairInfo, FmDi
 
         FmVector3 normal = contact.normal * vecScale;
         FmVector3 tangent1 = contact.tangent1 * vecScale;
-        FmVector3 tangent2 = cross(normal, tangent1);
+        FmVector3 tangent2 = normalize(cross(normal, tangent1)) * vecScale;
 
         DrawSphere(posA, 0.01f, r, g, b);
-
-        glDisable(GL_LIGHTING);
-        glBegin(GL_LINES);
-        glColor3f(1.0, 0.0f, 0.0f);
-        glVertex3f(posA.x, posA.y, posA.z);
-        glVertex3f(posA.x + tangent1.x, posA.y + tangent1.y, posA.z + tangent1.z);
-        glColor3f(0.0, 1.0f, 0.0f);
-        glVertex3f(posA.x, posA.y, posA.z);
-        glVertex3f(posA.x + tangent2.x, posA.y + tangent2.y, posA.z + tangent2.z);
-        glColor3f(0.0, 0.0f, 1.0f);
-        glVertex3f(posA.x, posA.y, posA.z);
-        glVertex3f(posA.x + normal.x, posA.y + normal.y, posA.z + normal.z);
-        glEnd();
-        glEnable(GL_LIGHTING);
-
         DrawSphere(posB, 0.01f, r, g, b);
-
-        glDisable(GL_LIGHTING);
-        glBegin(GL_LINES);
-        glColor3f(1.0f, 1.0f, 0.0f);
-        glVertex3f(posA.x, posA.y, posA.z);
-        glVertex3f(posB.x, posB.y, posB.z);
-        glEnd();
-        glEnable(GL_LIGHTING);
+        DrawAxes(posA, tangent1, tangent2, normal);
+        DrawLine(posA, posB, 1.0f, 1.0f, 0.0f);
     }
 
 }
@@ -418,7 +441,9 @@ static void DrawDistanceContacts(FmScene* scene)
         DrawDistanceContact(contactPairInfo, contact);
     }
 }
+#endif
 
+#if DRAW_VOL_CONTACTS
 static void DrawVolumeContacts(FmScene* scene)
 {
     FmConstraintsBuffer* constraintsBuffer = scene->constraintsBuffer;
@@ -427,13 +452,7 @@ static void DrawVolumeContacts(FmScene* scene)
     {
         FmVolumeContact& contact = constraintsBuffer->volumeContacts[contactIdx];
 
-
-        const float vecScale = 2.0f;
-
-        FmVector3 normal = contact.normal * vecScale;
-        FmVector3 tangent1 = contact.tangent1 * vecScale;
-
-        FmVector3 posA = FmInitVector3(0.0f, 0.0f, 0.0f);
+        FmVector3 posA = FmVector3(0.0f, 0.0f, 0.0f);
         for (uint vId = 0; vId < contact.numVolVertsA; vId++)
         {
             FmVector3 pos;
@@ -464,44 +483,27 @@ static void DrawVolumeContacts(FmScene* scene)
             FmVolumeContactVert& volVert = constraintsBuffer->volumeContactVerts[contact.volVertsStartA + vId];
             FmVector3 dVdp = volVert.dVdp;
 
-            //print(dVdp, "dVdpA");
-
             DrawSphere(pos, 0.02f, 1.0f, 1.0f, 0.0f);
-
-            glDisable(GL_LIGHTING);
-            glBegin(GL_LINES);
-            glColor3f(1.0, 1.0f, 0.0f);
-            glVertex3f(pos.x, pos.y, pos.z);
-            glVertex3f(pos.x + dVdp.x, pos.y + dVdp.y, pos.z + dVdp.z);
-            glEnd();
-            glEnable(GL_LIGHTING);
+            DrawLine(pos, pos + dVdp, 1.0f, 1.0f, 0.0f);
         }
 
         posA /= (float)contact.numVolVertsA;
 
-#if DRAW_VOL_CONTACT_FRAME        
+#if DRAW_VOL_CONTACT_FRAME
         DrawSphere(posA, 0.01f, 1.0f, 1.0f, 0.0f);
 
-        DrawSphere(posA + normal, 0.01f, 0.0f, 0.0f, 1.0f);
+        const float vecScale = 2.0f;
+        FmVector3 normal = contact.normal * vecScale;
+        FmVector3 tangent1 = contact.tangent1 * vecScale;
+        FmVector3 tangent2 = normalize(cross(normal, tangent1)) * vecScale;
 
-        glDisable(GL_LIGHTING);
-        glBegin(GL_LINES);
-        glColor3f(1.0, 0.0f, 0.0f);
-        glVertex3f(posA.x, posA.y, posA.z);
-        glVertex3f(posA.x + tangent1.x, posA.y + tangent1.y, posA.z + tangent1.z);
-        glColor3f(0.0, 1.0f, 0.0f);
-        glVertex3f(posA.x, posA.y, posA.z);
-        glVertex3f(posA.x + tangent2.x, posA.y + tangent2.y, posA.z + tangent2.z);
-        glColor3f(0.0, 0.0f, 1.0f);
-        glVertex3f(posA.x, posA.y, posA.z);
-        glVertex3f(posA.x + normal.x, posA.y + normal.y, posA.z + normal.z);
-        glEnd();
-        glEnable(GL_LIGHTING);
+        DrawSphere(posA + normal, 0.01f, 0.0f, 0.0f, 1.0f);
+        DrawAxes(posA, tangent1, tangent2, normal);
 #endif
 
         if (contact.objectIdB != FM_INVALID_ID)
         {
-            FmVector3 posB = FmInitVector3(0.0f, 0.0f, 0.0f);
+            FmVector3 posB = FmVector3(0.0f, 0.0f, 0.0f);
             for (uint vId = 0; vId < contact.numVolVertsB; vId++)
             {
                 FmVector3 pos;
@@ -532,43 +534,49 @@ static void DrawVolumeContacts(FmScene* scene)
                 FmVolumeContactVert& volVert = constraintsBuffer->volumeContactVerts[contact.volVertsStartB + vId];
                 FmVector3 dVdp = volVert.dVdp * 1.0;
 
-                //print(dVdp, "dVdpB");
-
                 DrawSphere(pos, 0.02f, 1.0f, 1.0f, 0.0f);
-
-                glDisable(GL_LIGHTING);
-                glBegin(GL_LINES);
-                glColor3f(1.0, 1.0f, 0.0f);
-                glVertex3f(pos.x, pos.y, pos.z);
-                glVertex3f(pos.x + dVdp.x, pos.y + dVdp.y, pos.z + dVdp.z);
-                glEnd();
-                glEnable(GL_LIGHTING);
+                DrawLine(pos, pos + dVdp, 1.0f, 1.0f, 0.0f);
             }
 
             posB /= (float)contact.numVolVertsB;
         }
     }
 }
+#endif
 
 static void DrawTetWire(FmVector3 positions[4], float r, float g, float b)
 {
-    glDisable(GL_LIGHTING);
-    glColor3f(r, g, b);
-    glBegin(GL_LINES);
-    glVertex3f(positions[0].x, positions[0].y, positions[0].z);
-    glVertex3f(positions[1].x, positions[1].y, positions[1].z);
-    glVertex3f(positions[0].x, positions[0].y, positions[0].z);
-    glVertex3f(positions[2].x, positions[2].y, positions[2].z);
-    glVertex3f(positions[0].x, positions[0].y, positions[0].z);
-    glVertex3f(positions[3].x, positions[3].y, positions[3].z);
-    glVertex3f(positions[1].x, positions[1].y, positions[1].z);
-    glVertex3f(positions[2].x, positions[2].y, positions[2].z);
-    glVertex3f(positions[1].x, positions[1].y, positions[1].z);
-    glVertex3f(positions[3].x, positions[3].y, positions[3].z);
-    glVertex3f(positions[2].x, positions[2].y, positions[2].z);
-    glVertex3f(positions[3].x, positions[3].y, positions[3].z);
-    glEnd();
-    glEnable(GL_LIGHTING);
+    GLfloat verts[] =
+    {
+        positions[0].x, positions[0].y, positions[0].z,
+        positions[1].x, positions[1].y, positions[1].z,
+        positions[0].x, positions[0].y, positions[0].z,
+        positions[2].x, positions[2].y, positions[2].z,
+        positions[0].x, positions[0].y, positions[0].z,
+        positions[3].x, positions[3].y, positions[3].z,
+        positions[1].x, positions[1].y, positions[1].z,
+        positions[2].x, positions[2].y, positions[2].z,
+        positions[1].x, positions[1].y, positions[1].z,
+        positions[3].x, positions[3].y, positions[3].z,
+        positions[2].x, positions[2].y, positions[2].z,
+        positions[3].x, positions[3].y, positions[3].z
+    };
+    GLfloat colors[] =
+    {
+        r, g, b,
+        r, g, b,
+        r, g, b,
+        r, g, b,
+        r, g, b,
+        r, g, b,
+        r, g, b,
+        r, g, b,
+        r, g, b,
+        r, g, b,
+        r, g, b,
+        r, g, b
+    };
+    DrawLines(verts, colors, 12);
 }
 
 static void DrawTetWire(const FmTetMesh& tetMesh, uint tetId, float r, float g, float b)
@@ -598,12 +606,20 @@ static void SetColorById(float* r, float* g, float* b, uint id)
 #endif
 }
 
-static void DrawTetMeshDisableFractureFlags(FmTetMesh& tetMesh, bool drawFracturable, float r, float g, float b)
+static void DrawTetMeshDisableFractureFlags(FmTetMesh& tetMesh, bool drawFracturable)
 {
+    std::vector<float> verts;
+    std::vector<float> normals;
+    std::vector<float> colors;
+
+    float faceColors[4][3] = {
+        { 1.0f, 0.0f, 0.0f },
+        { 0.0f, 1.0f, 0.0f },
+        { 0.0f, 0.0f, 1.0f },
+        { 1.0f, 1.0f, 0.0f },
+    };
+
     uint numTets = tetMesh.numTets;
-
-    glColor3f(r, g, b);
-
     for (uint tetId = 0; tetId < numTets; tetId++)
     {
         FmVector3 pos[4];
@@ -625,46 +641,45 @@ static void DrawTetMeshDisableFractureFlags(FmTetMesh& tetMesh, bool drawFractur
 
             bool exteriorFace = FmIsExteriorFaceId(tetMesh.tetsFaceIncidentTetIds[tetId].ids[faceId]);
 
-            bool canFracture = ((tetMesh.tetsFlags[tetId] & (FM_TET_FLAG_FACE0_FRACTURE_DISABLED << faceId)) == 0);
+            bool canFracture = tetMesh.tetsFractureMaterialParams && ((tetMesh.tetsFlags[tetId] & (FM_TET_FLAG_FACE0_FRACTURE_DISABLED << faceId)) == 0);
 
             if (drawFracturable == canFracture && !exteriorFace)
             {
                 FmVector3 pos0 = pos[faceCorners.ids[0]];
                 FmVector3 pos1 = pos[faceCorners.ids[1]];
                 FmVector3 pos2 = pos[faceCorners.ids[2]];
-
                 FmVector3 normal = normalize(cross(pos1 - pos0, pos2 - pos0));
-
-                if (faceId == 0)
+                for (int vId = 0; vId < 3; vId++)
                 {
-                    glColor3f(1.0f, 0.0f, 0.0f);
+                    colors.push_back(faceColors[faceId][0]);
+                    colors.push_back(faceColors[faceId][1]);
+                    colors.push_back(faceColors[faceId][2]);
+                    normals.push_back(normal.x);
+                    normals.push_back(normal.y);
+                    normals.push_back(normal.z);
                 }
-                else if (faceId == 1)
-                {
-                    glColor3f(0.0f, 1.0f, 0.0f);
-                }
-                else if (faceId == 2)
-                {
-                    glColor3f(0.0f, 0.0f, 1.0f);
-                }
-                else if (faceId == 3)
-                {
-                    glColor3f(1.0f, 1.0f, 0.0f);
-                }
-
-                glBegin(GL_TRIANGLES);
-                glNormal3f(normal.x, normal.y, normal.z);
-                glVertex3f(pos0.x, pos0.y, pos0.z);
-                glVertex3f(pos1.x, pos1.y, pos1.z);
-                glVertex3f(pos2.x, pos2.y, pos2.z);
-                glEnd();
+                verts.push_back(pos0.x);
+                verts.push_back(pos0.y);
+                verts.push_back(pos0.z);
+                verts.push_back(pos1.x);
+                verts.push_back(pos1.y);
+                verts.push_back(pos1.z);
+                verts.push_back(pos2.x);
+                verts.push_back(pos2.y);
+                verts.push_back(pos2.z);
             }
         }
     }
+
+    DrawTriangles(verts.data(), normals.data(), colors.data(), static_cast<int>(verts.size()) / 3);
 }
 
 static void DrawTetMesh(FmTetMesh& tetMesh, float r, float g, float b)
 {
+    std::vector<float> verts;
+    std::vector<float> normals;
+    std::vector<float> colors;
+
     if (gDrawWireframe)
     {
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -673,10 +688,6 @@ static void DrawTetMesh(FmTetMesh& tetMesh, float r, float g, float b)
     {
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     }
-
-#if DRAW_PARTITION_OBJECTS
-    SetColorById(&r, &g, &b, tetMesh.partitionId);
-#endif
 
     // Draw exterior face polygons
     uint numFaces = tetMesh.numExteriorFaces;
@@ -696,69 +707,51 @@ static void DrawTetMesh(FmTetMesh& tetMesh, float r, float g, float b)
 
         normal = normalize(cross(pos1 - pos0, pos2 - pos0));
 
-        glColor3f(r, g, b);
-        glBegin(GL_TRIANGLES);
-        glNormal3f(normal.x, normal.y, normal.z);
-        glVertex3f(pos0.x, pos0.y, pos0.z);
-        glVertex3f(pos1.x, pos1.y, pos1.z);
-        glVertex3f(pos2.x, pos2.y, pos2.z);
-        glEnd();
+        for (int vId = 0; vId < 3; vId++)
+        {
+            colors.push_back(r);
+            colors.push_back(g);
+            colors.push_back(b);
+            normals.push_back(normal.x);
+            normals.push_back(normal.y);
+            normals.push_back(normal.z);
+        }
+        verts.push_back(pos0.x);
+        verts.push_back(pos0.y);
+        verts.push_back(pos0.z);
+        verts.push_back(pos1.x);
+        verts.push_back(pos1.y);
+        verts.push_back(pos1.z);
+        verts.push_back(pos2.x);
+        verts.push_back(pos2.y);
+        verts.push_back(pos2.z);
     }
+
+    DrawTriangles(verts.data(), normals.data(), colors.data(), static_cast<int>(verts.size()) / 3);
 
 #if DRAW_ROTATIONS
-#if 1  // Vertex rotations
-    glDisable(GL_LIGHTING);
-    uint numVerts = tetMesh.numVerts;
-    for (uint i = 0; i < numVerts; i++)
     {
-        FmVert& vert = tetMesh.verts[i];
+        // Tet rotations
+        glDisable(GL_LIGHTING);
+        uint numTets = tetMesh.numTets;
+        for (uint i = 0; i < numTets; i++)
+        {
+            FmVector3 pos0, pos1, pos2, pos3;
 
-        FmVector3 pos = vert.pos;
+            FmVector3 positions[4];
+            FmGetTetPositions(positions, tetMesh, i);
+            pos0 = positions[0];
+            pos1 = positions[1];
+            pos2 = positions[2];
+            pos3 = positions[3];
 
-        FmMatrix3 rotation(normalize(vert.tetQuatSum));
+            FmMatrix3 rotation = tetMesh.tetsRotation[i];
 
-        glBegin(GL_LINES);
-        glColor3f(1.0f, 0.0f, 0.0f);
-        glVertex3f(pos.x, pos.y, pos.z);
-        glVertex3f(pos.x + rotation.col0.x, pos.y + rotation.col0.y, pos.z + rotation.col0.z);
-        glColor3f(0.0f, 1.0f, 0.0f);
-        glVertex3f(pos.x, pos.y, pos.z);
-        glVertex3f(pos.x + rotation.col1.x, pos.y + rotation.col1.y, pos.z + rotation.col1.z);
-        glColor3f(0.0f, 0.0f, 1.0f);
-        glVertex3f(pos.x, pos.y, pos.z);
-        glVertex3f(pos.x + rotation.col2.x, pos.y + rotation.col2.y, pos.z + rotation.col2.z);
-        glEnd();
+            FmVector3 pos = 0.25f * (pos0 + pos1 + pos2 + pos3);
+
+            DrawAxes(pos, rotation.col0, rotation.col1, rotation.col2);
+        }
     }
-#else // Tet rotations
-    glDisable(GL_LIGHTING);
-    uint numTets = tetMesh.numTets;
-    for (uint i = 0; i < numTets; i++)
-    {
-        FmVector3 pos0, pos1, pos2, pos3;
-
-        FmTet& tet = tetMesh.tets[i];
-
-        FmVector3 positions[4];
-        FmGetTetPositions(positions, tetMesh, i);
-        pos0 = positions[0];
-        pos1 = positions[1];
-        pos2 = positions[2];
-        pos3 = positions[3];
-
-        FmVector3 pos = 0.25f * (pos0 + pos1 + pos2 + pos3);
-
-        glColor3f(r, g, b);
-        glBegin(GL_LINES);
-        glVertex3f(pos.x, pos.y, pos.z);
-        glVertex3f(pos.x + tet.rotation.col0.x, pos.y + tet.rotation.col0.y, pos.z + tet.rotation.col0.z);
-        glVertex3f(pos.x, pos.y, pos.z);
-        glVertex3f(pos.x + tet.rotation.col1.x, pos.y + tet.rotation.col1.y, pos.z + tet.rotation.col1.z);
-        glVertex3f(pos.x, pos.y, pos.z);
-        glVertex3f(pos.x + tet.rotation.col2.x, pos.y + tet.rotation.col2.y, pos.z + tet.rotation.col2.z);
-        glEnd();
-    }
-#endif
-    glEnable(GL_LIGHTING);
 #endif
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -803,7 +796,7 @@ static void DrawTetMesh(FmTetMesh& tetMesh, float r, float g, float b)
 
     if (gDrawFractureFlags)
     {       
-        DrawTetMeshDisableFractureFlags(tetMesh, gDrawFracturableFaces, 1.0f, 1.0f, 1.0f);
+        DrawTetMeshDisableFractureFlags(tetMesh, gDrawFracturableFaces);
     }
 }
 
@@ -818,51 +811,16 @@ static void DrawRigidBody(const FmRigidBody& rigidBody, float r, float g, float 
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     }
 
-#if DRAW_PARTITION_OBJECTS
-    SetColorById(&r, &g, &b, rigidBody.partitionId);
-#endif
-
+#if 1
     FmMatrix4 boxMat = FmMatrix4(rigidBody.state.quat, rigidBody.state.pos);
     glPushMatrix();
     glMultMatrixf(&boxMat.col0.x);
     DrawBox(rigidBody.dims[0], rigidBody.dims[1], rigidBody.dims[2], r, g, b);
     glPopMatrix();
-
-#if 0 // Draw tet mesh collision obj
-    FmTetMesh& tetMesh = *FmGetTetMesh(*(FmTetMeshBuffer*)rigidBody.collisionObj, 0);
-    uint numFaces = tetMesh.numExteriorFaces;
-    for (uint i = 0; i < numFaces; i++)
-    {
-        FmVector3 pos0, pos1, pos2, pos3, normal;
-
-        FmExteriorFace& exteriorFace = tetMesh.exteriorFaces[i];
-
-        FmTetVertIds tetVerts = tetMesh.tetsVertIds[exteriorFace.tetId];
-        FmFaceVertIds faceVerts;
-        FmGetFaceVertIds(&faceVerts, exteriorFace.faceId, tetVerts);
-
-        pos0 = tetMesh.vertsPos[faceVerts.ids[0]];
-        pos1 = tetMesh.vertsPos[faceVerts.ids[1]];
-        pos2 = tetMesh.vertsPos[faceVerts.ids[2]];
-
-        normal = normalize(cross(pos1 - pos0, pos2 - pos0));
-
-#if DRAW_PARTITION_OBJECTS
-        srand(rigidBody.partitionId);
-        r = randfloat();
-        g = randfloat();
-        b = randfloat();
-        glColor3f(r, g, b);
 #else
-        glColor3f(0.0, 0.6f, 0.6f);
-#endif
-        glBegin(GL_TRIANGLES);
-        glNormal3f(normal.x, normal.y, normal.z);
-        glVertex3f(pos0.x, pos0.y, pos0.z);
-        glVertex3f(pos1.x, pos1.y, pos1.z);
-        glVertex3f(pos2.x, pos2.y, pos2.z);
-        glEnd();
-    }
+    // Draw tet mesh collision obj
+    FmTetMesh& tetMesh = *FmGetTetMesh(*(FmTetMeshBuffer*)rigidBody.collisionObj, 0);
+    DrawTetMesh(tetMesh, r, g, b);
 #endif
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -874,7 +832,7 @@ static void DrawScene()
     FmTetMesh* gDebugMeshes = gFEMFXPreConstraintSolveMeshes;
     FmRigidBody* gDebugRigidBodies = gFEMFXPreConstraintSolveRigidBodies;
 
-    if (gDebugMeshes == NULL || gDebugRigidBodies == NULL)
+    if (gDebugMeshes == nullptr || gDebugRigidBodies == nullptr)
         return;
 #endif
 
@@ -945,14 +903,12 @@ static void DrawScene()
                 SetColorById(&rA, &gA, &bA, tetMeshA.objectId);
             }
 
-            const float vecScale = 0.25f;
-
             DrawSphere(posA, 0.02f, rA, gA, bA);
 
             FmVector3 posB;
             if (constraint.objectIdB == FM_INVALID_ID)
             {
-                posB = FmInitVector3(constraint.posWorldB[0], constraint.posWorldB[1], constraint.posWorldB[2]);
+                posB = FmVector3(constraint.posWorldB[0], constraint.posWorldB[1], constraint.posWorldB[2]);
                 rB = 1.0f;
                 gB = 1.0f;
                 bB = 1.0f;
@@ -996,12 +952,7 @@ static void DrawScene()
 
             DrawSphere(posB, 0.02f, rB, gB, bB);
 
-            glDisable(GL_LIGHTING);
-            glBegin(GL_LINES);
-            glVertex3f(posB.x, posB.y, posB.z);
-            glVertex3f(posB.x + constraint.deltaPos.x, posB.y + constraint.deltaPos.y, posB.z + constraint.deltaPos.z);
-            glEnd();
-            glEnable(GL_LIGHTING);
+            DrawLine(posB, posB + constraint.deltaPos, rB, gB, bB);
         }
 
 
@@ -1048,14 +999,12 @@ static void DrawScene()
                     tetMeshA.vertsPos[tetVertIdsA.ids[3]]);
             }
 
-            const float vecScale = 0.25f;
-
             DrawSphere(posA, 0.01f, 1.0f, 1.0f, 1.0f);
 
             FmVector3 posB;
             if (constraint.objectIdB == FM_INVALID_ID)
             {
-                posB = FmInitVector3(constraint.posWorldB[0], constraint.posWorldB[1], constraint.posWorldB[2]);
+                posB = FmVector3(constraint.posWorldB[0], constraint.posWorldB[1], constraint.posWorldB[2]);
             }
             else if ((constraint.objectIdB & FM_RB_FLAG)
                 && gScene->rigidBodies)
@@ -1086,21 +1035,29 @@ static void DrawScene()
                     tetMeshB.vertsPos[tetVertIdsB.ids[3]]);
             }
 
-            glDisable(GL_LIGHTING);
-            glBegin(GL_LINES);
-            glColor3f(1.0, 1.0f, 0.0f);
-            glVertex3f(posA.x, posA.y, posA.z);
-            glVertex3f(posB.x, posB.y, posB.z);
-            glColor3f(1.0, 0.0f, 0.0f);
-            glVertex3f(posB.x, posB.y, posB.z);
-            glVertex3f(posB.x + constraint.planeNormal0.x, posB.y + constraint.planeNormal0.y, posB.z + constraint.planeNormal0.z);
-            glVertex3f(posB.x, posB.y, posB.z);
-            glVertex3f(posB.x + constraint.planeNormal1.x, posB.y + constraint.planeNormal1.y, posB.z + constraint.planeNormal1.z);
-            glVertex3f(posB.x, posB.y, posB.z);
-            glVertex3f(posB.x + constraint.planeNormal2.x, posB.y + constraint.planeNormal2.y, posB.z + constraint.planeNormal2.z);
-            glEnd();
-            glEnable(GL_LIGHTING);
-
+            GLfloat verts[] =
+            {
+                posA.x, posA.y, posA.z,
+                posB.x, posB.y, posB.z,
+                posB.x, posB.y, posB.z,
+                posB.x + constraint.planeNormal0.x, posB.y + constraint.planeNormal0.y, posB.z + constraint.planeNormal0.z,
+                posB.x, posB.y, posB.z,
+                posB.x + constraint.planeNormal1.x, posB.y + constraint.planeNormal1.y, posB.z + constraint.planeNormal1.z,
+                posB.x, posB.y, posB.z,
+                posB.x + constraint.planeNormal2.x, posB.y + constraint.planeNormal2.y, posB.z + constraint.planeNormal2.z
+            };
+            GLfloat colors[] =
+            {
+                1.0, 1.0f, 0.0f,
+                1.0, 1.0f, 0.0f,
+                1.0, 0.0f, 0.0f,
+                1.0, 0.0f, 0.0f,
+                1.0, 0.0f, 0.0f,
+                1.0, 0.0f, 0.0f,
+                1.0, 0.0f, 0.0f,
+                1.0, 0.0f, 0.0f
+            };
+            DrawLines(verts, colors, 8);
             DrawSphere(posB, 0.01f, 1.0f, 1.0f, 1.0f);
         }
     }
@@ -1160,15 +1117,18 @@ static void DrawScene()
     {
         FmScene* rbFemScene = gRbScene->scene;
 
+#if DRAW_DIST_CONTACTS
         if (gDrawContacts)
         {
             DrawDistanceContacts(rbFemScene);
         }
-
+#endif
+#if DRAW_VOL_CONTACTS
         if (gDrawVolContacts)
         {
             DrawVolumeContacts(rbFemScene);
         }
+#endif
 
         uint numSceneRigidBodies = FmGetNumEnabledRigidBodies(*gScene);
 
@@ -1221,60 +1181,85 @@ static void DrawScene()
     }
 #endif
 
-#if DRAW_GROUND
     const FmSceneControlParams& params = FmGetSceneControlParams(*gScene);
-    const float quadHalf = 20.0f;
-    glColor3f(0.6f, 0.6f, 0.6f);
-    glBegin(GL_QUADS);
-    glNormal3f(0.0f, 1.0f, 0.0f);
-    glVertex3f(-quadHalf, params.collisionPlanes.minY, -quadHalf);
-    glVertex3f(-quadHalf, params.collisionPlanes.minY, quadHalf);
-    glVertex3f(quadHalf, params.collisionPlanes.minY, quadHalf);
-    glVertex3f(quadHalf, params.collisionPlanes.minY, -quadHalf);
-    glEnd();
+#if DRAW_GROUND
+    {
+        const float quadHalf = 40.0f;
+        float r = 0.6f;
+        float g = 0.6f;
+        float b = 0.6f;
+        GLfloat verts[] =
+        {
+            -quadHalf, params.collisionPlanes.minY, -quadHalf,
+            -quadHalf, params.collisionPlanes.minY, quadHalf,
+            quadHalf, params.collisionPlanes.minY, quadHalf,
+            -quadHalf, params.collisionPlanes.minY, -quadHalf,
+            quadHalf, params.collisionPlanes.minY, quadHalf,
+            quadHalf, params.collisionPlanes.minY, -quadHalf,
+        };
+        GLfloat normals[] =
+        {
+            0.0f, 1.0f, 0.0f,
+            0.0f, 1.0f, 0.0f,
+            0.0f, 1.0f, 0.0f,
+            0.0f, 1.0f, 0.0f,
+            0.0f, 1.0f, 0.0f,
+            0.0f, 1.0f, 0.0f,
+        };
+        GLfloat colors[] =
+        {
+            r, g, b, r, g, b, r, g, b, r, g, b, r, g, b, r, g, b
+        };
+        DrawTriangles(verts, normals, colors, 6);
+    }
 #endif
 
-    FmVector3 boxMin(params.collisionPlanes.minX, params.collisionPlanes.minY, params.collisionPlanes.minZ);
-    FmVector3 boxMax(params.collisionPlanes.maxX, params.collisionPlanes.maxY, params.collisionPlanes.maxZ);
+    {
+        FmVector3 boxMin(params.collisionPlanes.minX, params.collisionPlanes.minY, params.collisionPlanes.minZ);
+        FmVector3 boxMax(params.collisionPlanes.maxX, params.collisionPlanes.maxY, params.collisionPlanes.maxZ);
 
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    glDisable(GL_LIGHTING);
-    glColor3f(1.0f, 1.0f, 1.0f);
-    glBegin(GL_LINES);
-    glVertex3f(boxMin.x, boxMin.y, boxMin.z);
-    glVertex3f(boxMax.x, boxMin.y, boxMin.z);
-    glVertex3f(boxMin.x, boxMax.y, boxMin.z);
-    glVertex3f(boxMax.x, boxMax.y, boxMin.z);
-    glVertex3f(boxMin.x, boxMin.y, boxMax.z);
-    glVertex3f(boxMax.x, boxMin.y, boxMax.z);
-    glVertex3f(boxMin.x, boxMax.y, boxMax.z);
-    glVertex3f(boxMax.x, boxMax.y, boxMax.z);
-    glVertex3f(boxMin.x, boxMin.y, boxMin.z);
-    glVertex3f(boxMin.x, boxMax.y, boxMin.z);
-    glVertex3f(boxMax.x, boxMin.y, boxMin.z);
-    glVertex3f(boxMax.x, boxMax.y, boxMin.z);
-    glVertex3f(boxMin.x, boxMin.y, boxMax.z);
-    glVertex3f(boxMin.x, boxMax.y, boxMax.z);
-    glVertex3f(boxMax.x, boxMin.y, boxMax.z);
-    glVertex3f(boxMax.x, boxMax.y, boxMax.z);
-    glVertex3f(boxMin.x, boxMin.y, boxMin.z);
-    glVertex3f(boxMin.x, boxMin.y, boxMax.z);
-    glVertex3f(boxMax.x, boxMin.y, boxMin.z);
-    glVertex3f(boxMax.x, boxMin.y, boxMax.z);
-    glVertex3f(boxMin.x, boxMax.y, boxMin.z);
-    glVertex3f(boxMin.x, boxMax.y, boxMax.z);
-    glVertex3f(boxMax.x, boxMax.y, boxMin.z);
-    glVertex3f(boxMax.x, boxMax.y, boxMax.z);
-    glEnd();
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-    glEnable(GL_LIGHTING);
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        GLfloat verts[] = {
+            boxMin.x, boxMin.y, boxMin.z,
+            boxMax.x, boxMin.y, boxMin.z,
+            boxMin.x, boxMax.y, boxMin.z,
+            boxMax.x, boxMax.y, boxMin.z,
+            boxMin.x, boxMin.y, boxMax.z,
+            boxMax.x, boxMin.y, boxMax.z,
+            boxMin.x, boxMax.y, boxMax.z,
+            boxMax.x, boxMax.y, boxMax.z,
+            boxMin.x, boxMin.y, boxMin.z,
+            boxMin.x, boxMax.y, boxMin.z,
+            boxMax.x, boxMin.y, boxMin.z,
+            boxMax.x, boxMax.y, boxMin.z,
+            boxMin.x, boxMin.y, boxMax.z,
+            boxMin.x, boxMax.y, boxMax.z,
+            boxMax.x, boxMin.y, boxMax.z,
+            boxMax.x, boxMax.y, boxMax.z,
+            boxMin.x, boxMin.y, boxMin.z,
+            boxMin.x, boxMin.y, boxMax.z,
+            boxMax.x, boxMin.y, boxMin.z,
+            boxMax.x, boxMin.y, boxMax.z,
+            boxMin.x, boxMax.y, boxMin.z,
+            boxMin.x, boxMax.y, boxMax.z,
+            boxMax.x, boxMax.y, boxMin.z,
+            boxMax.x, boxMax.y, boxMax.z
+        };
+        GLfloat colors[] = {
+            1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+            1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+            1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f
+        };
+        DrawLines(verts, colors, 24);
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    }
 }
 
 // Set up view and default color and shading settings 
 static void InitGLState()
 {
     gViewerCam.SetElevation(-0.017f*20.0f);
-    gViewerCam.SetAzimuth(0.017f*50.0f);
+    gViewerCam.SetAzimuth(0.017f*135.0f);
 
     float lookatBaseX = 0.0f;
     float lookatBaseY = 0.0f;
@@ -1286,16 +1271,10 @@ static void InitGLState()
         lookatBaseY = params.collisionPlanes.minY;
         lookatBaseZ = (params.collisionPlanes.minZ + params.collisionPlanes.maxZ) * 0.5f;
     }
-#if MATERIAL_DEMO_SCENE
-    gViewerCam.SetLookAtX(0.0f);
-    gViewerCam.SetLookAtY(4.0f);
-    gViewerCam.SetLookAtZ(0.0f);
-#else
     gViewerCam.SetLookAtX(lookatBaseX + 0.0f);
     gViewerCam.SetLookAtY(lookatBaseY + 2.0f);
     gViewerCam.SetLookAtZ(lookatBaseZ + 0.0f);
-#endif
-    gViewerCam.SetRadius(25.0f);
+    gViewerCam.SetRadius(40.0f);
 
     gViewerCam.SetAzimuthInputScale(-0.01f);
     gViewerCam.SetElevationInputScale(-0.01f);
@@ -1422,21 +1401,18 @@ static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, i
     viewPosition.x = gViewerCam.mViewPosition.x;
     viewPosition.y = gViewerCam.mViewPosition.y;
     viewPosition.z = gViewerCam.mViewPosition.z;
-#if MATERIAL_DEMO_SCENE
-    float speed = 60.0f;
-    float highSpeed = 80.0f;
-#else
     float speed = 30.0f;
     float highSpeed = 60.0f;
-#endif
 
     bool fixedPosForWoodPanels = false;
-#if WOOD_PANELS_SCENE
-    fixedPosForWoodPanels = true;
-#endif
 
     switch (key)
     {
+    case GLFW_KEY_H:
+    {
+        PrintHelp();
+        break;
+    }
     case GLFW_KEY_Q:
     {
         FreeScene();
@@ -1463,7 +1439,7 @@ static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, i
         break;
     }
 #endif
-#if CARS_PANELS_TIRES_SCENE
+#if CARS_SCENE
     case GLFW_KEY_L:
     {
         for (uint i = 0; i < NUM_INSTANCES; i++)
@@ -1478,14 +1454,9 @@ static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, i
         FireProjectile(viewRotation, viewPosition, speed, fixedPosForWoodPanels);
         break;
     }
-    case GLFW_KEY_H:
+    case GLFW_KEY_SPACE:
     {
         FireProjectile(viewRotation, viewPosition, highSpeed, fixedPosForWoodPanels);
-        break;
-    }
-    case GLFW_KEY_W:
-    {
-        gDrawWireframe = !gDrawWireframe;
         break;
     }
     case GLFW_KEY_RIGHT_BRACKET:
@@ -1494,6 +1465,7 @@ static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, i
         gRunning = false;
         break;
     }
+#if FIX_INITIAL_CONDITIONS
     case GLFW_KEY_LEFT_BRACKET:
     {
         gStepBackward = true;
@@ -1501,39 +1473,58 @@ static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, i
         gRunning = false;
         break;
     }
+#endif
+#if DRAW_DIST_CONTACTS
     case GLFW_KEY_C:
     {
         gDrawContacts = !gDrawContacts;
+        printf("Drawing distance contacts: %i\n", (int)gDrawContacts);
         break;
     }
+#endif
+#if DRAW_GLUE
     case GLFW_KEY_G:
     {
         gDrawGlue = !gDrawGlue;
         printf("Drawing glue: %i\n", (int)gDrawGlue);
         break;
     }
+#endif
+#if DRAW_VOL_CONTACTS
     case GLFW_KEY_V:
     {
         gDrawVolContacts = !gDrawVolContacts;
+        printf("Drawing volume contacts: %i\n", (int)gDrawVolContacts);
         break;
     }
+#endif
     case GLFW_KEY_D:
     {
-        if (!gDrawFractureFlags)
+        gDrawMode = (gDrawMode + 1) % 4;
+        if (gDrawMode == 0)
         {
+            gDrawWireframe = false;
+            gDrawFractureFlags = false;
+        }
+        else if (gDrawMode == 1)
+        {
+            gDrawWireframe = true;
+            gDrawFractureFlags = false;
+            printf("Drawing wireframe\n");
+        }
+        else if (gDrawMode == 2)
+        {
+            gDrawWireframe = true;
             gDrawFractureFlags = true;
             gDrawFracturableFaces = true;
             printf("Drawing fracturable faces\n");
         }
-        else if (gDrawFractureFlags && gDrawFracturableFaces)
+        else if (gDrawMode == 3)
         {
+            gDrawWireframe = true;
+            gDrawFractureFlags = true;
             gDrawFracturableFaces = false;
             printf("Drawing non-fracturable faces\n");
-        }
-        else if (gDrawFractureFlags)
-        {
-            gDrawFractureFlags = false;
-            printf("Drawing faces off\n");
         }
         break;
     }
@@ -1570,7 +1561,8 @@ static void WindowSizeCallback(GLFWwindow*, int width, int height)
 }
 
 #if !PERF_TEST
-static FM_FORCE_INLINE double GetTime()
+#if defined(_MSC_VER)
+static FM_FORCE_INLINE double GetTimeMs()
 {
     LARGE_INTEGER freq, counter;
     QueryPerformanceFrequency(&freq);
@@ -1581,18 +1573,37 @@ static FM_FORCE_INLINE double GetTime()
 
     return ((double)timeseconds + (double)timeremainder / (double)freq.QuadPart) * 1000.0;
 }
+#elif defined(__GNUC__)
+static FM_FORCE_INLINE double GetTimeMs()
+{
+    struct timeval val;
+    gettimeofday(&val, nullptr);
+    return (double)val.tv_sec * 1000.0 + (double)val.tv_usec * 0.001;
+}
+#endif
 #endif
 
 static void Update()
 {
 #if !PERF_TEST
     static double lastTime = 0;
-    double newTime = GetTime();
+    double newTime = GetTimeMs();
 
     if (newTime - lastTime < 16.666666f)
         return;
 
     lastTime = newTime;
+#endif
+
+#if TRACE_TEST && CARS_SCENE
+    static int count = 0;
+    if (count++ == 120)
+    {
+        for (uint i = 0; i < NUM_INSTANCES; i++)
+        {
+            LaunchCarSimObject(i, 36.0f);
+        }
+    }
 #endif
 
 #if PERF_TEST
@@ -1605,7 +1616,7 @@ static void Update()
 
     gFrameCounter++;
 
-#if BLOCKS_SCENE || DUCKS_SCENE
+#if BLOCKS_SCENE
     int maxFrames = 500;
 #else
     int maxFrames = 200;
@@ -1662,6 +1673,12 @@ static void Update()
     }
     else if (gRunning || gStepForward)
     {
+#if TRACE_TEST
+        if (gFrameCounter == 150)
+        {
+            FM_ENABLE_TRACE();
+        }
+#endif
 #if EXTERNAL_RIGIDBODIES
         UpdateSceneRb(gRbScene, gScene, gTimestep);
 #else
@@ -1671,6 +1688,10 @@ static void Update()
 
         gFrameCounter++;
         gStepForward = false;
+
+#if TRACE_TEST
+        FM_DISABLE_TRACE();
+#endif
     }
 #endif
 
@@ -1714,12 +1735,12 @@ int __cdecl main(int argc, char *argv[])
         gPerfTestMaxThreads = atoi(argv[5]);
         if (gPerfTestMaxThreads <= 0)
         {
-            gPerfTestMaxThreads = SampleGetTaskSystemDefaultNumThreads();
+            gPerfTestMaxThreads = TLGetTaskSystemDefaultNumThreads();
         }
     }
     else
     {
-        gPerfTestMaxThreads = SampleGetTaskSystemDefaultNumThreads();
+        gPerfTestMaxThreads = TLGetTaskSystemDefaultNumThreads();
     }
 
     if (gPerfTestMode == PERF_TEST_MODE_MAX_THREADS)
@@ -1729,7 +1750,7 @@ int __cdecl main(int argc, char *argv[])
 
     gNumThreads = gPerfTestMaxThreads;
 #else
-    gNumThreads = SampleGetTaskSystemDefaultNumThreads();
+    gNumThreads = TLGetTaskSystemDefaultNumThreads();
 #endif
 
     FM_INIT_TRACE();
@@ -1742,11 +1763,13 @@ int __cdecl main(int argc, char *argv[])
     GLFWwindow* window;
 
     if (!glfwInit())
+    {
+        printf("Failed to init GLFW\n");
         exit(EXIT_FAILURE);
+    }
 
-    glfwWindowHint(GLFW_DOUBLEBUFFER, GL_FALSE);
     glfwWindowHint(GLFW_SAMPLES, 4);
-    window = glfwCreateWindow(gWinWidth, gWinHeight, "FEMFXViewer", NULL, NULL);
+    window = glfwCreateWindow(gWinWidth, gWinHeight, "FEMFXViewer", nullptr, nullptr);
     if (!window)
     {
         glfwTerminate();
@@ -1765,6 +1788,8 @@ int __cdecl main(int argc, char *argv[])
     glfwSetTime(0.0);
 
     InitGLState();
+
+    PrintHelp();
 
     // Draw loop
     while (!glfwWindowShouldClose(window))

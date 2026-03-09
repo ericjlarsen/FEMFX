@@ -34,12 +34,12 @@ namespace AMD
 
     struct FmSerializedSceneCounts
     {
-        size_t bufferSize;
-        uint numTetMeshBuffers;
-        uint numRigidBodies;
-        uint numGlueConstraints;
-        uint numPlaneConstraints;
-        uint numRigidBodyAngleConstraints;
+        size_t bufferSize = 0;
+        uint numTetMeshBuffers = 0;
+        uint numRigidBodies = 0;
+        uint numGlueConstraints = 0;
+        uint numPlaneConstraints = 0;
+        uint numRigidBodyAngleConstraints = 0;
     };
 
     // Allocate a buffer and serialize all tet meshes, rigid bodies, and constraints of the scene into it.

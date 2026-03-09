@@ -159,8 +159,10 @@ namespace AMD
         uint numTets; // number of tets batched
 
         // Inputs
-        FmSoaTetShapeParams<SoaTypes> stressShapeParams;   // Shape params based on plastic deformed rest positions, for computing elastic stress
-        typename SoaTypes::SoaMatrix3 stressTetRotation;
+        typename SoaTypes::SoaMatrix3 stressShapeParamsDmInv;      // Shape params based on plastic deformed rest positions, for computing elastic stress
+        typename SoaTypes::SoaFloat stressShapeParamsV0;
+        typename SoaTypes::SoaMatrix3 restShapeMatrix;
+        typename SoaTypes::SoaMatrix3 tetRotation;
         typename SoaTypes::SoaFloat youngsModulus;
         typename SoaTypes::SoaFloat poissonsRatio;
         typename SoaTypes::SoaBool meshSupportsPlasticity;
@@ -168,13 +170,15 @@ namespace AMD
         // Output
         FmSoaTetRotatedStiffnessMatrix<SoaTypes> rotatedStiffnessMat;
 
-        FM_ALIGN(16) FmVector4 aosStressShapeParamsBaryMatrixCol0[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector4 aosStressShapeParamsBaryMatrixCol1[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector4 aosStressShapeParamsBaryMatrixCol2[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector4 aosStressShapeParamsBaryMatrixCol3[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector3 aosStressTetRotationCol0[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector3 aosStressTetRotationCol1[SoaTypes::width] FM_ALIGN_END(16);
-        FM_ALIGN(16) FmVector3 aosStressTetRotationCol2[SoaTypes::width] FM_ALIGN_END(16);
+        FM_ALIGN(16) FmVector3 aosStressShapeParamsDmInvCol0[SoaTypes::width] FM_ALIGN_END(16);
+        FM_ALIGN(16) FmVector3 aosStressShapeParamsDmInvCol1[SoaTypes::width] FM_ALIGN_END(16);
+        FM_ALIGN(16) FmVector3 aosStressShapeParamsDmInvCol2[SoaTypes::width] FM_ALIGN_END(16);
+        FM_ALIGN(16) FmVector3 aosRestShapeMatrixCol0[SoaTypes::width] FM_ALIGN_END(16);
+        FM_ALIGN(16) FmVector3 aosRestShapeMatrixCol1[SoaTypes::width] FM_ALIGN_END(16);
+        FM_ALIGN(16) FmVector3 aosRestShapeMatrixCol2[SoaTypes::width] FM_ALIGN_END(16);
+        FM_ALIGN(16) FmVector3 aosTetRotationCol0[SoaTypes::width] FM_ALIGN_END(16);
+        FM_ALIGN(16) FmVector3 aosTetRotationCol1[SoaTypes::width] FM_ALIGN_END(16);
+        FM_ALIGN(16) FmVector3 aosTetRotationCol2[SoaTypes::width] FM_ALIGN_END(16);
 
         FmComputeStiffnessBatch()
         {
@@ -183,16 +187,18 @@ namespace AMD
 
             for (uint sliceIdx = 0; sliceIdx < SoaTypes::width; sliceIdx++)
             {
-                aosStressShapeParamsBaryMatrixCol0[sliceIdx] = FmInitVector4(0.0f);
-                aosStressShapeParamsBaryMatrixCol1[sliceIdx] = FmInitVector4(0.0f);
-                aosStressShapeParamsBaryMatrixCol2[sliceIdx] = FmInitVector4(0.0f);
-                aosStressShapeParamsBaryMatrixCol3[sliceIdx] = FmInitVector4(0.0f);
-                aosStressTetRotationCol0[sliceIdx] = FmInitVector3(0.0f);
-                aosStressTetRotationCol1[sliceIdx] = FmInitVector3(0.0f);
-                aosStressTetRotationCol2[sliceIdx] = FmInitVector3(0.0f);
+                aosStressShapeParamsDmInvCol0[sliceIdx] = FmVector3(0.0f);
+                aosStressShapeParamsDmInvCol1[sliceIdx] = FmVector3(0.0f);
+                aosStressShapeParamsDmInvCol2[sliceIdx] = FmVector3(0.0f);
+                aosRestShapeMatrixCol0[sliceIdx] = FmVector3(0.0f);
+                aosRestShapeMatrixCol1[sliceIdx] = FmVector3(0.0f);
+                aosRestShapeMatrixCol2[sliceIdx] = FmVector3(0.0f);
+                aosTetRotationCol0[sliceIdx] = FmVector3(0.0f);
+                aosTetRotationCol1[sliceIdx] = FmVector3(0.0f);
+                aosTetRotationCol2[sliceIdx] = FmVector3(0.0f);
             }
 
-            stressShapeParams.det = SoaTypes::SoaFloat(0.0f);
+            stressShapeParamsV0 = SoaTypes::SoaFloat(0.0f);
             youngsModulus = SoaTypes::SoaFloat(0.0f);
             poissonsRatio = SoaTypes::SoaFloat(0.0f);
             meshSupportsPlasticity = SoaTypes::SoaBool(false);
@@ -200,21 +206,25 @@ namespace AMD
 
         void SetBatchSlice(
             uint idx,
-            const FmTetShapeParams& inStressShapeParams,
-            const FmMatrix3& inStressTetRotation,
+            const FmMatrix3& inStressShapeParamsDmInv,
+            float inStressShapeParamsV0,
+            const FmMatrix3& inRestShapeMatrix,
+            const FmMatrix3& inTetRotation,
             float inYoungsModulus,
             float inPoissonsRatio,
             bool inMeshSupportsPlasticity)
         {
-            aosStressShapeParamsBaryMatrixCol0[idx] = inStressShapeParams.baryMatrix.col0;
-            aosStressShapeParamsBaryMatrixCol1[idx] = inStressShapeParams.baryMatrix.col1;
-            aosStressShapeParamsBaryMatrixCol2[idx] = inStressShapeParams.baryMatrix.col2;
-            aosStressShapeParamsBaryMatrixCol3[idx] = inStressShapeParams.baryMatrix.col3;
-            aosStressTetRotationCol0[idx] = inStressTetRotation.col0;
-            aosStressTetRotationCol1[idx] = inStressTetRotation.col1;
-            aosStressTetRotationCol2[idx] = inStressTetRotation.col2;
+            aosStressShapeParamsDmInvCol0[idx] = inStressShapeParamsDmInv.col0;
+            aosStressShapeParamsDmInvCol1[idx] = inStressShapeParamsDmInv.col1;
+            aosStressShapeParamsDmInvCol2[idx] = inStressShapeParamsDmInv.col2;
+            aosRestShapeMatrixCol0[idx] = inRestShapeMatrix.col0;
+            aosRestShapeMatrixCol1[idx] = inRestShapeMatrix.col1;
+            aosRestShapeMatrixCol2[idx] = inRestShapeMatrix.col2;
+            aosTetRotationCol0[idx] = inTetRotation.col0;
+            aosTetRotationCol1[idx] = inTetRotation.col1;
+            aosTetRotationCol2[idx] = inTetRotation.col2;
 
-            stressShapeParams.det.setSlice(idx, inStressShapeParams.det);
+            stressShapeParamsV0.setSlice(idx, inStressShapeParamsV0);
 
             youngsModulus.setSlice(idx, inYoungsModulus);
             poissonsRatio.setSlice(idx, inPoissonsRatio);
@@ -231,14 +241,17 @@ namespace AMD
 
         void ConvertAosToSoa()
         {
-            FmSetSoaFromAlignedAos(&stressShapeParams.baryMatrix.col0, aosStressShapeParamsBaryMatrixCol0);
-            FmSetSoaFromAlignedAos(&stressShapeParams.baryMatrix.col1, aosStressShapeParamsBaryMatrixCol1);
-            FmSetSoaFromAlignedAos(&stressShapeParams.baryMatrix.col2, aosStressShapeParamsBaryMatrixCol2);
-            FmSetSoaFromAlignedAos(&stressShapeParams.baryMatrix.col3, aosStressShapeParamsBaryMatrixCol3);
+            FmSetSoaFromAlignedAos(&stressShapeParamsDmInv.col0, aosStressShapeParamsDmInvCol0);
+            FmSetSoaFromAlignedAos(&stressShapeParamsDmInv.col1, aosStressShapeParamsDmInvCol1);
+            FmSetSoaFromAlignedAos(&stressShapeParamsDmInv.col2, aosStressShapeParamsDmInvCol2);
 
-            FmSetSoaFromAlignedAos(&stressTetRotation.col0, aosStressTetRotationCol0);
-            FmSetSoaFromAlignedAos(&stressTetRotation.col1, aosStressTetRotationCol1);
-            FmSetSoaFromAlignedAos(&stressTetRotation.col2, aosStressTetRotationCol2);
+            FmSetSoaFromAlignedAos(&restShapeMatrix.col0, aosRestShapeMatrixCol0);
+            FmSetSoaFromAlignedAos(&restShapeMatrix.col1, aosRestShapeMatrixCol1);
+            FmSetSoaFromAlignedAos(&restShapeMatrix.col2, aosRestShapeMatrixCol2);
+
+            FmSetSoaFromAlignedAos(&tetRotation.col0, aosTetRotationCol0);
+            FmSetSoaFromAlignedAos(&tetRotation.col1, aosTetRotationCol1);
+            FmSetSoaFromAlignedAos(&tetRotation.col2, aosTetRotationCol2);
         }
 
         void Compute()
@@ -246,27 +259,13 @@ namespace AMD
             FmSoaTetStressMatrix<SoaTypes> stressMat;
             FmSoaTetStiffnessMatrix<SoaTypes> stiffnessMat;
             FmComputeTetStressAndStiffnessMatrix(&stressMat, &stiffnessMat,
-                stressShapeParams.baryMatrix.col0,
-                stressShapeParams.baryMatrix.col1,
-                stressShapeParams.baryMatrix.col2,
-                stressShapeParams.GetVolume(),
+                stressShapeParamsDmInv,
+                stressShapeParamsV0,
                 youngsModulus, poissonsRatio);
 
-            typename SoaTypes::SoaVector3 stressRestPosition0;
-            typename SoaTypes::SoaVector3 stressRestPosition1;
-            typename SoaTypes::SoaVector3 stressRestPosition2;
-            typename SoaTypes::SoaVector3 stressRestPosition3;
-
-            // Recompute rest positions from the shape params so they reflect plastic deformation.
-            // Safe to recompute for non-plastic meshes also.
-            stressShapeParams.ComputeRestPositions(&stressRestPosition0, &stressRestPosition1, &stressRestPosition2, &stressRestPosition3);
-
             FmComputeRotatedStiffnessMatrix<SoaTypes>(&rotatedStiffnessMat, stiffnessMat,
-                stressRestPosition0,
-                stressRestPosition1,
-                stressRestPosition2,
-                stressRestPosition3,
-                stressTetRotation);
+                restShapeMatrix,
+                tetRotation);
         }
     };
 #endif
@@ -276,9 +275,9 @@ namespace AMD
         FmTetMesh* tetMesh,
         const FmTetRotatedStiffnessMatrix& stiffness,
         const uint stiffnessMatRowOffsets[4][4],
-        const FmSVector3& centerOfMass,
         FmTetVertIds tetVertIds,
         float dt2rayleigh,
+        float rayleighStiffnessCoeff,
         float deltat)
     {
         uint vId0 = tetVertIds.ids[0];
@@ -286,19 +285,31 @@ namespace AMD
         uint vId2 = tetVertIds.ids[2];
         uint vId3 = tetVertIds.ids[3];
 
-        // Recenter positions to center of mass for possible numerical benefit.
+        FmSVector3 pos0 = FmSVector3(tetMesh->vertsPos[vId0]);
+        FmSVector3 pos1 = FmSVector3(tetMesh->vertsPos[vId1]);
+        FmSVector3 pos2 = FmSVector3(tetMesh->vertsPos[vId2]);
+        FmSVector3 pos3 = FmSVector3(tetMesh->vertsPos[vId3]);
+        pos1 -= pos0;
+        pos2 -= pos0;
+        pos3 -= pos0;
+        pos0 = FmSVector3(0.0f);
+
+        FmSVector3 vel0 = FmSVector3(tetMesh->vertsVel[vId0]);
+        FmSVector3 vel1 = FmSVector3(tetMesh->vertsVel[vId1]);
+        FmSVector3 vel2 = FmSVector3(tetMesh->vertsVel[vId2]);
+        FmSVector3 vel3 = FmSVector3(tetMesh->vertsVel[vId3]);
+
         FmSVector3 xtemp[4];
-#if FM_SOLVE_DELTAV
-        xtemp[0] = FmInitSVector3(tetMesh->vertsPos[vId0]) - centerOfMass + FmInitSVector3(tetMesh->vertsVel[vId0])*deltat;
-        xtemp[1] = FmInitSVector3(tetMesh->vertsPos[vId1]) - centerOfMass + FmInitSVector3(tetMesh->vertsVel[vId1])*deltat;
-        xtemp[2] = FmInitSVector3(tetMesh->vertsPos[vId2]) - centerOfMass + FmInitSVector3(tetMesh->vertsVel[vId2])*deltat;
-        xtemp[3] = FmInitSVector3(tetMesh->vertsPos[vId3]) - centerOfMass + FmInitSVector3(tetMesh->vertsVel[vId3])*deltat;
-#else
-        xtemp[0] = FmInitSVector3(tetMesh->vertsPos[vId0]) - centerOfMass;
-        xtemp[1] = FmInitSVector3(tetMesh->vertsPos[vId1]) - centerOfMass;
-        xtemp[2] = FmInitSVector3(tetMesh->vertsPos[vId2]) - centerOfMass;
-        xtemp[3] = FmInitSVector3(tetMesh->vertsPos[vId3]) - centerOfMass;
-#endif
+        xtemp[0] = pos0 + vel0 * deltat;
+        xtemp[1] = pos1 + vel1 * deltat;
+        xtemp[2] = pos2 + vel2 * deltat;
+        xtemp[3] = pos3 + vel3 * deltat;
+
+        // Stiffness damping
+        xtemp[0] += vel0 * rayleighStiffnessCoeff;
+        xtemp[1] += vel1 * rayleighStiffnessCoeff;
+        xtemp[2] += vel2 * rayleighStiffnessCoeff;
+        xtemp[3] += vel3 * rayleighStiffnessCoeff;
 
         bool isKinematic0 = tetMesh->vertsFlags[vId0] & FM_VERT_FLAG_KINEMATIC;
         bool isKinematic1 = tetMesh->vertsFlags[vId1] & FM_VERT_FLAG_KINEMATIC;
@@ -318,21 +329,21 @@ namespace AMD
         svTetVertIds.ids[3] = svId3;
 
         FmSVector3 bterm[4];
-        bterm[0] = FmInitSVector3(0.0f);
-        bterm[1] = FmInitSVector3(0.0f);
-        bterm[2] = FmInitSVector3(0.0f);
-        bterm[3] = FmInitSVector3(0.0f);
+        bterm[0] = FmSVector3(0.0f);
+        bterm[1] = FmSVector3(0.0f);
+        bterm[2] = FmSVector3(0.0f);
+        bterm[3] = FmSVector3(0.0f);
 
         FmSMatrix3 Ke0, Ke1, Ke2, Ke3;
 
         if (!isKinematic0)
         {
-            Ke0 = FmInitSMatrix3(stiffness.Keprime_diag0);
-            Ke1 = FmInitSMatrix3(transpose(stiffness.Keprime_lower0));
-            Ke2 = FmInitSMatrix3(transpose(stiffness.Keprime_lower1));
-            Ke3 = FmInitSMatrix3(transpose(stiffness.Keprime_lower2));
+            Ke0 = FmSMatrix3(stiffness.Keprime_diag0);
+            Ke1 = FmSMatrix3(transpose(stiffness.Keprime_lower0));
+            Ke2 = FmSMatrix3(transpose(stiffness.Keprime_lower1));
+            Ke3 = FmSMatrix3(transpose(stiffness.Keprime_lower2));
 
-            bterm[0] = mul(Ke0, xtemp[0]) + mul(Ke1, xtemp[1]) + mul(Ke2, xtemp[2]) + mul(Ke3, xtemp[3]) + FmInitSVector3(stiffness.f0eprime0);
+            bterm[0] = Ke0 * xtemp[0] + Ke1 * xtemp[1] + Ke2 * xtemp[2] + Ke3 * xtemp[3] + FmSVector3(stiffness.f0eprime0);
 
             uint rowStart = data->A.rowStarts[svId0];
             uint rowSize = data->A.rowStarts[svId0 + 1] - rowStart;
@@ -345,12 +356,12 @@ namespace AMD
 
         if (!isKinematic1)
         {
-            Ke0 = FmInitSMatrix3(stiffness.Keprime_lower0);
-            Ke1 = FmInitSMatrix3(stiffness.Keprime_diag1);
-            Ke2 = FmInitSMatrix3(transpose(stiffness.Keprime_lower3));
-            Ke3 = FmInitSMatrix3(transpose(stiffness.Keprime_lower4));
+            Ke0 = FmSMatrix3(stiffness.Keprime_lower0);
+            Ke1 = FmSMatrix3(stiffness.Keprime_diag1);
+            Ke2 = FmSMatrix3(transpose(stiffness.Keprime_lower3));
+            Ke3 = FmSMatrix3(transpose(stiffness.Keprime_lower4));
 
-            bterm[1] = mul(Ke0, xtemp[0]) + mul(Ke1, xtemp[1]) + mul(Ke2, xtemp[2]) + mul(Ke3, xtemp[3]) + FmInitSVector3(stiffness.f0eprime1);
+            bterm[1] = Ke0 * xtemp[0] + Ke1 * xtemp[1] + Ke2 * xtemp[2] + Ke3 * xtemp[3] + FmSVector3(stiffness.f0eprime1);
 
             uint rowStart = data->A.rowStarts[svId1];
             uint rowSize = data->A.rowStarts[svId1 + 1] - rowStart;
@@ -363,12 +374,12 @@ namespace AMD
 
         if (!isKinematic2)
         {
-            Ke0 = FmInitSMatrix3(stiffness.Keprime_lower1);
-            Ke1 = FmInitSMatrix3(stiffness.Keprime_lower3);
-            Ke2 = FmInitSMatrix3(stiffness.Keprime_diag2);
-            Ke3 = FmInitSMatrix3(transpose(stiffness.Keprime_lower5));
+            Ke0 = FmSMatrix3(stiffness.Keprime_lower1);
+            Ke1 = FmSMatrix3(stiffness.Keprime_lower3);
+            Ke2 = FmSMatrix3(stiffness.Keprime_diag2);
+            Ke3 = FmSMatrix3(transpose(stiffness.Keprime_lower5));
 
-            bterm[2] = mul(Ke0, xtemp[0]) + mul(Ke1, xtemp[1]) + mul(Ke2, xtemp[2]) + mul(Ke3, xtemp[3]) + FmInitSVector3(stiffness.f0eprime2);
+            bterm[2] = Ke0 * xtemp[0] + Ke1 * xtemp[1] + Ke2 * xtemp[2] + Ke3 * xtemp[3] + FmSVector3(stiffness.f0eprime2);
 
             uint rowStart = data->A.rowStarts[svId2];
             uint rowSize = data->A.rowStarts[svId2 + 1] - rowStart;
@@ -381,12 +392,12 @@ namespace AMD
 
         if (!isKinematic3)
         {
-            Ke0 = FmInitSMatrix3(stiffness.Keprime_lower2);
-            Ke1 = FmInitSMatrix3(stiffness.Keprime_lower4);
-            Ke2 = FmInitSMatrix3(stiffness.Keprime_lower5);
-            Ke3 = FmInitSMatrix3(stiffness.Keprime_diag3);
+            Ke0 = FmSMatrix3(stiffness.Keprime_lower2);
+            Ke1 = FmSMatrix3(stiffness.Keprime_lower4);
+            Ke2 = FmSMatrix3(stiffness.Keprime_lower5);
+            Ke3 = FmSMatrix3(stiffness.Keprime_diag3);
 
-            bterm[3] = mul(Ke0, xtemp[0]) + mul(Ke1, xtemp[1]) + mul(Ke2, xtemp[2]) + mul(Ke3, xtemp[3]) + FmInitSVector3(stiffness.f0eprime3);
+            bterm[3] = Ke0 * xtemp[0] + Ke1 * xtemp[1] + Ke2 * xtemp[2] + Ke3 * xtemp[3] + FmSVector3(stiffness.f0eprime3);
 
             uint rowStart = data->A.rowStarts[svId3];
             uint rowSize = data->A.rowStarts[svId3 + 1] - rowStart;
@@ -414,7 +425,7 @@ namespace AMD
         float extForceSpeedLimit,
         float deltat)
     {
-        FM_TRACE_SCOPED_EVENT(MPCG_SETUP);
+        FM_TRACE_SCOPED_EVENT("MpcgSetup");
 
         if (tetMesh->flags & FM_OBJECT_FLAG_NEEDS_ADJACENT_VERT_OFFSETS)
         {
@@ -424,7 +435,6 @@ namespace AMD
         }
 
         const FmTetStiffnessState* tetsStiffness = tetMesh->tetsStiffness;
-        FmSVector3 centerOfMass = FmInitSVector3(tetMesh->centerOfMass);
         uint numVerts = tetMesh->numVerts;
 
         FmVector3 gravityVector = sceneGravityVector + tetMesh->gravityVector;
@@ -448,7 +458,7 @@ namespace AMD
             float mass = tetMesh->vertsMass[vId];
             FmVector3 vel = tetMesh->vertsVel[vId];
 
-            FmVector3 extForce = FmInitVector3(0.0f);
+            FmVector3 extForce = FmVector3(0.0f);
             
             if (FM_IS_SET(tetMesh->vertsFlags[vId], FM_VERT_FLAG_EXT_FORCE_SET))
             {
@@ -457,7 +467,7 @@ namespace AMD
                 float speed = length(vel);
                 if (speed > extForceSpeedLimit)
                 {
-                    extForce = FmInitVector3(0.0f);
+                    extForce = FmVector3(0.0f);
                 }
                 else
                 {
@@ -477,11 +487,7 @@ namespace AMD
 
             if (solution)
             {
-#if FM_SOLVE_DELTAV
-                solution[svId] = FmInitSVector3(0.0f);
-#else
-                solution[svId] = FmInitSVector3(vel);
-#endif
+                solution[svId] = FmSVector3(0.0f);
             }
 
             uint rowStart = data->A.rowStarts[svId];
@@ -493,8 +499,8 @@ namespace AMD
             }
             else
             {
-                FmSVector3 C_alpha_diag = FmInitSVector3(mass * rayleighMassCoeff);
-                data->A.submats[svId] = FmSMatrix3::scale(FmInitSVector3(mass) + C_alpha_diag * deltat);
+                FmSVector3 C_alpha_diag = FmSVector3(mass * rayleighMassCoeff);
+                data->A.submats[svId] = FmSMatrix3::scale(FmSVector3(mass) + C_alpha_diag * deltat);
             }
             data->A.indices[svId] = svId;
 
@@ -504,11 +510,7 @@ namespace AMD
                 data->A.indices[rowStart + idx] = FM_INVALID_ID;
             }
 
-#if FM_SOLVE_DELTAV
-            data->b[svId] = FmInitSVector3(extForce + gravityVector * mass - vel * (mass * rayleighMassCoeff + rayleighStiffnessCoeff)) * deltat;
-#else
-            data->b[svId] = FmInitSVector3(vel * mass + (extForce + gravityVector * mass) * deltat);
-#endif
+            data->b[svId] = FmSVector3(extForce + gravityVector * mass - vel * mass * rayleighMassCoeff) * deltat;
             data->kinematicFlags[svId] = kinematic;
             data->mass[svId] = mass;
         }
@@ -516,7 +518,7 @@ namespace AMD
         uint numTets = tetMesh->numTets;
         float dt2rayleigh = dt2 + deltat * rayleighStiffnessCoeff;
 
-        bool meshSupportsPlasticity = (tetMesh->tetsPlasticity != NULL);
+        bool meshSupportsPlasticity = (tetMesh->tetsPlasticity != nullptr);
 
 #if FM_SOA_TET_MATH
         FmComputeStiffnessBatch<FmSoaTypes> computeStiffnessBatch;
@@ -530,26 +532,33 @@ namespace AMD
             FmMatrix3 tetRotation = tetMesh->tetsRotation[tIdx];
             FmTetVertIds tetVertIds = tetMesh->tetsVertIds[tIdx];
 
-            FmTetShapeParams stressShapeParams;
-            FmMatrix3 stressRotation;
+            // Get rest shape matrix for computing deformed-rest position offsets.
+            // Can derive from tetShapeParams if unmodified.
+            FmMatrix3 restShapeMatrix;
+            if (tetShapeParams.clamped)
+            {
+                FmVector3 restPosition0 = tetMesh->vertsRestPos[tetVertIds.ids[0]];
+                FmVector3 restPosition1 = tetMesh->vertsRestPos[tetVertIds.ids[1]];
+                FmVector3 restPosition2 = tetMesh->vertsRestPos[tetVertIds.ids[2]];
+                FmVector3 restPosition3 = tetMesh->vertsRestPos[tetVertIds.ids[3]];
+                restShapeMatrix = FmComputeTetShapeMatrix(restPosition0, restPosition1, restPosition2, restPosition3);
+            }
+            else
+            {
+                restShapeMatrix = inverse(tetShapeParams.DmInv);
+            }
+
+            FmMatrix3 stressShapeParamsDmInv = tetShapeParams.DmInv;
+            float stressShapeParamsV0 = tetShapeParams.GetVolume();
 
             if (meshSupportsPlasticity)
             {
                 const FmTetPlasticityState& plasticityState = tetMesh->tetsPlasticity[tIdx];
 
-                stressShapeParams = plasticityState.plasticShapeParams;
-
-#if FM_COMPUTE_PLASTIC_REL_ROTATION
-                stressRotation = mul(plasticityState.plasticTetRelRotation, tetRotation);
-#else
-                stressRotation = tetRotation;
-#endif
-            }
-            else
-            {
-                stressShapeParams = tetShapeParams;
-
-                stressRotation = tetRotation;
+                // Apply latest plastic deformation to rest shape matrix, and inputs to stress-matrix computation
+                restShapeMatrix = plasticityState.plasticDeformationMatrix * restShapeMatrix;
+                stressShapeParamsDmInv *= inverse(plasticityState.plasticDeformationMatrix);
+                stressShapeParamsV0 *= determinant(plasticityState.plasticDeformationMatrix);
             }
 
 #if FM_SOA_TET_MATH
@@ -572,9 +581,9 @@ namespace AMD
                         tetMesh,
                         stiffness,
                         tetsStiffness[tetId].stiffnessMatRowOffsets,
-                        centerOfMass,
                         tetMesh->tetsVertIds[tetId],
                         dt2rayleigh,
+                        rayleighStiffnessCoeff,
                         deltat);
                 }
 
@@ -583,39 +592,29 @@ namespace AMD
             }
 
             computeStiffnessBatch.SetBatchSlice(computeStiffnessBatch.numTets,
-                stressShapeParams, tetRotation, materialParams.youngsModulus, materialParams.poissonsRatio, meshSupportsPlasticity);
+                stressShapeParamsDmInv, stressShapeParamsV0, restShapeMatrix, tetRotation, materialParams.youngsModulus, materialParams.poissonsRatio, meshSupportsPlasticity);
             computeStiffnessBatch.numTets++;
 #else
             FmTetStressMatrix stressMat;
             FmTetStiffnessMatrix stiffnessMat;
             FmComputeTetStressAndStiffnessMatrix(&stressMat, &stiffnessMat,
-                stressShapeParams.baryMatrix.col0,
-                stressShapeParams.baryMatrix.col1,
-                stressShapeParams.baryMatrix.col2,
-                stressShapeParams.GetVolume(),
+                stressShapeParamsDmInv,
+                stressShapeParamsV0,
                 materialParams.youngsModulus, materialParams.poissonsRatio);
-
-            // Recompute rest positions from the shape params so they reflect plastic deformation.
-            // Safe to recompute for non-plastic meshes also.
-            FmVector3 stressRestPosition0, stressRestPosition1, stressRestPosition2, stressRestPosition3;
-            stressShapeParams.ComputeRestPositions(&stressRestPosition0, &stressRestPosition1, &stressRestPosition2, &stressRestPosition3);
 
             FmTetRotatedStiffnessMatrix stiffness;
             FmComputeRotatedStiffnessMatrix(&stiffness, stiffnessMat,
-                stressRestPosition0,
-                stressRestPosition1,
-                stressRestPosition2,
-                stressRestPosition3,
-                stressRotation);
+                restShapeMatrix,
+                tetRotation);
 
             FmApplyTetContributions(
                 data,
                 tetMesh,
                 stiffness,
                 tetsStiffness[tIdx].stiffnessMatRowOffsets,
-                centerOfMass,
                 tetVertIds,
                 dt2rayleigh,
+                rayleighStiffnessCoeff,
                 deltat);
 #endif
         }
@@ -640,9 +639,9 @@ namespace AMD
                     tetMesh,
                     stiffness,
                     tetsStiffness[tetId].stiffnessMatRowOffsets,
-                    centerOfMass,
                     tetMesh->tetsVertIds[tetId],
                     dt2rayleigh,
+                    rayleighStiffnessCoeff,
                     deltat);
             }
         }
@@ -667,7 +666,7 @@ namespace AMD
             // First submatrix of A rows will be the diagonal
             bool kinematic = (tetMesh->vertsFlags[vId] & FM_VERT_FLAG_KINEMATIC);
 
-            FmVector3 extForce = FmInitVector3(0.0f);
+            FmVector3 extForce = FmVector3(0.0f);
 
             if (FM_IS_SET(tetMesh->vertsFlags[vId], FM_VERT_FLAG_EXT_FORCE_SET))
             {
@@ -676,7 +675,7 @@ namespace AMD
                 float speed = length(vel);
                 if (speed > extForceSpeedLimit)
                 {
-                    extForce = FmInitVector3(0.0f);
+                    extForce = FmVector3(0.0f);
                 }
                 else
                 {
@@ -696,11 +695,7 @@ namespace AMD
 
             if (solution)
             {
-#if FM_SOLVE_DELTAV
-                solution[vId] = FmInitSVector3(0.0f);
-#else
-                solution[vId] = FmInitSVector3(vel);
-#endif
+                solution[vId] = FmSVector3(0.0f);
             }
 
             uint rowStart = data->A.rowStarts[vId];
@@ -712,16 +707,12 @@ namespace AMD
             }
             else
             {
-                FmSVector3 C_alpha_diag = FmInitSVector3(mass * rayleighMassCoeff);
-                data->A.submats[vId] = FmSMatrix3::scale(FmInitSVector3(mass) + C_alpha_diag * deltat);
+                FmSVector3 C_alpha_diag = FmSVector3(mass * rayleighMassCoeff);
+                data->A.submats[vId] = FmSMatrix3::scale(FmSVector3(mass) + C_alpha_diag * deltat);
             }
             data->A.indices[vId] = vId;
 
-#if FM_SOLVE_DELTAV
-            data->b[vId] = FmInitSVector3(extForce + gravityVector * mass - vel * (mass * rayleighMassCoeff + rayleighStiffnessCoeff)) * deltat;
-#else
-            data->b[vId] = FmInitSVector3(vel * mass + (extForce + gravityVector * mass) * deltat);
-#endif
+            data->b[vId] = FmSVector3(extForce + gravityVector * mass - vel * (mass * rayleighMassCoeff + rayleighStiffnessCoeff)) * deltat;
 
             data->kinematicFlags[vId] = kinematic;
             data->mass[vId] = mass;
@@ -735,11 +726,11 @@ namespace AMD
             // Assemble A and b by accumulating stiffness terms from incident tets.
             for (uint sIdx = 0; sIdx < vertNeighbors.numAdjacentVerts; sIdx++)
             {
-                data->A.submats[rowStart + sIdx] = FmInitSMatrix3(0.0f);
+                data->A.submats[rowStart + sIdx] = FmSMatrix3(0.0f);
                 data->A.indices[rowStart + sIdx] = FM_INVALID_ID;
             }
 
-            FmSVector3 btets = FmInitSVector3(0.0f);
+            FmSVector3 btets = FmSVector3(0.0f);
 
             uint incidentTetsStart = vertNeighbors.incidentTetsStart;
             uint numIncidentTets = vertNeighbors.numIncidentTets;
@@ -755,19 +746,31 @@ namespace AMD
                 uint vId2 = tetVertIds.ids[2];
                 uint vId3 = tetVertIds.ids[3];
 
-                // Recenter positions to center of mass for possible numerical benefit.
+                FmSVector3 pos0 = FmSVector3(tetMesh->vertsPos[vId0]);
+                FmSVector3 pos1 = FmSVector3(tetMesh->vertsPos[vId1]);
+                FmSVector3 pos2 = FmSVector3(tetMesh->vertsPos[vId2]);
+                FmSVector3 pos3 = FmSVector3(tetMesh->vertsPos[vId3]);
+                pos1 -= pos0;
+                pos2 -= pos0;
+                pos3 -= pos0;
+                pos0 = FmSVector3(0.0f);
+
+                FmSVector3 vel0 = FmSVector3(tetMesh->vertsVel[vId0]);
+                FmSVector3 vel1 = FmSVector3(tetMesh->vertsVel[vId1]);
+                FmSVector3 vel2 = FmSVector3(tetMesh->vertsVel[vId2]);
+                FmSVector3 vel3 = FmSVector3(tetMesh->vertsVel[vId3]);
+
                 FmSVector3 xtemp[4];
-#if FM_SOLVE_DELTAV
-                xtemp[0] = FmInitSVector3(tetMesh->vertsPos[vId0]) - centerOfMass + FmInitSVector3(tetMesh->vertsVel[vId0])*deltat;
-                xtemp[1] = FmInitSVector3(tetMesh->vertsPos[vId1]) - centerOfMass + FmInitSVector3(tetMesh->vertsVel[vId1])*deltat;
-                xtemp[2] = FmInitSVector3(tetMesh->vertsPos[vId2]) - centerOfMass + FmInitSVector3(tetMesh->vertsVel[vId2])*deltat;
-                xtemp[3] = FmInitSVector3(tetMesh->vertsPos[vId3]) - centerOfMass + FmInitSVector3(tetMesh->vertsVel[vId3])*deltat;
-#else
-                xtemp[0] = FmInitSVector3(tetMesh->vertsPos[vId0]) - centerOfMass;
-                xtemp[1] = FmInitSVector3(tetMesh->vertsPos[vId1]) - centerOfMass;
-                xtemp[2] = FmInitSVector3(tetMesh->vertsPos[vId2]) - centerOfMass;
-                xtemp[3] = FmInitSVector3(tetMesh->vertsPos[vId3]) - centerOfMass;
-#endif
+                xtemp[0] = pos0 + vel0 * deltat;
+                xtemp[1] = pos1 + vel1 * deltat;
+                xtemp[2] = pos2 + vel2 * deltat;
+                xtemp[3] = pos3 + vel3 * deltat;
+
+                // Stiffness damping
+                xtemp[0] += vel0 * rayleighStiffnessCoeff;
+                xtemp[1] += vel1 * rayleighStiffnessCoeff;
+                xtemp[2] += vel2 * rayleighStiffnessCoeff;
+                xtemp[3] += vel3 * rayleighStiffnessCoeff;
 
                 FmMatrix3 Ke0, Ke1, Ke2, Ke3;
                 FmVector3 f0eprime;
@@ -817,12 +820,12 @@ namespace AMD
                 rowSubmatIdx[3] = tetStiffnessState.stiffnessMatRowOffsets[tetVertIdx][3];
 
                 FmSMatrix3 SKe0, SKe1, SKe2, SKe3;
-                SKe0 = FmInitSMatrix3(Ke0);
-                SKe1 = FmInitSMatrix3(Ke1);
-                SKe2 = FmInitSMatrix3(Ke2);
-                SKe3 = FmInitSMatrix3(Ke3);
+                SKe0 = FmSMatrix3(Ke0);
+                SKe1 = FmSMatrix3(Ke1);
+                SKe2 = FmSMatrix3(Ke2);
+                SKe3 = FmSMatrix3(Ke3);
 
-                FmSVector3 btemp = mul(SKe0, xtemp[0]) + mul(SKe1, xtemp[1]) + mul(SKe2, xtemp[2]) + mul(SKe3, xtemp[3]) + FmInitSVector3(f0eprime);
+                FmSVector3 btemp = SKe0 * xtemp[0] + SKe1 * xtemp[1] + SKe2 * xtemp[2] + SKe3 * xtemp[3] + FmSVector3(f0eprime);
 
                 uint submatIdx0 = (tetVertIdx == 0) ? vId : rowStart + rowSubmatIdx[0];
                 FmSMatrix3 term0 = SKe0 * (dt2 + deltat * rayleighStiffnessCoeff);

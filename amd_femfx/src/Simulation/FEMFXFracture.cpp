@@ -103,7 +103,7 @@ namespace AMD
         tetMesh->vertsRestPos[dstVertId] = tetMesh->vertsRestPos[srcVertId];
         tetMesh->vertsPos[dstVertId] = tetMesh->vertsPos[srcVertId];
         tetMesh->vertsVel[dstVertId] = tetMesh->vertsVel[srcVertId];
-        tetMesh->vertsExtForce[dstVertId] = FmInitVector3(0.0f);
+        tetMesh->vertsExtForce[dstVertId] = FmVector3(0.0f);
         tetMesh->vertsTetValues[dstVertId] = tetMesh->vertsTetValues[srcVertId];
     }
 
@@ -208,8 +208,10 @@ namespace AMD
             uint* tetsQueue = FmAllocFromBuffer<uint>(&pTempBuffer, FM_MAX_VERT_INCIDENT_TETS, pTempBufferEnd);
 
             uint numComponents = 0;
-            uint numTetsReached = 0;
             uint originalVertexComponentId = 0; // one component with FM_TET_FLAG_KINEMATIC will be attached to original vertex
+#if _DEBUG
+            uint numTetsReached = 0;
+#endif
 
             for (uint itId = 0; itId < numIncidentTets; itId++)
             {
@@ -222,7 +224,9 @@ namespace AMD
 
                     // Set component, marking as reached
                     localTets[itId].componentId = numComponents;
+#if _DEBUG
                     numTetsReached++;
+#endif
 
                     bool componentHasKinematicTet = localTets[itId].isKinematic;
 
@@ -253,7 +257,9 @@ namespace AMD
 
                                     // Set connected component, marking as reached
                                     tetB.componentId = numComponents;
+#if _DEBUG
                                     numTetsReached++;
+#endif
 
                                     componentHasKinematicTet = componentHasKinematicTet || tetB.isKinematic;
                                 }
@@ -314,7 +320,7 @@ namespace AMD
                         assignVertId = newVertsStartId + localTet.componentId - 1;
                     }
 
-                    FM_ASSERT(localTet.componentId >= 0 && localTet.componentId < numComponents);
+                    FM_ASSERT(localTet.componentId < numComponents);
                     FM_ASSERT(assignVertId < tetMesh->numVerts);
 
                     // Replace vert in tet
@@ -409,7 +415,7 @@ namespace AMD
         }
 
         // Get temp memory for fracture processing at each vertex.
-        uint workerIndex = scene->taskSystemCallbacks.GetTaskSystemWorkerIndex();
+        uint workerIndex = TLGetTaskSystemThreadIndex();
         uint8_t* pTempBufferStart = scene->threadTempMemoryBuffer->buffers[workerIndex];
         uint8_t* pTempBufferEnd = pTempBufferStart + scene->threadTempMemoryBuffer->numBytesPerBuffer;
         uint8_t* pTempBuffer = pTempBufferStart;
@@ -430,7 +436,7 @@ namespace AMD
         uint numTetsToFracture = FmAtomicRead(&tetMesh->numTetsToFracture.val);
 
         // Needed for determinism with parallel fracture tests
-        FmSort<FmTetToFracture, FmCompareTetsToFracture>(tetMesh->tetsToFracture, numTetsToFracture, NULL);
+        FmSort<FmTetToFracture, FmCompareTetsToFracture>(tetMesh->tetsToFracture, numTetsToFracture, nullptr);
 
         for (uint tId = 0; tId < numTetsToFracture; tId++)
         {
@@ -446,8 +452,8 @@ namespace AMD
             float normX = randomState.RandomFloatZeroToOne();
             float normY = randomState.RandomFloatZeroToOne();
             float normZ = randomState.RandomFloatZeroToOne();
-            FmVector3 rotationAxis = normalize(FmInitVector3(normX, normY, normZ));
-            fractureTet.fractureDirection = mul(FmMatrix3::rotation(rotationAngle, rotationAxis), fractureTet.fractureDirection);
+            FmVector3 rotationAxis = normalize(FmVector3(normX, normY, normZ));
+            fractureTet.fractureDirection = FmMatrix3::rotation(rotationAngle, rotationAxis) * fractureTet.fractureDirection;
 #endif
 
             bool crackTipFlags[4];

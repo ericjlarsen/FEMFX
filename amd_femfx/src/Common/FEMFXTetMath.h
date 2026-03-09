@@ -38,47 +38,47 @@ namespace AMD
     // Strain matrix is easily computed from these parameters.
     struct FmTetShapeParams
     {
-        FmMatrix4 baryMatrix;   // Matrix that transforms a point within the tet to its barycentric coords
-        float det;                 // Determinant of matrix m = [[1, 1, 1, 1], [x0, x1, x2, x3], [y0, y1, y2, y3], [z0, z1, z2, z3]] = 6 * volume
+        FmMatrix3 DmInv;      // Inverse of material/rest shape matrix = [p1 - p0, p2 - p0, p3 - p0]
+        FmVector4 baryCol3;   // Barycentric basis matrix col 3; full matrix can be made from this and DmInv
+        float det = 0.0f;     // Determinant of rest shape matrix; volume = det/6
+        bool clamped = false; // Set if SVD sigma values were clamped (high aspect-ratio tet)
 
-        inline float GetA0() const { return baryMatrix.col0.x; }
-        inline float GetA1() const { return baryMatrix.col0.y; }
-        inline float GetA2() const { return baryMatrix.col0.z; }
-        inline float GetA3() const { return baryMatrix.col0.w; }
+        inline float GetA0() const { return -sum(DmInv.col0); }
+        inline float GetA1() const { return DmInv.col0.x; }
+        inline float GetA2() const { return DmInv.col0.y; }
+        inline float GetA3() const { return DmInv.col0.z; }
 
-        inline float GetB0() const { return baryMatrix.col1.x; }
-        inline float GetB1() const { return baryMatrix.col1.y; }
-        inline float GetB2() const { return baryMatrix.col1.z; }
-        inline float GetB3() const { return baryMatrix.col1.w; }
+        inline float GetB0() const { return -sum(DmInv.col1); }
+        inline float GetB1() const { return DmInv.col1.x; }
+        inline float GetB2() const { return DmInv.col1.y; }
+        inline float GetB3() const { return DmInv.col1.z; }
 
-        inline float GetC0() const { return baryMatrix.col2.x; }
-        inline float GetC1() const { return baryMatrix.col2.y; }
-        inline float GetC2() const { return baryMatrix.col2.z; }
-        inline float GetC3() const { return baryMatrix.col2.w; }
+        inline float GetC0() const { return -sum(DmInv.col2); }
+        inline float GetC1() const { return DmInv.col2.x; }
+        inline float GetC2() const { return DmInv.col2.y; }
+        inline float GetC3() const { return DmInv.col2.z; }
 
         inline float GetArea0() const { return 0.5f*det*sqrtf(GetA0()*GetA0() + GetB0()*GetB0() + GetC0()*GetC0()); }
         inline float GetArea1() const { return 0.5f*det*sqrtf(GetA1()*GetA1() + GetB1()*GetB1() + GetC1()*GetC1()); }
         inline float GetArea2() const { return 0.5f*det*sqrtf(GetA2()*GetA2() + GetB2()*GetB2() + GetC2()*GetC2()); }
         inline float GetArea3() const { return 0.5f*det*sqrtf(GetA3()*GetA3() + GetB3()*GetB3() + GetC3()*GetC3()); }
-        inline FmVector3 GetNormal0() const { return -normalize(FmInitVector3(GetA0(), GetB0(), GetC0())); }
-        inline FmVector3 GetNormal1() const { return -normalize(FmInitVector3(GetA1(), GetB1(), GetC1())); }
-        inline FmVector3 GetNormal2() const { return -normalize(FmInitVector3(GetA2(), GetB2(), GetC2())); }
-        inline FmVector3 GetNormal3() const { return -normalize(FmInitVector3(GetA3(), GetB3(), GetC3())); }
+        inline FmVector3 GetNormal0() const { return -normalize(FmVector3(GetA0(), GetB0(), GetC0())); }
+        inline FmVector3 GetNormal1() const { return -normalize(FmVector3(GetA1(), GetB1(), GetC1())); }
+        inline FmVector3 GetNormal2() const { return -normalize(FmVector3(GetA2(), GetB2(), GetC2())); }
+        inline FmVector3 GetNormal3() const { return -normalize(FmVector3(GetA3(), GetB3(), GetC3())); }
         inline float GetVolume() const { return det * (1.0f / 6.0f); }
 
-        inline void ComputeRestPositions(FmVector3* outRestPosition0, FmVector3* outRestPosition1, FmVector3* outRestPosition2, FmVector3* outRestPosition3) const
+        inline FmMatrix4 ComputeBaryMatrix() const
         {
-            FmMatrix4 restPosMat = inverse(baryMatrix);
+            FmVector4 col0(GetA0(), GetA1(), GetA2(), GetA3());
+            FmVector4 col1(GetB0(), GetB1(), GetB2(), GetB3());
+            FmVector4 col2(GetC0(), GetC1(), GetC2(), GetC3());
+            return FmMatrix4(col0, col1, col2, baryCol3);
+        }
 
-            FmVector3 restPosition0 = restPosMat.col0.getXYZ();
-            FmVector3 restPosition1 = restPosMat.col1.getXYZ();
-            FmVector3 restPosition2 = restPosMat.col2.getXYZ();
-            FmVector3 restPosition3 = restPosMat.col3.getXYZ();
-
-            *outRestPosition0 = restPosition0 - restPosition3;
-            *outRestPosition1 = restPosition1 - restPosition3;
-            *outRestPosition2 = restPosition2 - restPosition3;
-            *outRestPosition3 = FmInitVector3(0.0f);
+        inline FmVector4 ComputeBarycentricsOfRestPosition(const FmVector3& restPosition) const
+        {
+            return ComputeBaryMatrix() * FmVector4(restPosition, 1.0f);
         }
     };
 
@@ -145,16 +145,18 @@ namespace AMD
     };
 
     // Compute quantities associated with shape of tet in rest position.
-    void FmComputeShapeParams(FmTetShapeParams* shapeParams, const FmVector3& p0, const FmVector3& p1, const FmVector3& p2, const FmVector3& p3);
+    // If minSingularValueRatio or minSingularValue > 0, computes SVD of shape matrix and clamps singular values to improve condition.
+    // Similar to method in: Iben and O'Brien "Generating surface crack patterns".
+    void FmComputeShapeParams(FmTetShapeParams* shapeParams, const FmVector3& p0, const FmVector3& p1, const FmVector3& p2, const FmVector3& p3, float minSingularValueRatio = 0.0f, float minSingularValue = 0.0f);
 
     // Compute strain matrix from shape parameters
     void FmComputeTetStrainMatrix(FmTetStrainMatrix* strainMat, const FmTetShapeParams& shapeParams);
 
-    // Compute strain from shape parameters and tet position offsets
+    // Compute strain from offsets between unrotated positions and rest positions.
+    // Assuming unrotated and rest tet are translated to align position 0, so offset 0 is zero.
     void FmComputeTetStrain(
         FmVector3 strain[2],
         const FmTetShapeParams& shapeParams,
-        const FmVector3& unrotatedOffset0,
         const FmVector3& unrotatedOffset1,
         const FmVector3& unrotatedOffset2,
         const FmVector3& unrotatedOffset3);
@@ -162,9 +164,7 @@ namespace AMD
     // Compute stress matrix from shape and material parameters
     void FmComputeTetStressMatrix(
         FmTetStressMatrix* stressMat,
-        const FmVector4& baryMatrixCol0,
-        const FmVector4& baryMatrixCol1,
-        const FmVector4& baryMatrixCol2,
+        const FmMatrix3& DmInv,
         float youngsModulus,
         float poissonsRatio);
 
@@ -172,48 +172,33 @@ namespace AMD
     void FmComputeTetStressAndStiffnessMatrix(
         FmTetStressMatrix* stressMat,
         FmTetStiffnessMatrix* stiffnessMat,
-        const FmVector4& baryMatrixCol0,
-        const FmVector4& baryMatrixCol1,
-        const FmVector4& baryMatrixCol2,
+        const FmMatrix3& DmInv,
         float volume,
         float youngsModulus,
         float poissonsRatio);
 
     // Extract rotation from the transform of rest positions to deformed positions, using polar decomposition
-    FmMatrix3 FmComputeTetRotationPolarDecomp(
-        const FmVector3& tetDeformedPosition0,
-        const FmVector3& tetDeformedPosition1,
-        const FmVector3& tetDeformedPosition2,
-        const FmVector3& tetDeformedPosition3,
-        const FmMatrix4& tetRestBaryMatrix);
+    FmMatrix3 FmComputeTetRotation(const FmMatrix3& deformationGradient);
 
     // Extract rotation from the transform of rest positions to deformed positions, using polar decomposition computed by SVD.
     // Robust in cases of near singularity or inversion.
-    FmMatrix3 FmComputeTetRotationPolarDecompSvd(
-        const FmVector3& tetDeformedPosition0,
-        const FmVector3& tetDeformedPosition1,
-        const FmVector3& tetDeformedPosition2,
-        const FmVector3& tetDeformedPosition3,
-        const FmMatrix4& tetRestBaryMatrix);
+    FmMatrix3 FmComputeTetRotationSvd(const FmMatrix3& deformationGradient);
 
     // Compute rotated stiffness used to compute forces at each timestep
     void FmComputeRotatedStiffnessMatrix(
         FmTetRotatedStiffnessMatrix* rotatedStiffnessMat,
         const FmTetStiffnessMatrix& stiffnessMat,
-        const FmVector3 tetRestPosition0,
-        const FmVector3 tetRestPosition1,
-        const FmVector3 tetRestPosition2,
-        const FmVector3 tetRestPosition3,
+        const FmMatrix3& tetRestShapeMatrix,
         const FmMatrix3& tetRotation);
 
-    // Compute volume matrix for a tetrahedron, needed for deformation gradient
-    static FM_FORCE_INLINE FmMatrix3 FmComputeTetVolumeMatrix(const FmVector3& position0, const FmVector3& position1, const FmVector3& position2, const FmVector3& position3)
+    // Compute shape matrix for a tetrahedron, needed for deformation gradient
+    static FM_FORCE_INLINE FmMatrix3 FmComputeTetShapeMatrix(const FmVector3& position0, const FmVector3& position1, const FmVector3& position2, const FmVector3& position3)
     {
-        FmMatrix3 volumeMatrix;
-        volumeMatrix.col0 = position0 - position3;
-        volumeMatrix.col1 = position1 - position3;
-        volumeMatrix.col2 = position2 - position3;
-        return volumeMatrix;
+        FmMatrix3 shapeMatrix;
+        shapeMatrix.col0 = position1 - position0;
+        shapeMatrix.col1 = position2 - position0;
+        shapeMatrix.col2 = position3 - position0;
+        return shapeMatrix;
     }
 
     // Compute elastic deformation as the total deformation gradient multiplied by inverse of plastic deformation matrix.
@@ -223,16 +208,11 @@ namespace AMD
         FmMatrix3* U,
         FmVector3* Fhat,
         FmMatrix3* V,
-        const FmVector3& tetDeformedPosition0,
-        const FmVector3& tetDeformedPosition1,
-        const FmVector3& tetDeformedPosition2,
-        const FmVector3& tetDeformedPosition3,
-        const FmMatrix3& restVolumeMatrixInv,
+        const FmMatrix3& deformedShapeMatrix,
+        const FmMatrix3& restShapeMatrixInv,
         const FmMatrix3& plasticDeformationMatrixInv)
     {
-        FmMatrix3 volumeMatrix = FmComputeTetVolumeMatrix(tetDeformedPosition0, tetDeformedPosition1, tetDeformedPosition2, tetDeformedPosition3);
-
-        FmMatrix3 F = mul(mul(volumeMatrix, restVolumeMatrixInv), plasticDeformationMatrixInv);
+        FmMatrix3 F = deformedShapeMatrix * restShapeMatrixInv * plasticDeformationMatrixInv;
 
         FmSvd3x3(U, Fhat, V, F);
     }
@@ -246,8 +226,4 @@ namespace AMD
     // Measure of tetrahedron quality.
     float FmComputeTetAspectRatio(const FmVector3 positions[4]);
     float FmComputeTetAspectRatio(const FmVector3& position0, const FmVector3& position1, const FmVector3& position2, const FmVector3& position3);
-
-    // If tetrahedron aspect ratio is greater than the specified maximum, modifies the positions to improve aspect ratio, 
-    // maintaining the original volume and centroid.
-    bool FmEquilateralize(FmVector3* position0, FmVector3* position1, FmVector3* position2, FmVector3* position3, float maxAspectRatio, float minVolume);
 }

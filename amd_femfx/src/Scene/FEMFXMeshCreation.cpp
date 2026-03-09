@@ -108,14 +108,14 @@ namespace AMD
 
     void FmInitBoxVerts(FmVector3* vertRestPositions, FmTetVertIds* tetVertIds, float cubeDimX, float cubeDimY, float cubeDimZ)
     {
-        vertRestPositions[0] = FmInitVector3(-cubeDimX * 0.5f, -cubeDimY * 0.5f, -cubeDimZ * 0.5f);
-        vertRestPositions[1] = FmInitVector3(cubeDimX*0.5f, -cubeDimY * 0.5f, -cubeDimZ * 0.5f);
-        vertRestPositions[2] = FmInitVector3(-cubeDimX * 0.5f, cubeDimY*0.5f, -cubeDimZ * 0.5f);
-        vertRestPositions[3] = FmInitVector3(cubeDimX*0.5f, cubeDimY*0.5f, -cubeDimZ * 0.5f);
-        vertRestPositions[4] = FmInitVector3(-cubeDimX * 0.5f, -cubeDimY * 0.5f, cubeDimZ*0.5f);
-        vertRestPositions[5] = FmInitVector3(cubeDimX*0.5f, -cubeDimY * 0.5f, cubeDimZ*0.5f);
-        vertRestPositions[6] = FmInitVector3(-cubeDimX * 0.5f, cubeDimY*0.5f, cubeDimZ*0.5f);
-        vertRestPositions[7] = FmInitVector3(cubeDimX*0.5f, cubeDimY*0.5f, cubeDimZ*0.5f);
+        vertRestPositions[0] = FmVector3(-cubeDimX * 0.5f, -cubeDimY * 0.5f, -cubeDimZ * 0.5f);
+        vertRestPositions[1] = FmVector3(cubeDimX*0.5f, -cubeDimY * 0.5f, -cubeDimZ * 0.5f);
+        vertRestPositions[2] = FmVector3(-cubeDimX * 0.5f, cubeDimY*0.5f, -cubeDimZ * 0.5f);
+        vertRestPositions[3] = FmVector3(cubeDimX*0.5f, cubeDimY*0.5f, -cubeDimZ * 0.5f);
+        vertRestPositions[4] = FmVector3(-cubeDimX * 0.5f, -cubeDimY * 0.5f, cubeDimZ*0.5f);
+        vertRestPositions[5] = FmVector3(cubeDimX*0.5f, -cubeDimY * 0.5f, cubeDimZ*0.5f);
+        vertRestPositions[6] = FmVector3(-cubeDimX * 0.5f, cubeDimY*0.5f, cubeDimZ*0.5f);
+        vertRestPositions[7] = FmVector3(cubeDimX*0.5f, cubeDimY*0.5f, cubeDimZ*0.5f);
 
         tetVertIds[0].ids[0] = 0;
         tetVertIds[0].ids[1] = 4;
@@ -169,8 +169,8 @@ namespace AMD
         FmTetMeshBufferBounds bounds;
         FmComputeTetMeshBufferBounds(
             &bounds,
-            NULL, NULL,
-            vertIncidentTets, tetVertIds, NULL,
+            nullptr, nullptr,
+            vertIncidentTets, tetVertIds, nullptr,
             numVerts, numTets, false);
 
         FmTetMeshBufferSetupParams tetMeshBufferParams;
@@ -186,7 +186,7 @@ namespace AMD
         tetMeshBufferParams.isKinematic = false;
 
         FmTetMesh* rbTetMesh;
-        FmTetMeshBuffer* rbTetMeshBuffer = FmCreateTetMeshBuffer(tetMeshBufferParams, NULL, NULL, &rbTetMesh);
+        FmTetMeshBuffer* rbTetMeshBuffer = FmCreateTetMeshBuffer(tetMeshBufferParams, nullptr, nullptr, &rbTetMesh);
 
         FmInitVertState(rbTetMesh, vertRestPositions, FmMatrix3(rigidBody.state.quat), rigidBody.state.pos);
 
@@ -208,7 +208,7 @@ namespace AMD
         if (rigidBody->collisionObj)
         {
             FmAlignedFree((FmTetMeshBuffer*)rigidBody->collisionObj);
-            rigidBody->collisionObj = NULL;
+            rigidBody->collisionObj = nullptr;
         }
     }
 
@@ -217,24 +217,24 @@ namespace AMD
     // and assuming each of these components will split off, and computing the number of adjacent verts for each component.
     struct FmComputeMaxAdjacentLocalTet
     {
-        uint                       tetId;
-        FmTetVertIds            tetVerts;
-        uint                       componentId;
-        FmTetFaceIncidentTetIds localTetFaceIncidentTets;  // indices of tets within tet assignment array
-        uint16_t                   faceFractureDisabled;
-        bool                       isKinematic;
+        uint                     tetId = FM_INVALID_ID;
+        FmTetVertIds             tetVerts;
+        uint                     componentId = FM_INVALID_ID;
+        FmTetFaceIncidentTetIds  localTetFaceIncidentTets;  // indices of tets within tet assignment array
+        uint16_t                 faceFractureDisabled = 0;
+        bool                     isKinematic = false;
     };
 
     struct FmComputeMaxVertAdjacentVertsWorkspace
     {
-        FmFractureTetIdMapElement* tetIdMapElements;
-        uint maxTetIdMapElements;
-        FmComputeMaxAdjacentLocalTet* localTets;
-        uint* tetsQueue;
-        uint* componentIncidentTets;
+        FmFractureTetIdMapElement* tetIdMapElements = nullptr;
+        uint maxTetIdMapElements = 0;
+        FmComputeMaxAdjacentLocalTet* localTets = nullptr;
+        uint* tetsQueue = nullptr;
+        uint* componentIncidentTets = nullptr;
     };
 
-    void FmComputeMaxVertAdjacentVertsAfterFracture(
+    uint FmComputeMaxVertAdjacentVertsAfterFracture(
         uint* outMaxVerts,
         uint* outMaxVertAdjacentVerts,
         uint* outMaxVertIncidentTets,
@@ -408,6 +408,8 @@ namespace AMD
         *outMaxVerts = maxVerts;
         *outMaxVertAdjacentVerts = maxVertAdjacentVerts;
         *outMaxVertIncidentTets = maxVertIncidentTets;
+
+        return numTetsReached;
     }
 
     void FmComputeFractureGroupConnectivityCounts(
@@ -494,7 +496,7 @@ namespace AMD
         outFractureGroupCounts->numVertIncidentTets = maxVertIncidentTetsInComponent;
     }
 
-    void FmComputeBoundsAfterFracture(
+    uint FmComputeBoundsAfterFracture(
         uint* outMaxVerts,
         uint* outMaxVertAdjacentVerts,
         uint* outMaxExteriorFaces,
@@ -625,11 +627,13 @@ namespace AMD
         *outMaxVertAdjacentVerts = maxVertAdjacentVerts;
         *outMaxExteriorFaces = maxExteriorFaces;
         *outMaxTetMeshes = maxTetMeshes;
+
+        return numTetsReached;
     }
 
     // Compute bounds on maxVerts, maxVertAdjacentVerts, maxExteriorFaces, and maxTetMeshes assuming maximum amount of fracture allowed by the supplied tet flags.
-    // If enableFracture true, outFractureGroupCounts and outTetFractureGroupIds should be sized to the number of tets, otherwise may be NULL
-    // tetFlags expected to be an OR of FM_TET_FLAG_* values, or may be NULL signifying flags 0
+    // If enableFracture true, outFractureGroupCounts and outTetFractureGroupIds should be sized to the number of tets, otherwise may be nullptr
+    // tetFlags expected to be an OR of FM_TET_FLAG_* values, or may be nullptr signifying flags 0
     void FmComputeTetMeshBufferBounds(
         FmTetMeshBufferBounds* outBounds,
         FmFractureGroupCounts* outFractureGroups,
@@ -658,8 +662,8 @@ namespace AMD
 
         if (enableFracture)
         {
-            FM_ASSERT(outFractureGroups != NULL);
-            FM_ASSERT(outTetFractureGroupIds != NULL);
+            FM_ASSERT(outFractureGroups != nullptr);
+            FM_ASSERT(outTetFractureGroupIds != nullptr);
 
             FmComputeBoundsAfterFracture(
                 &outBounds->maxVerts,

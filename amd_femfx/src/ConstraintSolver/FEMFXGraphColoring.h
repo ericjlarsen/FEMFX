@@ -35,18 +35,14 @@ namespace AMD
     // Min/max stats used to assign colors on each iteration
     struct FmGraphColoringStats
     {
-        uint maxIdx;
-        uint minIdx;
-
-        FmGraphColoringStats() : maxIdx(FM_INVALID_ID), minIdx(FM_INVALID_ID) {}
+        uint maxIdx = FM_INVALID_ID;
+        uint minIdx = FM_INVALID_ID;
     };
 
     // Pointer to created set, part of another buffer
     struct FmGraphColoringSet
     {
-        uint* pStart;
-        uint  numElements;
-
-        FmGraphColoringSet() : pStart(NULL), numElements(0) {}
+        uint* pStart = nullptr;
+        uint  numElements = 0;
     };
 }
